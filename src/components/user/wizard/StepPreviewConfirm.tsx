@@ -17,6 +17,7 @@ interface StepPreviewConfirmProps {
   onBack: () => void;
   openaiTokens?: string[];
   printTypePrompts?: Record<string, string>;
+  openaiBaseUrl?: string;
 }
 
 export const StepPreviewConfirm: React.FC<StepPreviewConfirmProps> = ({
@@ -24,7 +25,8 @@ export const StepPreviewConfirm: React.FC<StepPreviewConfirmProps> = ({
   onConfirmOrder,
   onBack,
   openaiTokens = [],
-  printTypePrompts = {}
+  printTypePrompts = {},
+  openaiBaseUrl = 'https://api.openai.com/v1'
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [processedImg, setProcessedImg] = useState<string | null>(null);
@@ -56,13 +58,13 @@ export const StepPreviewConfirm: React.FC<StepPreviewConfirmProps> = ({
     log(`📝 نوع چاپ انتخابی: ${printType.title}`);
     log(`📝 ارسال مستقیم پرامپت ذخیره‌شده شما: "${basePrompt}"`);
 
-    // Extract valid OpenAI keys (starts with sk-)
+    // Extract valid OpenAI keys (length >= 5)
     const validTokens = openaiTokens
-      .map((t, i) => ({ key: t, index: i }))
-      .filter((t) => t.key.startsWith('sk-'));
+      .map((t, i) => ({ key: t.trim(), index: i }))
+      .filter((t) => t.key.length >= 5);
 
     if (validTokens.length === 0) {
-      log('❌ خطا: هیچ توکن معتبری برای OpenAI (شروع با sk-) در سیستم تعریف نشده است.');
+      log('❌ خطا: هیچ توکن معتبری برای OpenAI (حداقل ۵ کاراکتر) در سیستم تعریف نشده است.');
       log('💡 شبیه‌سازی خلاقانه فعال شد: در حال تولید تصویر نمونه بر اساس پرامپت اختصاصی سبک...');
       
       setTimeout(() => {
@@ -82,7 +84,7 @@ export const StepPreviewConfirm: React.FC<StepPreviewConfirmProps> = ({
     }
 
     // Direct DALL-E Image Generation using the exact configured prompt
-    log('🎨 ارسال مستقیم و بدون واسطه پرامپت شما به موتور تصویرساز OpenAI DALL-E...');
+    log('🎨 ارسال مستقیم و بدون واسطه پرامپت شما به موتور تصویرساز OpenAI...');
     let generatedUrl = '';
 
     for (let i = 0; i < validTokens.length; i++) {
@@ -90,19 +92,42 @@ export const StepPreviewConfirm: React.FC<StepPreviewConfirmProps> = ({
       log(`🔄 تلاش شماره ${i + 1}: فراخوانی API با کلید اولویت #${index + 1}...`);
 
       try {
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
+        log(`📡 اتصال به آدرس API: ${openaiBaseUrl}`);
+        // First, try DALL-E 3 (higher quality)
+        let response = await fetch(`${openaiBaseUrl}/images/generations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${key}`
           },
           body: JSON.stringify({
-            model: 'dall-e-2',
+            model: 'dall-e-3',
             prompt: basePrompt,
             n: 1,
-            size: '512x512'
+            size: '1024x1024'
           })
         });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData?.error?.message || '';
+          log(`⚠️ خطای DALL-E 3 روی کلید #${index + 1}: ${errMsg.slice(0, 60)}...`);
+          log(`🔄 در حال تلاش مجدد با مدل سبک‌تر DALL-E 2 روی همین کلید...`);
+          
+          response = await fetch(`${openaiBaseUrl}/images/generations`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${key}`
+            },
+            body: JSON.stringify({
+              model: 'dall-e-2',
+              prompt: basePrompt,
+              n: 1,
+              size: '512x512'
+            })
+          });
+        }
 
         if (response.ok) {
           const data = await response.json();
@@ -117,7 +142,7 @@ export const StepPreviewConfirm: React.FC<StepPreviewConfirmProps> = ({
           const errorMsg = errorData?.error?.message || `کد خطا: ${response.status}`;
           log(`⚠️ توکن اولویت #${index + 1} رد شد: ${errorMsg.slice(0, 80)}...`);
         }
-      } catch (err) {
+      } catch (err: any) {
         log(`⚠️ خطای شبکه برای توکن اولویت #${index + 1}. سوئیچ به کلید بعدی...`);
       }
     }

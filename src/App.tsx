@@ -87,6 +87,16 @@ export default function App() {
     ];
   });
 
+  // OpenAI Custom API Base URL state
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('studio_openai_base_url');
+      return saved || 'https://api.openai.com/v1';
+    } catch {
+      return 'https://api.openai.com/v1';
+    }
+  });
+
   // Default prompts for DALL-E image generation per print type mode
   const DEFAULT_PROMPTS: Record<string, string> = {
     personnel: 'پرتره پرسنلی رسمی و اداری، زمینه سفید یکدست، عکس ۳در۴ گذرنامه، نورپردازی آتلیه‌ای پرتره، کیفیت فوق‌العاده بالا، بدون عینک، نگاه روبرو',
@@ -108,6 +118,13 @@ export default function App() {
     setOpenaiTokens(newTokens);
     localStorage.setItem('studio_openai_tokens', JSON.stringify(newTokens));
     showToast('توکن‌های OpenAI با موفقیت ذخیره شدند.');
+  };
+
+  const handleUpdateOpenaiBaseUrl = (newUrl: string) => {
+    const sanitized = newUrl.trim().replace(/\/$/, ''); // Remove trailing slash
+    setOpenaiBaseUrl(sanitized);
+    localStorage.setItem('studio_openai_base_url', sanitized);
+    showToast('آدرس پایه API با موفقیت ذخیره شد.');
   };
 
   const handleSavePrompt = (printTypeId: string, prompt: string) => {
@@ -283,6 +300,8 @@ export default function App() {
                 <ChatGPTConnect
                   openaiTokens={openaiTokens}
                   onUpdateOpenaiTokens={handleUpdateOpenaiTokens}
+                  openaiBaseUrl={openaiBaseUrl}
+                  onUpdateOpenaiBaseUrl={handleUpdateOpenaiBaseUrl}
                 />
               )}
 
@@ -336,6 +355,7 @@ export default function App() {
                   printTypes={printTypes}
                   openaiTokens={openaiTokens}
                   printTypePrompts={printTypePrompts}
+                  openaiBaseUrl={openaiBaseUrl}
                 />
               )}
 

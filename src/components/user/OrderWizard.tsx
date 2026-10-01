@@ -23,6 +23,7 @@ interface OrderWizardProps {
   printTypes?: PrintTypeOption[];
   openaiTokens?: string[];
   printTypePrompts?: Record<string, string>;
+  openaiBaseUrl?: string;
 }
 
 export const OrderWizard: React.FC<OrderWizardProps> = ({
@@ -30,7 +31,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   onOrderCompleted,
   printTypes = PRINT_TYPES,
   openaiTokens = [],
-  printTypePrompts = {}
+  printTypePrompts = {},
+  openaiBaseUrl = 'https://api.openai.com/v1'
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
@@ -231,6 +233,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onBack={() => setCurrentStep(5)}
             openaiTokens={openaiTokens}
             printTypePrompts={printTypePrompts}
+            openaiBaseUrl={openaiBaseUrl}
           />
         )}
       </div>
