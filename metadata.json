@@ -1,0 +1,6 @@
+{
+  "name": "آتلیه دیجیتال لاله",
+  "description": "سامانه سفارش آنلاین و هوشمند چاپ عکس و آتلیه دیجیتال لاله با اتصال به ۱۰ API هوش مصنوعی",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
