@@ -37,7 +37,7 @@ export interface ApiConnection {
   description: string;
 }
 
-export type PrintTypeId = 'personnel' | 'bw_to_color' | 'memorial' | 'wedding';
+export type PrintTypeId = 'personnel' | 'bw_to_color' | 'memorial' | 'wedding' | string;
 
 export interface PrintTypeOption {
   id: PrintTypeId;
@@ -46,8 +46,9 @@ export interface PrintTypeOption {
   description: string;
   basePrice: number;
   features: string[];
-  sampleImage: string;
-  tag: string;
+  sampleImage?: string;
+  tag?: string;
+  isEnabled?: boolean;
 }
 
 export interface PrintDimension {

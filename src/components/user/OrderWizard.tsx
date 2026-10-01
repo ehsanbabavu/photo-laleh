@@ -8,7 +8,7 @@ import {
   Eye,
   CheckCircle2
 } from 'lucide-react';
-import { OrderDraft, Order, User } from '../../types';
+import { OrderDraft, Order, User, PrintTypeOption } from '../../types';
 import { StepPrintType } from './wizard/StepPrintType';
 import { StepUploadPhoto } from './wizard/StepUploadPhoto';
 import { StepDimensions } from './wizard/StepDimensions';
@@ -20,9 +20,18 @@ import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockD
 interface OrderWizardProps {
   user: User;
   onOrderCompleted: (newOrder: Order) => void;
+  printTypes?: PrintTypeOption[];
+  openaiTokens?: string[];
+  printTypePrompts?: Record<string, string>;
 }
 
-export const OrderWizard: React.FC<OrderWizardProps> = ({ user, onOrderCompleted }) => {
+export const OrderWizard: React.FC<OrderWizardProps> = ({
+  user,
+  onOrderCompleted,
+  printTypes = PRINT_TYPES,
+  openaiTokens = [],
+  printTypePrompts = {}
+}) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Initial order draft state (no photo by default)
@@ -173,6 +182,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({ user, onOrderCompleted
             draft={draft}
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(2)}
+            printTypes={printTypes}
           />
         )}
 
@@ -182,6 +192,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({ user, onOrderCompleted
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(3)}
             onBack={() => setCurrentStep(1)}
+            openaiTokens={openaiTokens}
+            printTypePrompts={printTypePrompts}
           />
         )}
 
@@ -217,6 +229,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({ user, onOrderCompleted
             draft={draft}
             onConfirmOrder={handleFinalOrder}
             onBack={() => setCurrentStep(5)}
+            openaiTokens={openaiTokens}
+            printTypePrompts={printTypePrompts}
           />
         )}
       </div>

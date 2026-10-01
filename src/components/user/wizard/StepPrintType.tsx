@@ -4,7 +4,7 @@ import {
   ChevronDown,
   ChevronLeft
 } from 'lucide-react';
-import { OrderDraft, PrintTypeId } from '../../../types';
+import { OrderDraft, PrintTypeId, PrintTypeOption } from '../../../types';
 import { PRINT_TYPES } from '../../../data/mockData';
 import { formatPrice } from '../../../utils/formatters';
 
@@ -12,9 +12,15 @@ interface StepPrintTypeProps {
   draft: OrderDraft;
   onUpdateDraft: (updated: Partial<OrderDraft>) => void;
   onNext: () => void;
+  printTypes?: PrintTypeOption[];
 }
 
-export const StepPrintType: React.FC<StepPrintTypeProps> = ({ draft, onUpdateDraft, onNext }) => {
+export const StepPrintType: React.FC<StepPrintTypeProps> = ({
+  draft,
+  onUpdateDraft,
+  onNext,
+  printTypes = PRINT_TYPES
+}) => {
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
@@ -30,11 +36,14 @@ export const StepPrintType: React.FC<StepPrintTypeProps> = ({ draft, onUpdateDra
     });
   };
 
+  const itemsToRender = (printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES)
+    .filter((item) => item.isEnabled !== false);
+
   return (
     <div className="space-y-5">
-      {/* 4 Required Print Types Grid */}
+      {/* Dynamic Print Types Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
-        {PRINT_TYPES.map((item) => {
+        {itemsToRender.map((item) => {
           const isSelected = draft.printType === item.id;
           return (
             <div

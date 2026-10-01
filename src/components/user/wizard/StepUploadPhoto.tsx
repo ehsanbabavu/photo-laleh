@@ -17,6 +17,8 @@ interface StepUploadPhotoProps {
   onUpdateDraft: (updated: Partial<OrderDraft>) => void;
   onNext: () => void;
   onBack: () => void;
+  openaiTokens?: string[];
+  printTypePrompts?: Record<string, string>;
 }
 
 export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({

@@ -4,6 +4,7 @@ import {
   BotMessageSquare,
   Network,
   Printer,
+  Palette,
   LogOut,
   ExternalLink,
   ChevronLeft,
@@ -12,7 +13,7 @@ import {
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
 
-export type AdminTab = 'dashboard' | 'chatgpt' | 'apis' | 'orders';
+export type AdminTab = 'dashboard' | 'chatgpt' | 'apis' | 'orders' | 'print_types' | 'prompts_manager';
 
 interface AdminSidebarProps {
   currentTab: AdminTab;
@@ -22,6 +23,7 @@ interface AdminSidebarProps {
   onSwitchToUserView: () => void;
   activeApisCount: number;
   totalOrdersCount: number;
+  printTypesCount?: number;
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
@@ -31,7 +33,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onLogout,
   onSwitchToUserView,
   activeApisCount,
-  totalOrdersCount
+  totalOrdersCount,
+  printTypesCount = 4
 }) => {
   const menuItems = [
     {
@@ -39,6 +42,20 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       label: 'پیشخوان مدیریت',
       icon: LayoutDashboard,
       badge: null
+    },
+    {
+      id: 'print_types' as AdminTab,
+      label: 'مدیریت انواع چاپ',
+      icon: Palette,
+      badge: `${printTypesCount} خدمت`,
+      badgeColor: 'text-indigo-700 bg-indigo-50 border border-indigo-200'
+    },
+    {
+      id: 'orders' as AdminTab,
+      label: 'سفارشات چاپ عکس',
+      icon: Printer,
+      badge: `${totalOrdersCount}`,
+      badgeColor: 'text-teal-700 bg-teal-100 border border-teal-200'
     },
     {
       id: 'chatgpt' as AdminTab,
@@ -53,13 +70,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: Network,
       badge: `${activeApisCount}/10`,
       badgeColor: 'text-sky-700 bg-sky-100 border border-sky-200'
-    },
-    {
-      id: 'orders' as AdminTab,
-      label: 'سفارشات چاپ عکس',
-      icon: Printer,
-      badge: `${totalOrdersCount}`,
-      badgeColor: 'text-teal-700 bg-teal-100 border border-teal-200'
     }
   ];
 
