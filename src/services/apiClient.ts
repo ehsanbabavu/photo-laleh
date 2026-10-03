@@ -16,6 +16,16 @@ export const apiClient = {
     }
   },
 
+  async getOrders(): Promise<Order[] | null> {
+    try {
+      const res = await fetch('/api/orders');
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
   async syncOrders(orders: Order[]) {
     try {
       await fetch('/api/db/sync', {

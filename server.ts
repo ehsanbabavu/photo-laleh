@@ -128,7 +128,7 @@ const INITIAL_DB = {
   orders: [
     {
       id: 'ord-sample-01',
-      trackingCode: 'NG-74920',
+      trackingCode: 'Laleh-74920',
       userId: 'u-sara',
       userName: 'سارا رضایی',
       date: '۱۴۰۵/۰۱/۱۲',
@@ -469,6 +469,102 @@ app.post('/api/settings', (req, res) => {
   res.json({ success: true, settings: db.settings });
 });
 
+// Unified Telegram Callback Query Handler
+async function handleTelegramCallbackQuery(cb: any, token: string) {
+  if (!cb || !token) return;
+  const data = cb.data || '';
+
+  if (data.startsWith('mark_ready:')) {
+    const orderIdOrCode = data.replace('mark_ready:', '');
+    const db = readDb();
+    const orders = db.orders || [];
+
+    const targetOrderIndex = orders.findIndex(
+      (o: any) => o.id === orderIdOrCode || o.trackingCode === orderIdOrCode
+    );
+
+    if (targetOrderIndex >= 0) {
+      orders[targetOrderIndex].status = 'ready_to_ship';
+      const messagesToDelete = orders[targetOrderIndex].sentMessageIds || [];
+      
+      // Update DB to clear tracking only
+      orders[targetOrderIndex].sentMessageIds = [];
+      db.orders = orders;
+      writeDb(db);
+
+      // 1. Popup alert
+      await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: cb.id, text: `وضعیت ${orders[targetOrderIndex].trackingCode} به «آماده ارسال» تغییر یافت ✅`, show_alert: true })
+      });
+
+      // 2. Edit message text with automatic deletion countdown
+      if (cb.message && cb.message.chat && cb.message.message_id) {
+        await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: cb.message.chat.id,
+            message_id: cb.message.message_id,
+            text: `⏳ با تشکر از شما فایل‌های چاپ تا ۱۰ ثانیه دیگر حذف خواهند شد.`,
+            parse_mode: 'Markdown'
+          })
+        });
+
+        // 3. Schedule deletion of ALL tracked messages
+        setTimeout(async () => {
+          for (const msgId of messagesToDelete) {
+            try {
+              await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: cb.message.chat.id, message_id: msgId })
+              });
+            } catch (e) {
+              console.error(`Error deleting message ${msgId}:`, e);
+            }
+          }
+        }, 10000);
+      }
+    }
+  } else if (data.startsWith('delete_files:')) {
+    // This branch is now deprecated in favor of automatic cleanup
+  }
+}
+
+let lastTelegramUpdateId = 0;
+async function pollTelegramUpdates() {
+  try {
+    const db = readDb();
+    const token = db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) return;
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${lastTelegramUpdateId + 1}&timeout=1`);
+    if (!res.ok) {
+      const errJson: any = await res.json().catch(() => ({}));
+      if (errJson.error_code === 409) {
+        await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`);
+      }
+      return;
+    }
+
+    const data = await res.json();
+    if (data.ok && Array.isArray(data.result)) {
+      for (const update of data.result) {
+        lastTelegramUpdateId = Math.max(lastTelegramUpdateId, update.update_id);
+        if (update.callback_query) {
+          await handleTelegramCallbackQuery(update.callback_query, token);
+        }
+      }
+    }
+  } catch (err) {
+    // Ignore polling errors
+  }
+}
+
+setInterval(pollTelegramUpdates, 2000);
+
 // Telegram Send Order API
 app.post('/api/telegram/send-order', async (req, res) => {
   try {
@@ -477,11 +573,27 @@ app.post('/api/telegram/send-order', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing parameters' });
     }
 
+    // Always update settings so polling has the latest botToken
+    const dbSettings = readDb();
+    dbSettings.settings = { ...(dbSettings.settings || {}), telegramToken: botToken, telegramChatId: chatId };
+    writeDb(dbSettings);
+
+    const sentMessageIds: number[] = [];
+
+    const timeFa = new Date().toLocaleString('fa-IR', {
+      timeZone: 'Asia/Tehran',
+      hour: '2-digit',
+      minute: '2-digit',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+
     async function sendDocumentFromDataUrl(dataUrl: string, caption: string, filename: string) {
-      if (!dataUrl) return;
+      if (!dataUrl) return null;
       try {
         const parts = dataUrl.split(';base64,');
-        if (parts.length < 2) return;
+        if (parts.length < 2) return null;
         const contentType = parts[0].split(':')[1] || 'image/jpeg';
         const raw = Buffer.from(parts[1], 'base64');
         const blob = new Blob([raw], { type: contentType });
@@ -491,32 +603,85 @@ app.post('/api/telegram/send-order', async (req, res) => {
         form.append('caption', caption);
         form.append('document', blob, filename);
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
           method: 'POST',
           body: form
         });
+        const result = await response.json();
+        return result.ok ? result.result.message_id : null;
       } catch (err) {
         console.error('Error sending document to telegram:', err);
+        return null;
       }
     }
 
-    // 1. Send 9-pack sheet image as document
+    // 1. Send 9-pack sheet image
     if (order.printSheetImage) {
-      const captionSheet = `🎴 شیت ۹تایی چاپ\n📌 شماره سفارش: ${order.trackingCode}\n📐 اندازه: ${dimensionTitle || order.dimensionId}\n🔢 تعداد: ${order.quantity || 1} سری`;
-      await sendDocumentFromDataUrl(order.printSheetImage, captionSheet, `sheet-9pack-${order.trackingCode}.jpg`);
+      let sheetCountText = `${order.quantity || 1} سری`;
+      if (order.dimensionId === 'personnel_12x3x4') {
+        sheetCountText = `${2 * (order.quantity || 1)} سری`;
+      }
+      const captionSheet = `🎴 شیت ۹تایی چاپ\n📌 شماره سفارش: ${order.trackingCode}\n📐 اندازه: 10*15\n🔢 تعداد: ${sheetCountText}\n📅 ثبت: ${timeFa}`;
+      const msgId = await sendDocumentFromDataUrl(order.printSheetImage, captionSheet, `sheet-9pack-${order.trackingCode}.jpg`);
+      if (msgId) sentMessageIds.push(msgId);
     }
 
-    // 2. Send commercial promotional image as document
+    // 2. Send commercial promotional image
     const commercialImg = order.commercialSheet10x15Image || order.commercialImage;
     if (commercialImg) {
-      const captionComm = `🎨 عکس تبلیغاتی ۱۰×۱۵\n📌 شماره سفارش: ${order.trackingCode}\n📐 اندازه: ${dimensionTitle || order.dimensionId}\n🔢 تعداد: ${order.quantity || 1} سری`;
-      await sendDocumentFromDataUrl(commercialImg, captionComm, `commercial-10x15-${order.trackingCode}.jpg`);
+      const captionComm = `🎨 عکس تبلیغاتی ۱۰×۱۵\n📌 شماره سفارش: ${order.trackingCode}\n📐 اندازه: 10*15\n🔢 تعداد: ${order.quantity || 1} سری\n📅 ثبت: ${timeFa}`;
+      const msgId = await sendDocumentFromDataUrl(commercialImg, captionComm, `commercial-10x15-${order.trackingCode}.jpg`);
+      if (msgId) sentMessageIds.push(msgId);
+    }
+
+    // 3. Send inquiry message
+    try {
+      const confirmMsg = `آیا سفارش ${order.trackingCode} چاپ شده است؟`;
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: confirmMsg,
+          reply_markup: {
+            inline_keyboard: [[{ text: 'بله، چاپ شد (تغییر به آماده ارسال) ✅', callback_data: `mark_ready:${order.id}` }]]
+          }
+        })
+      });
+      const resData = await res.json();
+      if (resData.ok) sentMessageIds.push(resData.result.message_id);
+    } catch (err) {
+      console.error('Error sending confirmation message:', err);
+    }
+    
+    // Save sent message IDs to DB
+    const db = readDb();
+    const orderIdx = db.orders.findIndex((o: any) => o.id === order.id);
+    if (orderIdx >= 0) {
+      db.orders[orderIdx].sentMessageIds = sentMessageIds;
+      writeDb(db);
     }
 
     res.json({ success: true });
   } catch (err: any) {
     console.error('Telegram send order error:', err);
     res.status(500).json({ success: false, error: err.message || 'Server error' });
+  }
+});
+
+// Telegram Webhook Handler for Inline Buttons & Callbacks
+app.post('/api/telegram/webhook', async (req, res) => {
+  try {
+    const update = req.body;
+    if (update && update.callback_query) {
+      const db = readDb();
+      const token = db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
+      await handleTelegramCallbackQuery(update.callback_query, token);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Telegram webhook error:', err);
+    res.json({ ok: true });
   }
 });
 

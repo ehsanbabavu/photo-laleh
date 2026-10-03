@@ -96,6 +96,7 @@ export interface Order extends OrderDraft {
   commercialImage?: string;
   commercialPromptUsed?: string;
   commercialSheet10x15Image?: string;
+  sentMessageIds?: number[]; // To track messages for deletion
 }
 
 export type TicketCategory =

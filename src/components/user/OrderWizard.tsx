@@ -120,7 +120,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     const newOrder: Order = {
       ...draft,
       id: 'ord-' + Date.now(),
-      trackingCode: 'NG-' + Math.floor(10000 + Math.random() * 90000),
+      trackingCode: 'Laleh-' + Math.floor(10000 + Math.random() * 90000),
       userId: user.id,
       userName: draft.customerInfo.fullName || user.name,
       date: new Date().toLocaleDateString('fa-IR'),

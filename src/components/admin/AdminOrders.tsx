@@ -109,6 +109,30 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
     setTimeout(() => setSuccessToast(null), 3500);
   };
 
+  const handleMarkAsReadyToShip = (order: Order) => {
+    onUpdateOrderStatus(order.id, 'ready_to_ship');
+    setSelectedOrder((prev) => (prev ? { ...prev, status: 'ready_to_ship' } : null));
+    showToast(`سفارش ${order.trackingCode} به وضعیت «آماده ارسال» تغییر یافت.`);
+  };
+
+  const PrintedGlassButton = ({ order }: { order: Order }) => {
+    const isReady = order.status === 'ready_to_ship' || order.status === 'delivered';
+    return (
+      <button
+        type="button"
+        onClick={() => handleMarkAsReadyToShip(order)}
+        className={`absolute bottom-4 left-4 z-20 px-4 py-2.5 rounded-2xl backdrop-blur-md border shadow-xl font-extrabold text-xs transition-all cursor-pointer flex items-center gap-2 ${
+          isReady
+            ? 'bg-emerald-600/90 text-white border-emerald-400/50 shadow-emerald-500/20'
+            : 'bg-white/80 dark:bg-slate-900/80 text-slate-900 dark:text-white border-white/60 hover:bg-white hover:scale-105'
+        }`}
+      >
+        <CheckCircle2 className={`w-4 h-4 ${isReady ? 'text-white' : 'text-emerald-600'}`} />
+        <span>{isReady ? 'چاپ شد (آماده ارسال) ✓' : 'چاپ شد'}</span>
+      </button>
+    );
+  };
+
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -569,12 +593,13 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         </button>
                       </div>
 
-                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 flex items-center justify-center">
+                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 relative flex items-center justify-center">
                         <img
                           src={selectedOrder.printSheetImage}
                           alt="شیت ۹ تایی"
                           className="max-h-[420px] w-auto object-contain rounded-lg shadow-md border border-white"
                         />
+                        <PrintedGlassButton order={selectedOrder} />
                       </div>
 
                       {/* Mobile-only download button under the photo */}
@@ -641,12 +666,13 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         </button>
                       </div>
 
-                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 flex items-center justify-center">
+                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 relative flex items-center justify-center">
                         <img
                           src={selectedOrder.aiProcessedImage}
                           alt="خروجی AI"
                           className="max-h-[380px] w-auto object-contain rounded-lg shadow-md border border-white"
                         />
+                        <PrintedGlassButton order={selectedOrder} />
                       </div>
 
                       {/* Mobile-only download button under the photo */}
@@ -698,12 +724,13 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         </button>
                       </div>
 
-                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 flex items-center justify-center">
+                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 relative flex items-center justify-center">
                         <img
                           src={selectedOrder.commercialSheet10x15Image || selectedOrder.commercialImage}
                           alt="عکس تبلیغاتی ۱۰×۱۵"
                           className="max-h-[420px] w-auto object-contain rounded-lg shadow-md border border-white"
                         />
+                        <PrintedGlassButton order={selectedOrder} />
                       </div>
 
                       {/* Mobile-only download button under the photo */}
@@ -757,12 +784,13 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         </button>
                       </div>
 
-                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 flex items-center justify-center">
+                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 relative flex items-center justify-center">
                         <img
                           src={selectedOrder.uploadedImage}
                           alt="عکس اصلی"
                           className="max-h-[380px] w-auto object-contain rounded-lg shadow-md border border-white"
                         />
+                        <PrintedGlassButton order={selectedOrder} />
                       </div>
 
                       {/* Mobile-only download button under the photo */}

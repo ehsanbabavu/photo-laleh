@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Order, PrintTypeOption, SupportTicket, Announcement } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
@@ -248,6 +248,24 @@ export default function App() {
       }
     }
     loadBackendData();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const backendOrders = await apiClient.getOrders();
+        if (Array.isArray(backendOrders) && backendOrders.length > 0) {
+          setOrders((prev) => {
+            const isDifferent = backendOrders.some((bo) => {
+              const po = prev.find((p) => p.id === bo.id);
+              return !po || po.status !== bo.status;
+            });
+            return isDifferent ? backendOrders : prev;
+          });
+        }
+      } catch (e) {}
+    }, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleUpdateAvalaiApiKey = (newKey: string) => {
