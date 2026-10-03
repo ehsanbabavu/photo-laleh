@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Palette,
   Upload,
@@ -20,19 +20,23 @@ import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockD
 interface OrderWizardProps {
   user: User;
   onOrderCompleted: (newOrder: Order) => void;
+  onUserUpdate?: (updatedUser: User) => void;
   printTypes?: PrintTypeOption[];
-  openaiTokens?: string[];
+  avalaiApiKey?: string;
   printTypePrompts?: Record<string, string>;
-  openaiBaseUrl?: string;
+  avalaiBaseUrl?: string;
+  avalaiModel?: string;
 }
 
 export const OrderWizard: React.FC<OrderWizardProps> = ({
   user,
   onOrderCompleted,
+  onUserUpdate,
   printTypes = PRINT_TYPES,
-  openaiTokens = [],
+  avalaiApiKey = '',
   printTypePrompts = {},
-  openaiBaseUrl = 'https://api.openai.com/v1'
+  avalaiBaseUrl = 'https://api.avalai.ir/v1',
+  avalaiModel = 'gpt-image-2.5-sunburst'
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
@@ -80,8 +84,14 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     { number: 6, title: 'پیش‌نمایش و تایید', icon: Eye, short: 'تایید' }
   ];
 
+  const isSubmittingRef = useRef(false);
+
   const handleFinalOrder = () => {
-    const printTypeObj = PRINT_TYPES.find((t) => t.id === draft.printType) || PRINT_TYPES[0];
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
+    const activeTypes = printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
+    const printTypeObj = activeTypes.find((t) => t.id === draft.printType) || activeTypes[0];
     const dimensionObj = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
     const materialObj = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
@@ -89,7 +99,23 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
     const subtotal = (unitBase + unitExtras) * draft.quantity;
     const shipping = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-    const total = Math.max(0, subtotal + shipping - draft.discountAmount);
+    const walletCredit = draft.walletCreditUsed || 0;
+    const total = Math.max(0, subtotal + shipping - draft.discountAmount - walletCredit);
+
+    // Deduct wallet credit from user's wallet balance and set hasUsedFirstOrderGift
+    if (walletCredit > 0 && user) {
+      const remainingBalance = Math.max(0, (user.walletBalance ?? 100000) - walletCredit);
+      const updatedUser: User = {
+        ...user,
+        walletBalance: remainingBalance,
+        hasUsedFirstOrderGift: true
+      };
+      onUserUpdate?.(updatedUser);
+    }
+
+    const promptToUse =
+      printTypePrompts[draft.printType] ||
+      'یک پرتره باکیفیت و رتوش شده آتلیه؛ پرتره رسمی کیفیت عالی';
 
     const newOrder: Order = {
       ...draft,
@@ -98,33 +124,21 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       userId: user.id,
       userName: draft.customerInfo.fullName || user.name,
       date: new Date().toLocaleDateString('fa-IR'),
-      status: 'printing',
+      status: 'ai_processing',
+      aiStatus: 'processing',
+      aiPromptUsed: promptToUse,
       totalPrice: total,
+      walletCreditUsed: walletCredit,
       paymentStatus: 'paid'
     };
 
     onOrderCompleted(newOrder);
   };
 
-  const currentStepObj = steps.find((s) => s.number === currentStep) || steps[0];
-
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Step Stepper Progress Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-xs">
-        {/* Mobile current step indicator */}
-        <div className="flex sm:hidden items-center justify-between mb-3 pb-2.5 border-b border-slate-100 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded-md bg-gradient-to-r from-sky-500 to-emerald-500 text-white font-bold font-mono text-[11px] flex items-center justify-center shadow-xs">
-              {currentStep}
-            </span>
-            <span className="font-bold text-slate-900">مرحله {currentStep} از {steps.length}: {currentStepObj.title}</span>
-          </div>
-          <span className="text-[11px] text-sky-700 font-mono font-bold">
-            {Math.round((currentStep / steps.length) * 100)}٪
-          </span>
-        </div>
-
         {/* Stepper circles */}
         <div className="flex items-center justify-between relative gap-1 sm:gap-2">
           {steps.map((s) => {
@@ -194,8 +208,6 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(3)}
             onBack={() => setCurrentStep(1)}
-            openaiTokens={openaiTokens}
-            printTypePrompts={printTypePrompts}
           />
         )}
 
@@ -214,6 +226,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(5)}
             onBack={() => setCurrentStep(3)}
+            printTypes={printTypes}
+            user={user}
           />
         )}
 
@@ -223,6 +237,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(6)}
             onBack={() => setCurrentStep(4)}
+            printTypes={printTypes}
+            user={user}
           />
         )}
 
@@ -231,9 +247,10 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             draft={draft}
             onConfirmOrder={handleFinalOrder}
             onBack={() => setCurrentStep(5)}
-            openaiTokens={openaiTokens}
+            avalaiApiKey={avalaiApiKey}
             printTypePrompts={printTypePrompts}
-            openaiBaseUrl={openaiBaseUrl}
+            avalaiBaseUrl={avalaiBaseUrl}
+            avalaiModel={avalaiModel}
           />
         )}
       </div>

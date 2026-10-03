@@ -9,7 +9,7 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
-import { OrderDraft } from '../../../types';
+import { OrderDraft, PrintTypeOption, User } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../../data/mockData';
 import { formatPrice } from '../../../utils/formatters';
 
@@ -18,13 +18,17 @@ interface StepPaymentProps {
   onUpdateDraft: (updated: Partial<OrderDraft>) => void;
   onNext: () => void;
   onBack: () => void;
+  printTypes?: PrintTypeOption[];
+  user?: User;
 }
 
 export const StepPayment: React.FC<StepPaymentProps> = ({
   draft,
   onUpdateDraft,
   onNext,
-  onBack
+  onBack,
+  printTypes,
+  user
 }) => {
   const [selectedMethod, setSelectedMethod] = useState<'online' | 'card_to_card'>('online');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -40,7 +44,20 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const [otpSent, setOtpSent] = useState(false);
   const [timer, setTimer] = useState(120);
 
-  const printType = PRINT_TYPES.find((t) => t.id === draft.printType) || PRINT_TYPES[0];
+  // Dynamically resolve printType from props, localStorage database, or fallback
+  const activePrintTypes: PrintTypeOption[] = (() => {
+    if (printTypes && printTypes.length > 0) return printTypes;
+    try {
+      const saved = localStorage.getItem('studio_print_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return PRINT_TYPES;
+  })();
+
+  const printType = activePrintTypes.find((t) => t.id === draft.printType) || activePrintTypes[0];
   const dimension = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
   const material = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
@@ -48,7 +65,8 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
   const shippingCost = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-  const finalTotal = Math.max(0, subtotal + shippingCost - draft.discountAmount);
+  const walletCredit = draft.walletCreditUsed || 0;
+  const finalTotal = Math.max(0, subtotal + shippingCost - draft.discountAmount - walletCredit);
 
   useEffect(() => {
     let interval: any;
@@ -142,11 +160,19 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
             </div>
 
             {/* Total Due Card */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-1.5 text-xs shadow-xs">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2 text-xs shadow-xs">
               <span className="text-slate-500 block text-[11px] font-medium">مبلغ نهایی قابل پرداخت:</span>
               <p className="text-lg sm:text-xl font-black text-sky-700 font-mono">
                 {formatPrice(finalTotal)}
               </p>
+
+              {walletCredit > 0 && (
+                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold flex items-center justify-between">
+                  <span>🎁 کسر هدیه کیف پول:</span>
+                  <span className="font-mono text-emerald-700 font-black">- {formatPrice(walletCredit)}</span>
+                </div>
+              )}
+
               <div className="pt-2 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-600 flex items-center gap-1.5 font-medium">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                 <span>دارای مجوز رسمی و نماد اعتماد پرداخت</span>
@@ -312,7 +338,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
           <button
             type="button"
             onClick={onNext}
-            className="w-full bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-98 text-white font-black py-3.5 px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-sky-500/25 cursor-pointer flex items-center justify-center gap-2 min-h-[44px]"
+            className="w-full sm:w-44 mx-auto h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
           >
             <span>مرحله بعد</span>
             <ChevronLeft className="w-4 h-4" />
@@ -322,11 +348,11 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
 
       {/* Back button if not yet paid */}
       {!isPaid && (
-        <div className="flex justify-start pt-1">
+        <div className="flex justify-start pt-3">
           <button
             type="button"
             onClick={onBack}
-            className="bg-white hover:bg-slate-100 active:scale-98 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer min-h-[40px] border border-slate-200 flex items-center gap-1.5"
+            className="w-full sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
           >
             <ChevronRight className="w-4 h-4" />
             <span>مرحله قبل</span>

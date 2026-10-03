@@ -2,39 +2,14 @@ export interface User {
   id: string;
   name: string;
   username: string;
+  password?: string;
   email?: string;
   phone?: string;
   role: 'admin' | 'user';
   avatar?: string;
   createdAt: string;
-}
-
-export type ApiProvider = 
-  | 'OpenAI (ChatGPT)'
-  | 'Gemini AI'
-  | 'Colorize AI'
-  | 'Upscale Restoration'
-  | 'Background Remover'
-  | 'Stability AI'
-  | 'Claude AI'
-  | 'SMS Gateway'
-  | 'Shaparak Pay'
-  | 'Custom Webhook';
-
-export interface ApiConnection {
-  id: number; // 1 to 10
-  name: string;
-  provider: ApiProvider;
-  endpoint: string;
-  apiKey: string;
-  model: string;
-  status: 'connected' | 'disconnected' | 'testing' | 'error';
-  lastPing?: string;
-  requestsCount: number;
-  quotaLimit: number;
-  latencyMs?: number;
-  isEnabled: boolean;
-  description: string;
+  walletBalance?: number; // In Tomans (تومان)
+  hasUsedFirstOrderGift?: boolean;
 }
 
 export type PrintTypeId = 'personnel' | 'bw_to_color' | 'memorial' | 'wedding' | string;
@@ -98,6 +73,7 @@ export interface OrderDraft {
   };
   discountCode?: string;
   discountAmount: number;
+  walletCreditUsed?: number; // 100,000 Tomans gift deduction from first invoice
   paymentMethod: 'online' | 'card_to_card' | 'wallet';
   paymentReference?: string;
 }
@@ -111,4 +87,57 @@ export interface Order extends OrderDraft {
   status: 'pending_review' | 'ai_processing' | 'printing' | 'ready_to_ship' | 'delivered';
   totalPrice: number;
   paymentStatus: 'paid' | 'pending';
+  aiProcessedImage?: string;
+  aiPromptUsed?: string;
+  aiStatus?: 'pending' | 'in_queue' | 'processing' | 'completed' | 'failed';
+  aiCompletedAt?: string;
+  printSheetImage?: string;
+  printSheetCreatedAt?: string;
+}
+
+export type TicketCategory =
+  | 'order_tracking'
+  | 'print_quality'
+  | 'delivery_address'
+  | 'invoice_payment'
+  | 'custom_retouch'
+  | 'general';
+
+export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TicketStatus = 'open' | 'in_progress' | 'answered' | 'closed';
+
+export interface TicketMessage {
+  id: string;
+  sender: 'user' | 'support';
+  senderName: string;
+  message: string;
+  createdAt: string;
+  attachments?: string[];
+}
+
+export interface SupportTicket {
+  id: string;
+  trackingNumber: string;
+  userId: string;
+  userName: string;
+  userPhone?: string;
+  subject: string;
+  category: TicketCategory;
+  orderId?: string;
+  orderTrackingCode?: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  createdAt: string;
+  updatedAt: string;
+  messages: TicketMessage[];
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  priority?: 'normal' | 'important' | 'urgent';
+  createdAt: string;
+  isActive: boolean;
+  readBy?: string[];
 }

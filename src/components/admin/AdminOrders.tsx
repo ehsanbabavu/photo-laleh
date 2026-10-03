@@ -5,20 +5,49 @@ import {
   MapPin,
   Phone,
   Eye,
-  X
+  X,
+  Trash2,
+  LayoutGrid,
+  Download,
+  Sparkles,
+  CheckCircle2,
+  FileImage,
+  RefreshCw,
+  Info
 } from 'lucide-react';
 import { Order } from '../../types';
 import { formatPrice, getStatusBadge } from '../../utils/formatters';
+import { generateNinePackSheet, downloadImage } from '../../utils/sheetGenerator';
+import { QueueStateInfo } from '../../utils/aiQueueManager';
 
 interface AdminOrdersProps {
   orders: Order[];
+  queueInfo?: QueueStateInfo;
   onUpdateOrderStatus: (orderId: string, newStatus: Order['status']) => void;
+  onUpdateOrder?: (updatedOrder: Order) => void;
+  onDeleteOrder?: (orderId: string) => void;
+  onClearAllOrders?: () => void;
 }
 
-export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderStatus }) => {
+export const AdminOrders: React.FC<AdminOrdersProps> = ({
+  orders,
+  queueInfo,
+  onUpdateOrderStatus,
+  onUpdateOrder,
+  onDeleteOrder,
+  onClearAllOrders
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [generatingSheetId, setGeneratingSheetId] = useState<string | null>(null);
+  const [activeImageTab, setActiveImageTab] = useState<'sheet' | 'ai' | 'original'>('sheet');
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 3500);
+  };
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
@@ -30,28 +59,148 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
     return matchesSearch && order.status === statusFilter;
   });
 
+  // Handle generating 9-pack sheet without AI using HTML5 Canvas
+  const handleGenerateSheet = async (order: Order) => {
+    const imageSource = order.aiProcessedImage || order.uploadedImage;
+    if (!imageSource) {
+      alert('تصویری برای چیدمان در شیت یافت نشد.');
+      return;
+    }
+
+    try {
+      setGeneratingSheetId(order.id);
+      const sheetDataUrl = await generateNinePackSheet(imageSource, {
+        paperSize: '10x15'
+      });
+
+      const updated: Order = {
+        ...order,
+        printSheetImage: sheetDataUrl,
+        printSheetCreatedAt: new Intl.DateTimeFormat('fa-IR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(new Date())
+      };
+
+      if (onUpdateOrder) {
+        onUpdateOrder(updated);
+      }
+
+      if (selectedOrder && selectedOrder.id === order.id) {
+        setSelectedOrder(updated);
+      }
+
+      showToast(`شیت ۹ تایی عمودی سفارش #${order.trackingCode} با کیفیت ۳۰۰ DPI ایجاد گردید.`);
+    } catch (err) {
+      console.error('Error generating sheet:', err);
+      alert('خطا در ایجاد شیت چاپی. لطفاً مجدداً تلاش نمایید.');
+    } finally {
+      setGeneratingSheetId(null);
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-sky-600 via-teal-600 to-emerald-600 rounded-2xl sm:rounded-3xl p-4 sm:p-7 text-white shadow-lg shadow-sky-600/15">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/15 border border-white/20 text-white flex items-center justify-center flex-shrink-0 backdrop-blur-xs">
-              <Printer className="w-6 h-6 sm:w-7 sm:h-7" />
+      {/* Toast Notification */}
+      {successToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2 border border-slate-700 animate-fadeIn text-xs font-bold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{successToast}</span>
+        </div>
+      )}
+
+      {/* AI Queue & Rate-Limit Cooldown Banner */}
+      {queueInfo && (
+        <div className={`border rounded-2xl p-4 sm:p-5 space-y-3 shadow-xs transition-all ${
+          queueInfo.isProcessing
+            ? 'bg-sky-500/10 border-sky-300/80'
+            : queueInfo.cooldownRemainingSeconds > 0
+            ? 'bg-amber-500/10 border-amber-300/80'
+            : 'bg-emerald-500/5 border-emerald-200/80'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  queueInfo.isProcessing
+                    ? 'bg-sky-400'
+                    : queueInfo.cooldownRemainingSeconds > 0
+                    ? 'bg-amber-400'
+                    : 'bg-emerald-400'
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${
+                  queueInfo.isProcessing
+                    ? 'bg-sky-500'
+                    : queueInfo.cooldownRemainingSeconds > 0
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+                }`}></span>
+              </span>
+              <h3 className="text-xs sm:text-sm font-black text-slate-900">
+                وضعیت زنده صف پردازش هوش مصنوعی (Queue Monitor)
+              </h3>
             </div>
-            <div>
-              <h1 className="text-base sm:text-xl lg:text-2xl font-black text-white">مدیریت سفارشات چاپ و آتلیه</h1>
-              <p className="text-xs sm:text-sm text-sky-100 mt-0.5 leading-relaxed">
-                بررسی فایل‌های ارسالی کاربران و تایید خروجی لابراتوار
-              </p>
+
+            <div className="flex items-center gap-2">
+              {queueInfo.isProcessing ? (
+                <span className="px-2.5 py-1 rounded-xl bg-sky-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-2xs">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>در حال پردازش سفارش #{queueInfo.currentOrderTrackingCode}</span>
+                </span>
+              ) : queueInfo.cooldownRemainingSeconds > 0 ? (
+                <span className="px-2.5 py-1 rounded-xl bg-amber-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-2xs animate-pulse">
+                  <span>⏳ فاصله امن هوش مصنوعی: {queueInfo.cooldownRemainingSeconds} ثانیه دیگر</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-300">
+                  🟢 صف آماده دریافت سفارشات
+                </span>
+              )}
+
+              <span className="px-2.5 py-1 rounded-xl bg-white text-slate-700 text-[11px] font-bold border border-slate-200 shadow-2xs">
+                در انتظار در صف: {queueInfo.pendingCount} سفارش
+              </span>
             </div>
           </div>
 
-          <div className="px-3.5 py-1.5 rounded-xl bg-white/15 border border-white/20 text-white text-xs font-mono self-start sm:self-auto backdrop-blur-xs font-bold">
-            کل سفارشات: {orders.length}
-          </div>
+          {/* Queue Items List */}
+          {queueInfo.queueList.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs pt-1">
+              <span className="text-slate-600 font-bold">نوبت‌های بعدی در صف:</span>
+              {queueInfo.queueList.map((item, idx) => (
+                <div
+                  key={item.orderId}
+                  className="bg-white px-2.5 py-1 rounded-xl border border-slate-200 text-slate-700 font-medium flex items-center gap-1.5 shadow-2xs"
+                >
+                  <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black flex items-center justify-center font-mono">
+                    {idx + 1}
+                  </span>
+                  <span className="font-bold">{item.userName}</span>
+                  <span className="font-mono text-sky-600 text-[11px]">#{item.trackingCode}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {queueInfo.cooldownRemainingSeconds > 0 && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px] text-amber-800 font-bold">
+                <span>فاصله زمانی ۱ دقیقه بین سفارش‌ها جهت عدم دریافت ارور از هوش مصنوعی</span>
+                <span>{queueInfo.cooldownRemainingSeconds} ثانیه</span>
+              </div>
+              <div className="w-full h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 transition-all duration-1000"
+                  style={{ width: `${((60 - queueInfo.cooldownRemainingSeconds) / 60) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Filter and Search */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
@@ -98,7 +247,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
           </div>
         ) : (
           filteredOrders.map((order) => {
-            const badge = getStatusBadge(order.status);
+            const isGenerating = generatingSheetId === order.id;
             return (
               <div
                 key={order.id}
@@ -106,13 +255,17 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
               >
                 {/* Left/Main Info */}
                 <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                  {/* Photo Thumbnail */}
                   <div
-                    onClick={() => setSelectedOrder(order)}
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 cursor-pointer group relative"
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setActiveImageTab(order.aiProcessedImage ? 'ai' : 'original');
+                    }}
+                    className="w-16 h-20 sm:w-20 sm:h-24 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 cursor-pointer group relative shadow-xs"
                   >
-                    {order.uploadedImage ? (
+                    {order.printSheetImage || order.aiProcessedImage || order.uploadedImage ? (
                       <img
-                        src={order.uploadedImage}
+                        src={order.printSheetImage || order.aiProcessedImage || order.uploadedImage || ''}
                         alt="عکس چاپ"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
@@ -121,8 +274,8 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
                         <Printer className="w-6 h-6" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                      <Eye className="w-4 h-4" />
+                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                      <Eye className="w-5 h-5" />
                     </div>
                   </div>
 
@@ -158,11 +311,31 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
                         <span className="font-mono">{order.customerInfo?.phoneNumber}</span>
                       </span>
                     </div>
+
+                    {/* Image status indicators */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      {order.uploadedImage && (
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium border border-slate-200">
+                          عکس اصلی
+                        </span>
+                      )}
+                      {order.aiProcessedImage && (
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-200">
+                          خروجی AI
+                        </span>
+                      )}
+                      {order.printSheetImage && (
+                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-200 flex items-center gap-1">
+                          <LayoutGrid className="w-2.5 h-2.5" />
+                          <span>شیت ۹ تایی آماده</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Right Actions & Status Control */}
-                <div className="flex items-center justify-between lg:justify-end gap-3 border-t lg:border-t-0 pt-2.5 lg:pt-0 border-slate-100">
+                <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2 sm:gap-3 border-t lg:border-t-0 pt-2.5 lg:pt-0 border-slate-100">
                   <div className="text-right">
                     <div className="text-xs sm:text-sm font-bold text-slate-900">
                       {formatPrice(order.totalPrice)}
@@ -173,7 +346,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
                   </div>
 
                   {/* Status Dropdown */}
-                  <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="flex items-center gap-1.5">
                     <select
                       value={order.status}
                       onChange={(e) => onUpdateOrderStatus(order.id, e.target.value as Order['status'])}
@@ -187,9 +360,12 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
                     </select>
 
                     <button
-                      onClick={() => setSelectedOrder(order)}
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setActiveImageTab(order.aiProcessedImage ? 'ai' : 'original');
+                      }}
                       className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center border border-slate-200"
-                      title="مشاهده جزئیات کامل"
+                      title="مشاهده جزئیات کامل و گالری تصاویر"
                     >
                       <Eye className="w-4 h-4" />
                     </button>
@@ -201,14 +377,17 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
         )}
       </div>
 
-      {/* Order Detail Modal */}
+      {/* Order Detail Modal with Multi-Image History & 6-Pack Sheet */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl relative">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <span className="text-sm sm:text-base font-bold text-slate-900 truncate">سفارش #{selectedOrder.trackingCode}</span>
-                <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-lg border font-bold ${getStatusBadge(selectedOrder.status).color}`}>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl relative space-y-4 my-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-sm sm:text-base font-black text-slate-900 truncate">
+                  جزئیات و گالری تصاویر سفارش #{selectedOrder.trackingCode}
+                </span>
+                <span className={`text-[10px] sm:text-xs px-2.5 py-0.5 rounded-lg border font-bold ${getStatusBadge(selectedOrder.status).color}`}>
                   {getStatusBadge(selectedOrder.status).label}
                 </span>
               </div>
@@ -220,63 +399,264 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, onUpdateOrderS
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="space-y-2">
-                <span className="text-slate-700 block font-bold">تصویر سفارش:</span>
-                <div className="w-full aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative">
-                  {selectedOrder.uploadedImage && (
-                    <img
-                      src={selectedOrder.uploadedImage}
-                      alt="فایل اصلی"
-                      className="w-full h-full object-contain"
-                    />
+            {/* Image History Tabs & Viewer */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                  {/* Tab 1: 9-Pack Sheet */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveImageTab('sheet')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      activeImageTab === 'sheet'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>شیت ۹ تایی چاپ (۱۰×۱۵ عمودی)</span>
+                    {selectedOrder.printSheetImage && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    )}
+                  </button>
+
+                  {/* Tab 2: AI Processed Image */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveImageTab('ai')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      activeImageTab === 'ai'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>خروجی هوش مصنوعی</span>
+                    {selectedOrder.aiProcessedImage && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    )}
+                  </button>
+
+                  {/* Tab 3: Original Uploaded Image */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveImageTab('original')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      activeImageTab === 'original'
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <FileImage className="w-3.5 h-3.5" />
+                    <span>عکس اصلی ارسالی</span>
+                  </button>
+                </div>
+
+                {/* Quick Tool Button */}
+                <button
+                  type="button"
+                  onClick={() => handleGenerateSheet(selectedOrder)}
+                  disabled={generatingSheetId === selectedOrder.id}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto shadow-2xs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${generatingSheetId === selectedOrder.id ? 'animate-spin' : ''}`} />
+                  <span>{selectedOrder.printSheetImage ? 'تولید مجدد شیت ۹تایی' : 'تولید شیت ۹تایی چاپ'}</span>
+                </button>
+              </div>
+
+              {/* Tab Content 1: 9-Pack Sheet */}
+              {activeImageTab === 'sheet' && (
+                <div className="space-y-3">
+                  {selectedOrder.printSheetImage ? (
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+                        <span className="font-bold text-slate-800">
+                          شیت ۹ عددی ۳×۴ عمودی روی کاغذ استاندارد ۱۰×۱۵ سانتیمتر (کیفیت ۳۰۰ DPI با خط کم‌رنگ دور عکس‌ها):
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadImage(
+                              selectedOrder.printSheetImage!,
+                              `laleh-studio-9pack-sheet-${selectedOrder.trackingCode}.jpg`
+                            )
+                          }
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>دانلود فایل شیت ۹تایی (High-Res)</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 flex items-center justify-center">
+                        <img
+                          src={selectedOrder.printSheetImage}
+                          alt="شیت ۹ تایی"
+                          className="max-h-[420px] w-auto object-contain rounded-lg shadow-md border border-white"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-white border border-slate-200 rounded-xl space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto border border-indigo-100">
+                        <LayoutGrid className="w-6 h-6" />
+                      </div>
+                      <div className="max-w-md mx-auto">
+                        <h4 className="text-sm font-black text-slate-900">شیت ۹ تایی هنوز تولید نشده است</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                          با کلیک بر روی دکمه زیر، عکس خروجی به‌صورت خودکار ۹ بار در قالب ۳ در ۳ روی کاغذ عمودی ۱۰×۱۵ با حفظ فاصله و خط کم‌رنگ دور هر عکس چیده می‌شود.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateSheet(selectedOrder)}
+                        disabled={generatingSheetId === selectedOrder.id}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>ایجاد فوری شیت ۹ تایی چاپ</span>
+                      </button>
+                    </div>
                   )}
+                </div>
+              )}
+
+              {/* Tab Content 2: AI Processed Image */}
+              {activeImageTab === 'ai' && (
+                <div className="space-y-3">
+                  {selectedOrder.aiProcessedImage ? (
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+                        <span className="font-bold text-slate-800">تصویر تک پرسنلی رتوش شده توسط هوش مصنوعی:</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadImage(
+                              selectedOrder.aiProcessedImage!,
+                              `ai-processed-${selectedOrder.trackingCode}.jpg`
+                            )
+                          }
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>دانلود خروجی AI</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 flex items-center justify-center">
+                        <img
+                          src={selectedOrder.aiProcessedImage}
+                          alt="خروجی AI"
+                          className="max-h-[380px] w-auto object-contain rounded-lg shadow-md border border-white"
+                        />
+                      </div>
+
+                      {selectedOrder.aiPromptUsed && (
+                        <div className="mt-2 p-2.5 rounded-xl bg-white border border-slate-200 text-[11px] text-slate-600">
+                          <span className="font-bold text-slate-800 block mb-0.5">پرامپت استفاده شده:</span>
+                          <p className="font-mono">{selectedOrder.aiPromptUsed}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-white border border-slate-200 rounded-xl">
+                      <p className="text-xs text-slate-500">تصویر پردازش شده با هوش مصنوعی برای این سفارش ثبت نشده است.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab Content 3: Original Uploaded Image */}
+              {activeImageTab === 'original' && (
+                <div className="space-y-3">
+                  {selectedOrder.uploadedImage ? (
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+                        <span className="font-bold text-slate-800">عکس اولیه ارسالی توسط مشتری:</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadImage(
+                              selectedOrder.uploadedImage!,
+                              `original-${selectedOrder.originalImageName || selectedOrder.trackingCode}.jpg`
+                            )
+                          }
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>دانلود عکس اصلی</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 flex items-center justify-center">
+                        <img
+                          src={selectedOrder.uploadedImage}
+                          alt="عکس اصلی"
+                          className="max-h-[380px] w-auto object-contain rounded-lg shadow-md border border-white"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-white border border-slate-200 rounded-xl">
+                      <p className="text-xs text-slate-500">تصویر اولیه‌ای برای این سفارش موجود نیست.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Technical & Customer Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <span className="text-sky-700 font-bold block mb-1">اطلاعات فنی و مشخصات سفارش</span>
+                <div className="flex justify-between text-slate-700">
+                  <span className="text-slate-500">نوع چاپ:</span>
+                  <span className="font-bold">
+                    {selectedOrder.printType === 'personnel'
+                      ? 'پرسنلی ۳×۴'
+                      : selectedOrder.printType === 'bw_to_color'
+                      ? 'تبدیل سیاه سفید به رنگی'
+                      : selectedOrder.printType === 'memorial'
+                      ? 'مراسم ختم'
+                      : 'عروسی/نامزدی'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span className="text-slate-500">تعداد:</span>
+                  <span className="font-bold font-mono">{selectedOrder.quantity || 1} سری</span>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span className="text-slate-500">مجموع هزینه:</span>
+                  <span className="font-bold text-slate-900 font-mono">{formatPrice(selectedOrder.totalPrice)}</span>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                  <span className="text-sky-700 font-bold block mb-1">اطلاعات فنی</span>
-                  <div className="flex justify-between text-slate-700">
-                    <span className="text-slate-500">نوع چاپ:</span>
-                    <span className="font-bold">
-                      {selectedOrder.printType === 'personnel'
-                        ? 'پرسنلی'
-                        : selectedOrder.printType === 'bw_to_color'
-                        ? 'تبدیل رنگی'
-                        : selectedOrder.printType === 'memorial'
-                        ? 'مراسم ختم'
-                        : 'عروسی'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-700">
-                    <span className="text-slate-500">مجموع:</span>
-                    <span className="font-bold text-slate-900">{formatPrice(selectedOrder.totalPrice)}</span>
-                  </div>
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <span className="text-emerald-700 font-bold block mb-1">مشخصات گیرنده و آدرس</span>
+                <div className="flex justify-between text-slate-700">
+                  <span className="text-slate-500">نام:</span>
+                  <span className="font-bold">{selectedOrder.customerInfo?.fullName || selectedOrder.userName}</span>
                 </div>
-
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                  <span className="text-emerald-700 font-bold block mb-1">مشخصات گیرنده</span>
-                  <div className="flex justify-between text-slate-700">
-                    <span className="text-slate-500">نام:</span>
-                    <span className="font-bold">{selectedOrder.customerInfo?.fullName || selectedOrder.userName}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-700">
-                    <span className="text-slate-500">تلفن:</span>
-                    <span className="font-mono">{selectedOrder.customerInfo?.phoneNumber}</span>
-                  </div>
-                  <div className="text-slate-700 pt-1 border-t border-slate-200">
-                    <span className="text-slate-500 block mb-0.5">آدرس:</span>
-                    <p className="leading-relaxed text-[11px]">{selectedOrder.customerInfo?.address || 'تحویل در استودیو'}</p>
-                  </div>
+                <div className="flex justify-between text-slate-700">
+                  <span className="text-slate-500">تلفن:</span>
+                  <span className="font-mono font-bold">{selectedOrder.customerInfo?.phoneNumber}</span>
+                </div>
+                <div className="text-slate-700 pt-1 border-t border-slate-200">
+                  <span className="text-slate-500 block mb-0.5">آدرس پستی:</span>
+                  <p className="leading-relaxed text-[11px]">{selectedOrder.customerInfo?.address || 'تحویل حضوری در استودیو'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end">
+            {/* Modal Footer */}
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                <Info className="w-3.5 h-3.5 text-slate-400" />
+                <span>تمام تصاویر (اصلی، رتوش AI و شیت نهایی) در تاریخچه سفارش حفظ می‌گردند.</span>
+              </div>
               <button
                 onClick={() => setSelectedOrder(null)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs cursor-pointer min-h-[40px] border border-slate-200"
+                className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs cursor-pointer border border-slate-200 transition-colors"
               >
                 بستن پنجره
               </button>

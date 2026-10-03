@@ -180,36 +180,6 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Quick Stats Bar */}
-        <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-slate-500 block text-[11px]">تعداد خدمات فعال:</span>
-            <span className="font-mono font-bold text-slate-900 text-sm">{printTypes.length} خدمت</span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-sky-50 border border-sky-200">
-            <span className="text-sky-700 block text-[11px]">کمترین قیمت پایه:</span>
-            <span className="font-mono font-bold text-sky-900 text-sm">
-              {formatPrice(Math.min(...printTypes.map((p) => p.basePrice || 0)))}
-            </span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-            <span className="text-emerald-700 block text-[11px]">بیشترین قیمت پایه:</span>
-            <span className="font-mono font-bold text-emerald-900 text-sm">
-              {formatPrice(Math.max(...printTypes.map((p) => p.basePrice || 0)))}
-            </span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-teal-50 border border-teal-200">
-            <span className="text-teal-700 block text-[11px]">همگام‌سازی کاربر:</span>
-            <span className="font-bold text-teal-900 text-sm flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
-              <span>لحظه‌ای فعال</span>
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Grid of Print Type Cards (Live Preview & Management) */}

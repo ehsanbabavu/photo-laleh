@@ -126,11 +126,11 @@ export const StepPrintType: React.FC<StepPrintTypeProps> = ({
       </div>
 
       {/* Navigation Button */}
-      <div className="flex justify-end pt-2">
+      <div className="flex items-center justify-end pt-3">
         <button
           type="button"
           onClick={onNext}
-          className="w-full sm:w-auto bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-98 text-white font-bold px-8 py-3.5 rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-sky-500/25 cursor-pointer flex items-center justify-center gap-2 min-h-[44px]"
+          className="w-full sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
         >
           <span>مرحله بعد</span>
           <ChevronLeft className="w-4 h-4" />

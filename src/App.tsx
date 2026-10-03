@@ -3,30 +3,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { User, ApiConnection, Order, PrintTypeOption } from './types';
-import { INITIAL_APIS, INITIAL_ORDERS, PRINT_TYPES } from './data/mockData';
+import React, { useState, useRef, useCallback } from 'react';
+import { User, Order, PrintTypeOption, SupportTicket, Announcement } from './types';
+import { INITIAL_ORDERS, PRINT_TYPES, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
 import { AdminSidebar, AdminTab } from './components/admin/AdminSidebar';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { AdminAnnouncements } from './components/admin/AdminAnnouncements';
 import { ChatGPTConnect } from './components/admin/ChatGPTConnect';
-import { ApiManager } from './components/admin/ApiManager';
 import { AdminOrders } from './components/admin/AdminOrders';
 import { PrintTypeManager } from './components/admin/PrintTypeManager';
 import { PromptsManager } from './components/admin/PromptsManager';
+import { AdminTickets } from './components/admin/AdminTickets';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
-import { UserGuide } from './components/user/UserGuide';
+import { UserTickets } from './components/user/UserTickets';
+import { UserDashboard } from './components/user/UserDashboard';
+import { aiQueueManager, QueueStateInfo } from './utils/aiQueueManager';
 import {
   CheckCircle2,
   Sparkles,
+  Package,
   History,
-  HelpCircle,
+  LifeBuoy,
   LayoutDashboard,
   BotMessageSquare,
-  Network,
   Printer,
   Palette
 } from 'lucide-react';
@@ -40,66 +43,103 @@ export default function App() {
 
   // Sub-tabs
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
-  const [userTab, setUserTab] = useState<UserTab>('wizard');
+  const [userTab, setUserTab] = useState<UserTab>('dashboard');
 
   // Data states
-  const [apis, setApis] = useState<ApiConnection[]>(() => {
-    try {
-      const saved = localStorage.getItem('studio_apis_config');
-      return saved ? JSON.parse(saved) : INITIAL_APIS;
-    } catch {
-      return INITIAL_APIS;
-    }
-  });
-
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const saved = localStorage.getItem('studio_orders_list');
-      return saved ? JSON.parse(saved) : INITIAL_ORDERS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      return INITIAL_ORDERS;
     } catch {
       return INITIAL_ORDERS;
     }
   });
 
-  // Dynamic Print Types State (Managed by Admin)
+  // Support Tickets State
+  const [tickets, setTickets] = useState<SupportTicket[]>(() => {
+    try {
+      const saved = localStorage.getItem('studio_tickets_list');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      return INITIAL_TICKETS;
+    } catch {
+      return INITIAL_TICKETS;
+    }
+  });
+
+  // Dynamic Print Types State (Managed by Admin & Database)
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(() => {
     try {
       const saved = localStorage.getItem('studio_print_types');
-      return saved ? JSON.parse(saved) : PRINT_TYPES;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const updated = parsed.map((item: PrintTypeOption) =>
+            item.id === 'personnel' && item.basePrice === 85000
+              ? { ...item, basePrice: 600000 }
+              : item
+          );
+          localStorage.setItem('studio_print_types', JSON.stringify(updated));
+          return updated;
+        }
+      }
+      return PRINT_TYPES;
     } catch {
       return PRINT_TYPES;
     }
   });
 
-  // 10 OpenAI Tokens state
-  const [openaiTokens, setOpenaiTokens] = useState<string[]>(() => {
+  // AvalAI API configuration state
+  const [avalaiApiKey, setAvalaiApiKey] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem('studio_openai_tokens');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 10) return parsed;
+      const saved = localStorage.getItem('studio_avalai_api_key');
+      if (saved) return saved;
+      // Check legacy saved tokens
+      const legacyTokens = localStorage.getItem('studio_openai_tokens');
+      if (legacyTokens) {
+        const parsed = JSON.parse(legacyTokens);
+        if (Array.isArray(parsed) && parsed[0] && !parsed[0].includes('placeholder')) {
+          return parsed[0];
+        }
       }
     } catch {}
-    // Default fallback list of 10 keys (first sketch)
-    return [
-      'sk-proj-token-1-placeholder-key-for-dalle-generations',
-      '', '', '', '', '', '', '', '', ''
-    ];
+    return '';
   });
 
-  // OpenAI Custom API Base URL state
-  const [openaiBaseUrl, setOpenaiBaseUrl] = useState<string>(() => {
+  // AvalAI Base URL state (https://api.avalai.ir/v1)
+  const [avalaiBaseUrl, setAvalaiBaseUrl] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem('studio_openai_base_url');
-      return saved || 'https://api.openai.com/v1';
+      const saved = localStorage.getItem('studio_avalai_base_url');
+      return saved || 'https://api.avalai.ir/v1';
     } catch {
-      return 'https://api.openai.com/v1';
+      return 'https://api.avalai.ir/v1';
     }
   });
 
-  // Default prompts for DALL-E image generation per print type mode
+  // Active Image Generation Model (gpt-image-2.5-sunburst)
+  const [avalaiModel, setAvalaiModel] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('studio_avalai_model');
+      return saved || 'gpt-image-2.5-sunburst';
+    } catch {
+      return 'gpt-image-2.5-sunburst';
+    }
+  });
+
+  // Default prompts for image generation per print type mode
   const DEFAULT_PROMPTS: Record<string, string> = {
     personnel: 'پرتره پرسنلی رسمی و اداری، زمینه سفید یکدست، عکس ۳در۴ گذرنامه، نورپردازی آتلیه‌ای پرتره، کیفیت فوق‌العاده بالا، بدون عینک، نگاه روبرو',
+    commercial: 'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی',
     bw_to_color: 'پرتره عکاسی رنگی زنده و بازیابی شده، عکس پرتره خانوادگی قدیمی رنگ‌آمیزی شده با وضوح بالا و حذف نویز و لکه',
     memorial: 'پرتره یادبود باوقار و احترام، پس‌زمینه محو ملایم، روشنایی یکنواخت، کیفیت استودیویی رتوش چهره',
     wedding: 'عکس دونفره عروس و داماد شیک و رمانتیک در عمارت باغ لوکس، نورپردازی بوکه رویایی غروب آفتاب، کیفیت ۳۲کی سینمایی'
@@ -114,17 +154,25 @@ export default function App() {
     }
   });
 
-  const handleUpdateOpenaiTokens = (newTokens: string[]) => {
-    setOpenaiTokens(newTokens);
-    localStorage.setItem('studio_openai_tokens', JSON.stringify(newTokens));
-    showToast('توکن‌های OpenAI با موفقیت ذخیره شدند.');
+  const handleUpdateAvalaiApiKey = (newKey: string) => {
+    const trimmed = newKey.trim();
+    setAvalaiApiKey(trimmed);
+    localStorage.setItem('studio_avalai_api_key', trimmed);
+    showToast('کلید دسترسی AvalAI با موفقیت ذخیره شد.');
   };
 
-  const handleUpdateOpenaiBaseUrl = (newUrl: string) => {
+  const handleUpdateAvalaiBaseUrl = (newUrl: string) => {
     const sanitized = newUrl.trim().replace(/\/$/, ''); // Remove trailing slash
-    setOpenaiBaseUrl(sanitized);
-    localStorage.setItem('studio_openai_base_url', sanitized);
+    setAvalaiBaseUrl(sanitized);
+    localStorage.setItem('studio_avalai_base_url', sanitized);
     showToast('آدرس پایه API با موفقیت ذخیره شد.');
+  };
+
+  const handleUpdateAvalaiModel = (newModel: string) => {
+    const trimmed = newModel.trim();
+    setAvalaiModel(trimmed);
+    localStorage.setItem('studio_avalai_model', trimmed);
+    showToast('مدل تولید تصویر با موفقیت به‌روز شد.');
   };
 
   const handleSavePrompt = (printTypeId: string, prompt: string) => {
@@ -142,6 +190,79 @@ export default function App() {
     showToast('پرامپت‌ها به مقادیر پیش‌فرض بازنشانی شدند.');
   };
 
+  // Announcements state
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
+    try {
+      const saved = localStorage.getItem('studio_announcements_list');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      return INITIAL_ANNOUNCEMENTS;
+    } catch {
+      return INITIAL_ANNOUNCEMENTS;
+    }
+  });
+
+  const handleAddAnnouncement = (newAnnData: Omit<Announcement, 'id' | 'createdAt' | 'readBy'>) => {
+    const newAnn: Announcement = {
+      ...newAnnData,
+      id: `ann-${Date.now()}`,
+      createdAt: new Intl.DateTimeFormat('fa-IR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date()),
+      readBy: []
+    };
+    setAnnouncements((prev) => {
+      const next = [newAnn, ...prev];
+      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
+      return next;
+    });
+    showToast('اطلاعیه جدید با موفقیت منتشر شد.');
+  };
+
+  const handleUpdateAnnouncement = (updated: Announcement) => {
+    setAnnouncements((prev) => {
+      const next = prev.map((a) => (a.id === updated.id ? updated : a));
+      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
+      return next;
+    });
+    showToast('اطلاعیه با موفقیت به‌روزرسانی شد.');
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    setAnnouncements((prev) => {
+      const next = prev.filter((a) => a.id !== id);
+      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
+      return next;
+    });
+    showToast('اطلاعیه با موفقیت حذف گردید.');
+  };
+
+  const handleMarkAnnouncementAsRead = (announcementId: string) => {
+    if (!currentUser) return;
+    setAnnouncements((prev) => {
+      const next = prev.map((a) => {
+        if (a.id === announcementId) {
+          const currentReadBy = Array.isArray(a.readBy) ? a.readBy : [];
+          if (!currentReadBy.includes(currentUser.id)) {
+            return {
+              ...a,
+              readBy: [...currentReadBy, currentUser.id]
+            };
+          }
+        }
+        return a;
+      });
+      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
+      return next;
+    });
+  };
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -150,15 +271,31 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Persist APIs when updated
-  const handleUpdateApi = (updated: ApiConnection) => {
-    setApis((prev) => {
-      const next = prev.map((a) => (a.id === updated.id ? updated : a));
-      localStorage.setItem('studio_apis_config', JSON.stringify(next));
-      return next;
+  // AI Queue State with 1-Minute Sequential Rate-Limit Protection
+  const [queueInfo, setQueueInfo] = useState<QueueStateInfo>(() => aiQueueManager.getQueueInfo());
+
+  // Subscribe to AI Queue Manager updates on mount
+  React.useEffect(() => {
+    const unsubOrder = aiQueueManager.onOrderUpdate((updatedOrder, toastMsg) => {
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
+        localStorage.setItem('studio_orders_list', JSON.stringify(next));
+        return next;
+      });
+      if (toastMsg) {
+        showToast(toastMsg);
+      }
     });
-    showToast(`تنظیمات سرویس ${updated.name} به‌روزرسانی شد.`);
-  };
+
+    const unsubQueue = aiQueueManager.onQueueStateChange((info) => {
+      setQueueInfo(info);
+    });
+
+    return () => {
+      unsubOrder();
+      unsubQueue();
+    };
+  }, []);
 
   // Persist Print Types when added, edited, deleted, reset
   const handleAddPrintType = (newItem: PrintTypeOption) => {
@@ -207,15 +344,59 @@ export default function App() {
     showToast('وضعیت سفارش با موفقیت تغییر یافت.');
   };
 
-  // When a user completes the 5-step order wizard
-  const handleNewOrder = (newOrder: Order) => {
+  const handleUpdateOrder = (updatedOrder: Order) => {
     setOrders((prev) => {
+      const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
+      localStorage.setItem('studio_orders_list', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== orderId);
+      localStorage.setItem('studio_orders_list', JSON.stringify(next));
+      return next;
+    });
+    showToast('سفارش با موفقیت حذف گردید.');
+  };
+
+  const handleClearAllOrders = () => {
+    setOrders([]);
+    localStorage.setItem('studio_orders_list', JSON.stringify([]));
+    showToast('تمامی سفارشات سیستم با موفقیت حذف شدند.');
+  };
+
+  const processingOrderIdsRef = useRef<Set<string>>(new Set());
+
+  // When a user completes the order wizard
+  const handleNewOrder = (newOrder: Order) => {
+    // Prevent duplicate processing of the same order
+    if (processingOrderIdsRef.current.has(newOrder.id)) {
+      return;
+    }
+    processingOrderIdsRef.current.add(newOrder.id);
+
+    setOrders((prev) => {
+      // Ensure this order id is not already in the state
+      if (prev.some((o) => o.id === newOrder.id)) {
+        return prev;
+      }
       const next = [newOrder, ...prev];
       localStorage.setItem('studio_orders_list', JSON.stringify(next));
       return next;
     });
     setUserTab('orders');
-    showToast(`سفارش شماره ${newOrder.trackingCode} با موفقیت در صف چاپ قرار گرفت!`);
+
+    // Enqueue order in AI Sequential Queue with 1-Minute Rate-Limit Protection
+    aiQueueManager.enqueue({
+      order: newOrder,
+      apiKey: avalaiApiKey,
+      baseUrl: avalaiBaseUrl,
+      model: avalaiModel,
+      prompt: newOrder.aiPromptUsed || printTypePrompts[newOrder.printType] || 'پرتره باکیفیت و رتوش شده آتلیه',
+      queuedAt: Date.now()
+    });
   };
 
   // Handle Login
@@ -224,11 +405,9 @@ export default function App() {
     if (user.role === 'admin' || user.username === 'ehsan') {
       setActiveView('admin');
       setAdminTab('dashboard');
-      showToast(`خوش آمدید احسان عزیز! پنل مدیریت ادمین آماده است.`);
     } else {
       setActiveView('user');
-      setUserTab('wizard');
-      showToast(`خوش آمدید ${user.name}! منوی ۵ مرحله‌ای ثبت سفارش آماده است.`);
+      setUserTab('dashboard');
     }
   };
 
@@ -239,14 +418,75 @@ export default function App() {
     showToast('از حساب کاربری خارج شدید.');
   };
 
+  // Handle User Profile Update (Name, Password)
+  const handleUpdateUser = (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem('studio_current_user', JSON.stringify(updatedUser));
+      const storedUsersRaw = localStorage.getItem('registered_users');
+      if (storedUsersRaw) {
+        const storedUsers: User[] = JSON.parse(storedUsersRaw);
+        const next = storedUsers.map((u) => (u.id === updatedUser.id ? updatedUser : u));
+        localStorage.setItem('registered_users', JSON.stringify(next));
+      }
+    } catch {
+      // ignore
+    }
+    showToast('اطلاعات کاربری با موفقیت به‌روزرسانی شد.');
+  };
+
+  // Handle Support Tickets Update (Sync across Admin and User)
+  const handleUpdateTickets = (nextTickets: SupportTicket[]) => {
+    setTickets(nextTickets);
+    try {
+      localStorage.setItem('studio_tickets_list', JSON.stringify(nextTickets));
+    } catch {
+      // ignore
+    }
+  };
+
+  // Track which tickets have been read/seen by user to manage the blinking reply indicator
+  const [readTicketTimestamps, setReadTicketTimestamps] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('studio_read_ticket_timestamps');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleTicketRead = useCallback((ticketId: string, updatedAt: string) => {
+    setReadTicketTimestamps((prev) => {
+      if (prev[ticketId] === updatedAt) return prev;
+      const next = { ...prev, [ticketId]: updatedAt };
+      try {
+        localStorage.setItem('studio_read_ticket_timestamps', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
   // If not logged in -> Show Login & Register page on main page
   if (!currentUser) {
     return <AuthView onLogin={handleLogin} />;
   }
 
-  // Find ChatGPT API config (id: 1)
-  const chatGptApi = apis.find((a) => a.id === 1) || apis[0];
-  const activeApisCount = apis.filter((a) => a.isEnabled).length;
+  const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
+  const activeOrdersCount = orders.filter((o) => o.status !== 'delivered').length;
+
+  // Check if any support ticket of current user has received an answer/reply that hasn't been viewed
+  const myUserTickets = tickets.filter(
+    (t) => t.userId === currentUser.id || t.userName === currentUser.name
+  );
+
+  const hasUnreadTicketReply = myUserTickets.some((t) => {
+    const lastMsg = t.messages[t.messages.length - 1];
+    const isAnswered = t.status === 'answered' || (lastMsg && lastMsg.sender === 'support');
+    if (!isAnswered) return false;
+    const lastRead = readTicketTimestamps[t.id];
+    // If user hasn't opened this ticket since its last update
+    return !lastRead || t.updatedAt > lastRead;
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
@@ -266,9 +506,12 @@ export default function App() {
         onSwitchView={(v) => setActiveView(v)}
         adminTab={adminTab}
         onSelectAdminTab={(tab) => setAdminTab(tab)}
-        activeApisCount={activeApisCount}
         totalOrdersCount={orders.length}
+        activeOrdersCount={activeOrdersCount}
         printTypesCount={printTypes.length}
+        openTicketsCount={openTicketsCount}
+        totalTicketsCount={tickets.length}
+        announcementsCount={announcements.length}
       />
 
       {/* Main Layout Container with Right Sidebar */}
@@ -276,13 +519,37 @@ export default function App() {
         {/* VIEW 1: ADMIN PANEL */}
         {activeView === 'admin' ? (
           <>
-            {/* Admin Content Area (No static sidebar, uses hamburger drawer) */}
-            <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-8">
+            {/* Admin Right Sidebar (Desktop) */}
+            <AdminSidebar
+              currentTab={adminTab}
+              onSelectTab={(tab) => setAdminTab(tab as AdminTab)}
+              user={currentUser}
+              onLogout={handleLogout}
+              totalOrdersCount={orders.length}
+              activeOrdersCount={activeOrdersCount}
+              printTypesCount={printTypes.length}
+              openTicketsCount={openTicketsCount}
+              totalTicketsCount={tickets.length}
+              announcementsCount={announcements.length}
+            />
+
+            {/* Admin Content Area */}
+            <main className="flex-1 lg:pr-72 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-8">
               {adminTab === 'dashboard' && (
                 <AdminDashboard
                   orders={orders}
-                  apis={apis}
+                  queueInfo={queueInfo}
+                  tickets={tickets}
                   onNavigateTab={(tab) => setAdminTab(tab as AdminTab)}
+                />
+              )}
+
+              {adminTab === 'announcements' && (
+                <AdminAnnouncements
+                  announcements={announcements}
+                  onAddAnnouncement={handleAddAnnouncement}
+                  onUpdateAnnouncement={handleUpdateAnnouncement}
+                  onDeleteAnnouncement={handleDeleteAnnouncement}
                 />
               )}
 
@@ -298,10 +565,12 @@ export default function App() {
 
               {adminTab === 'chatgpt' && (
                 <ChatGPTConnect
-                  openaiTokens={openaiTokens}
-                  onUpdateOpenaiTokens={handleUpdateOpenaiTokens}
-                  openaiBaseUrl={openaiBaseUrl}
-                  onUpdateOpenaiBaseUrl={handleUpdateOpenaiBaseUrl}
+                  apiKey={avalaiApiKey}
+                  onUpdateApiKey={handleUpdateAvalaiApiKey}
+                  baseUrl={avalaiBaseUrl}
+                  onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
+                  model={avalaiModel}
+                  onUpdateModel={handleUpdateAvalaiModel}
                 />
               )}
 
@@ -314,17 +583,22 @@ export default function App() {
                 />
               )}
 
-              {adminTab === 'apis' && (
-                <ApiManager
-                  apis={apis}
-                  onUpdateApi={handleUpdateApi}
-                />
-              )}
-
               {adminTab === 'orders' && (
                 <AdminOrders
                   orders={orders}
+                  queueInfo={queueInfo}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onUpdateOrder={handleUpdateOrder}
+                  onDeleteOrder={handleDeleteOrder}
+                  onClearAllOrders={handleClearAllOrders}
+                />
+              )}
+
+              {adminTab === 'tickets' && (
+                <AdminTickets
+                  tickets={tickets}
+                  onUpdateTickets={handleUpdateTickets}
+                  orders={orders}
                 />
               )}
             </main>
@@ -344,18 +618,37 @@ export default function App() {
                   : undefined
               }
               userOrdersCount={orders.filter((o) => o.userId === currentUser.id).length}
+              userTicketsCount={tickets.filter((t) => t.userId === currentUser.id || t.userName === currentUser.name).length}
+              hasUnreadReply={hasUnreadTicketReply}
             />
 
             {/* User Content Area */}
             <main className="flex-1 lg:pr-72 p-3 sm:p-6 lg:p-8 max-w-5xl w-full mx-auto pb-20 lg:pb-8">
-               {userTab === 'wizard' && (
+              {userTab === 'dashboard' && (
+                <UserDashboard
+                  user={currentUser}
+                  orders={orders}
+                  tickets={tickets}
+                  printTypes={printTypes}
+                  announcements={announcements}
+                  onMarkAnnouncementAsRead={handleMarkAnnouncementAsRead}
+                  onUpdateUser={handleUpdateUser}
+                  onStartNewOrder={() => setUserTab('wizard')}
+                  onGoToOrders={() => setUserTab('orders')}
+                  onGoToTickets={() => setUserTab('tickets')}
+                />
+              )}
+
+              {userTab === 'wizard' && (
                 <OrderWizard
                   user={currentUser}
                   onOrderCompleted={handleNewOrder}
+                  onUserUpdate={handleUpdateUser}
                   printTypes={printTypes}
-                  openaiTokens={openaiTokens}
+                  avalaiApiKey={avalaiApiKey}
                   printTypePrompts={printTypePrompts}
-                  openaiBaseUrl={openaiBaseUrl}
+                  avalaiBaseUrl={avalaiBaseUrl}
+                  avalaiModel={avalaiModel}
                 />
               )}
 
@@ -367,7 +660,15 @@ export default function App() {
                 />
               )}
 
-              {userTab === 'help' && <UserGuide />}
+              {userTab === 'tickets' && (
+                <UserTickets
+                  user={currentUser}
+                  tickets={tickets}
+                  onUpdateTickets={handleUpdateTickets}
+                  onTicketRead={handleTicketRead}
+                  orders={orders}
+                />
+              )}
             </main>
           </>
         )}
@@ -375,35 +676,79 @@ export default function App() {
 
       {/* MOBILE BOTTOM NAVIGATION BAR (Visible only in user panel) */}
       {activeView === 'user' && (
-        <div className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-200 z-40 px-3 py-2 flex items-center justify-around shadow-xl">
+        <div className="lg:hidden fixed bottom-3 inset-x-3 max-w-lg mx-auto bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 text-white rounded-2xl sm:rounded-3xl p-1.5 z-40 flex items-center justify-around shadow-xl shadow-teal-950/20 border border-teal-400/30 backdrop-blur-xl">
+          {/* 1. راست: پیشخوان */}
+          <button
+            onClick={() => setUserTab('dashboard')}
+            className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
+              userTab === 'dashboard'
+                ? 'bg-white/25 text-white font-black shadow-xs scale-100'
+                : 'text-emerald-100/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span className="text-[10px]">پیشخوان</span>
+          </button>
+
+          {/* 2. سفارشات (قبلاً پیگیری) */}
+          <button
+            onClick={() => setUserTab('orders')}
+            className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
+              userTab === 'orders'
+                ? 'bg-white/25 text-white font-black shadow-xs scale-100'
+                : 'text-emerald-100/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span className="text-[10px]">سفارشات</span>
+          </button>
+
+          {/* 3. وسط: ثبت سفارش */}
           <button
             onClick={() => setUserTab('wizard')}
-            className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-1 px-2 rounded-xl transition-all ${
-              userTab === 'wizard' ? 'text-sky-700 font-bold scale-105' : 'text-slate-500'
+            className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
+              userTab === 'wizard'
+                ? 'bg-white/25 text-white font-black shadow-xs scale-100'
+                : 'text-emerald-100/80 hover:text-white hover:bg-white/10'
             }`}
           >
             <Sparkles className="w-4 h-4" />
             <span className="text-[10px]">ثبت سفارش</span>
           </button>
 
+          {/* 4. چپ: تیکت */}
           <button
-            onClick={() => setUserTab('orders')}
-            className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-1 px-2 rounded-xl transition-all ${
-              userTab === 'orders' ? 'text-emerald-700 font-bold scale-105' : 'text-slate-500'
+            onClick={() => setUserTab('tickets')}
+            className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all relative ${
+              userTab === 'tickets'
+                ? 'bg-white/25 text-white font-black shadow-xs scale-100'
+                : 'text-emerald-100/80 hover:text-white hover:bg-white/10'
             }`}
           >
-            <History className="w-4 h-4" />
-            <span className="text-[10px]">پیگیری</span>
-          </button>
-
-          <button
-            onClick={() => setUserTab('help')}
-            className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-1 px-2 rounded-xl transition-all ${
-              userTab === 'help' ? 'text-teal-700 font-bold scale-105' : 'text-slate-500'
-            }`}
-          >
-            <HelpCircle className="w-4 h-4" />
-            <span className="text-[10px]">راهنما</span>
+            <div className="relative flex items-center justify-center">
+              <LifeBuoy
+                className={`w-4 h-4 transition-all ${
+                  hasUnreadTicketReply
+                    ? 'text-red-400 animate-pulse drop-shadow-[0_0_8px_rgba(239,68,68,1)] stroke-[2.75]'
+                    : ''
+                }`}
+              />
+              {hasUnreadTicketReply && (
+                <span className="absolute -top-1.5 -right-2 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-80"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white"></span>
+                </span>
+              )}
+            </div>
+            <span
+              className={`text-[10px] ${
+                hasUnreadTicketReply
+                  ? 'text-red-200 font-black animate-pulse'
+                  : ''
+              }`}
+            >
+              تیکت
+            </span>
           </button>
         </div>
       )}

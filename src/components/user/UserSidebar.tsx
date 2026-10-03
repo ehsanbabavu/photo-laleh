@@ -1,8 +1,10 @@
 import React from 'react';
 import {
+  LayoutDashboard,
   Sparkles,
+  Package,
   History,
-  HelpCircle,
+  LifeBuoy,
   LogOut,
   Shield,
   ChevronLeft,
@@ -11,7 +13,7 @@ import {
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
 
-export type UserTab = 'wizard' | 'orders' | 'help';
+export type UserTab = 'dashboard' | 'wizard' | 'orders' | 'tickets';
 
 interface UserSidebarProps {
   currentTab: UserTab;
@@ -20,6 +22,8 @@ interface UserSidebarProps {
   onLogout: () => void;
   onSwitchToAdmin?: () => void;
   userOrdersCount: number;
+  userTicketsCount?: number;
+  hasUnreadReply?: boolean;
 }
 
 export const UserSidebar: React.FC<UserSidebarProps> = ({
@@ -28,9 +32,18 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
   user,
   onLogout,
   onSwitchToAdmin,
-  userOrdersCount
+  userOrdersCount,
+  userTicketsCount = 0,
+  hasUnreadReply = false
 }) => {
   const menuItems = [
+    {
+      id: 'dashboard' as UserTab,
+      label: 'پیشخوان',
+      icon: LayoutDashboard,
+      badge: null,
+      badgeColor: ''
+    },
     {
       id: 'wizard' as UserTab,
       label: 'ثبت سفارش ۵ مرحله‌ای',
@@ -40,16 +53,20 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
     },
     {
       id: 'orders' as UserTab,
-      label: 'سفارشات و پیگیری چاپ',
-      icon: History,
+      label: 'سفارشات',
+      icon: Package,
       badge: userOrdersCount > 0 ? `${userOrdersCount}` : null,
       badgeColor: 'text-emerald-700 bg-emerald-100 border border-emerald-200'
     },
     {
-      id: 'help' as UserTab,
-      label: 'راهنمای انواع چاپ و ابعاد',
-      icon: HelpCircle,
-      badge: null
+      id: 'tickets' as UserTab,
+      label: 'تیکت و پشتیبانی',
+      icon: LifeBuoy,
+      badge: hasUnreadReply ? 'پاسخ جدید!' : (userTicketsCount > 0 ? `${userTicketsCount}` : null),
+      badgeColor: hasUnreadReply
+        ? 'text-white bg-red-600 border border-red-500 animate-pulse font-black shadow-xs'
+        : 'text-teal-700 bg-teal-100 border border-teal-200',
+      iconColor: hasUnreadReply ? 'text-red-600 animate-pulse' : undefined
     }
   ];
 
@@ -59,11 +76,14 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
         {/* Header with Tulip Logo */}
         <div className="p-5 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-400 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-sky-500/20 flex-shrink-0">
-              <TulipIcon className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-xs flex-shrink-0 p-1 overflow-hidden">
+              <TulipIcon className="w-full h-full object-contain" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-slate-900">آتلیه دیجیتال لاله</h2>
+              <h2 className="text-sm font-black leading-tight">
+                <span className="text-slate-900">آتلیه دیجیتال </span>
+                <span className="text-red-600">لاله</span>
+              </h2>
               <span className="text-[11px] text-sky-600 font-bold">پنل کاربری مشتری</span>
             </div>
           </div>
@@ -85,7 +105,9 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
 
           <div className="mt-2.5 pt-2.5 border-t border-sky-200/60 flex items-center justify-between text-[11px]">
             <span className="text-slate-600 font-medium">کیف پول:</span>
-            <span className="font-mono text-emerald-700 font-bold">۰ تومان</span>
+            <span className="font-mono text-emerald-700 font-bold">
+              {(user.walletBalance ?? 100000).toLocaleString('fa-IR')} تومان
+            </span>
           </div>
         </div>
 
@@ -106,7 +128,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-sky-600' : 'text-slate-500'}`} />
+                  <Icon className={`w-4 h-4 ${item.iconColor || (isActive ? 'text-sky-600' : 'text-slate-500')}`} />
                   <span>{item.label}</span>
                 </div>
 

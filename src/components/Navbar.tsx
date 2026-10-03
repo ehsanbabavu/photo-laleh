@@ -3,7 +3,6 @@ import {
   ShieldCheck,
   LogOut,
   Sparkles,
-  User as UserIcon,
   Menu,
   X,
   LayoutDashboard,
@@ -12,7 +11,9 @@ import {
   BotMessageSquare,
   Network,
   ChevronLeft,
-  ExternalLink
+  ExternalLink,
+  LifeBuoy,
+  Volume2
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -25,9 +26,12 @@ interface NavbarProps {
   onSwitchView: (view: 'admin' | 'user') => void;
   adminTab?: AdminTab;
   onSelectAdminTab?: (tab: AdminTab) => void;
-  activeApisCount?: number;
   totalOrdersCount?: number;
+  activeOrdersCount?: number;
   printTypesCount?: number;
+  openTicketsCount?: number;
+  totalTicketsCount?: number;
+  announcementsCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,9 +41,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSwitchView,
   adminTab = 'dashboard',
   onSelectAdminTab,
-  activeApisCount = 0,
   totalOrdersCount = 0,
-  printTypesCount = 4
+  activeOrdersCount = 0,
+  printTypesCount = 4,
+  openTicketsCount = 0,
+  totalTicketsCount = 0,
+  announcementsCount = 0
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -59,42 +66,50 @@ export const Navbar: React.FC<NavbarProps> = ({
       id: 'dashboard' as AdminTab,
       label: 'پیشخوان مدیریت',
       icon: LayoutDashboard,
-      badge: null
+      badge: null,
+      badgeStyle: null
+    },
+    {
+      id: 'announcements' as AdminTab,
+      label: 'مدیریت اطلاعیه‌ها',
+      icon: Volume2,
+      badge: null,
+      badgeStyle: null
     },
     {
       id: 'print_types' as AdminTab,
       label: 'مدیریت انواع چاپ',
       icon: Palette,
-      badge: `${printTypesCount} خدمت`,
-      badgeColor: 'text-indigo-700 bg-indigo-50 border border-indigo-200'
+      badge: null,
+      badgeStyle: null
     },
     {
       id: 'prompts_manager' as AdminTab,
       label: 'مدیریت پرامپت‌های چاپ',
       icon: Sparkles,
-      badge: 'DALL-E 3',
-      badgeColor: 'text-amber-700 bg-amber-50 border border-amber-200'
+      badge: null,
+      badgeStyle: null
     },
     {
       id: 'orders' as AdminTab,
       label: 'سفارشات چاپ عکس',
       icon: Printer,
-      badge: `${totalOrdersCount}`,
-      badgeColor: 'text-teal-700 bg-teal-100 border border-teal-200'
+      badge: activeOrdersCount > 0 ? activeOrdersCount : null,
+      badgeStyle: 'normal'
+    },
+    {
+      id: 'tickets' as AdminTab,
+      label: 'تیکت‌های پشتیبانی',
+      icon: LifeBuoy,
+      badge: openTicketsCount > 0 ? openTicketsCount : null,
+      badgeStyle: 'pulsing_red'
     },
     {
       id: 'chatgpt' as AdminTab,
-      label: 'مدیریت ۱۰ توکن OpenAI',
+      label: 'اتصال به هوش مصنوعی',
       icon: BotMessageSquare,
-      badge: 'Failover',
-      badgeColor: 'text-emerald-700 bg-emerald-100 border border-emerald-200'
-    },
-    {
-      id: 'apis' as AdminTab,
-      label: 'اتصال به ۱۰ API مجزا',
-      icon: Network,
-      badge: `${activeApisCount}/10`,
-      badgeColor: 'text-sky-700 bg-sky-100 border border-sky-200'
+      badge: null,
+      badgeStyle: null
     }
   ];
 
@@ -105,12 +120,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           
           {/* Right side: Brand and Hamburger for Admin */}
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* Hamburger button visible on ALL screen sizes when view is admin */}
+            {/* Hamburger button visible on mobile/tablet when view is admin */}
             {user && activeView === 'admin' && (
               <button
                 type="button"
                 onClick={toggleDrawer}
-                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 flex items-center justify-center transition-all cursor-pointer border border-slate-200"
+                className="lg:hidden w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 flex items-center justify-center transition-all cursor-pointer border border-slate-200"
                 aria-label="منوی مدیریت"
                 title="منوی مدیریت"
               >
@@ -120,12 +135,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {activeView !== 'admin' && (
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-400 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-sky-400/20 flex-shrink-0">
-                  <TulipIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-xs flex-shrink-0 p-1 overflow-hidden">
+                  <TulipIcon className="w-full h-full object-contain" />
                 </div>
                 <div className="min-w-0">
-                  <span className="font-black text-sm sm:text-base bg-gradient-to-l from-sky-600 to-emerald-600 bg-clip-text text-transparent tracking-tight truncate block">
-                    آتلیه دیجیتال لاله
+                  <span className="font-black text-sm sm:text-base tracking-tight truncate block">
+                    <span className="text-slate-900">آتلیه دیجیتال </span>
+                    <span className="text-red-600">لاله</span>
                   </span>
                   <span className="hidden sm:inline text-[11px] text-slate-500 font-medium">
                     سامانه هوشمند چاپ عکس و پردازش تصویر
@@ -176,12 +192,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   )}
 
-                  {/* User Profile Info */}
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
-                    <UserIcon className="w-3.5 h-3.5 text-sky-600" />
-                    <span className="truncate max-w-[120px]">{user.name}</span>
-                  </div>
-
                   {/* Logout button */}
                   <button
                     onClick={onLogout}
@@ -212,11 +222,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Drawer Header */}
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-400 to-emerald-400 flex items-center justify-center text-white shadow-md">
-                  <TulipIcon className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-xs p-1 overflow-hidden flex-shrink-0">
+                  <TulipIcon className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h4 className="text-xs sm:text-sm font-black text-slate-900">آتلیه دیجیتال لاله</h4>
+                  <h4 className="text-xs sm:text-sm font-black leading-tight">
+                    <span className="text-slate-900">آتلیه دیجیتال </span>
+                    <span className="text-red-600">لاله</span>
+                  </h4>
                   <span className="text-[10px] text-sky-600 font-bold block">منوی ادمین</span>
                 </div>
               </div>
@@ -250,14 +263,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span>{item.label}</span>
                     </div>
 
-                    {item.badge && (
-                      <span
-                        className={`text-[9px] font-mono px-2 py-0.5 rounded-md font-bold ${
-                          item.badgeColor || 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
+                    {item.badge !== null && item.badge !== undefined && (
+                      item.badgeStyle === 'pulsing_red' ? (
+                        <span className="relative flex items-center justify-center">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          <span className="relative inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-black font-mono bg-rose-600 text-white shadow-xs shadow-rose-600/50">
+                            {item.badge}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-teal-100 text-teal-800 border border-teal-200">
+                          {item.badge}
+                        </span>
+                      )
                     )}
                   </button>
                 );
@@ -266,20 +284,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Bottom Actions */}
             <div className="p-4 border-t border-slate-200 bg-slate-50/50 space-y-2">
-              <button
-                onClick={() => {
-                  onSwitchView('user');
-                  setDrawerOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer min-h-[42px]"
-              >
-                <div className="flex items-center gap-2">
-                  <ExternalLink className="w-3.5 h-3.5 text-sky-500" />
-                  <span>مشاهده سامانه مشتری</span>
-                </div>
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-
               <button
                 onClick={() => {
                   onLogout();

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User as UserIcon, Phone, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Lock, User as UserIcon, Phone, ArrowLeft } from 'lucide-react';
 import { User } from '../types';
 import { TulipIcon } from './TulipIcon';
 
@@ -46,8 +46,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
         id: 'admin-1',
         name: 'احسان محمدی (مدیر استودیو)',
         username: 'ehsan',
+        password: 'ehsan123',
+        phone: '09121234567',
         role: 'admin',
-        createdAt: '۱۴۰۴/۰۱/۰۱'
+        createdAt: '۱۴۰۴/۰۱/۰۱',
+        walletBalance: 100000,
+        hasUsedFirstOrderGift: false
       };
       onLogin(adminUser);
       return;
@@ -59,9 +63,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
         id: 'u-sara',
         name: 'سارا رضایی',
         username: 'sara',
+        password: '123456',
         phone: '09123456789',
         role: 'user',
-        createdAt: '۱۴۰۵/۰۱/۱۰'
+        createdAt: '۱۴۰۵/۰۱/۱۰',
+        walletBalance: 100000,
+        hasUsedFirstOrderGift: false
       };
       onLogin(demoUser);
       return;
@@ -105,9 +112,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       id: 'usr-' + Date.now(),
       name: regFullName.trim(),
       username: regUsername.trim().toLowerCase(),
+      password: regPassword.trim(),
       phone: regPhone.trim() || '09120000000',
       role: 'user',
-      createdAt: 'امروز'
+      createdAt: 'امروز',
+      walletBalance: 100000,
+      hasUsedFirstOrderGift: false
     };
 
     try {
@@ -130,36 +140,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
       {/* Brand Header with Tulip Logo */}
       <div className="text-center mb-6 sm:mb-8 max-w-md w-full z-10 px-2">
-        <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-sky-400 to-emerald-400 text-white mb-3 sm:mb-4 shadow-lg shadow-sky-500/20">
-          <TulipIcon className="w-6 h-6 sm:w-7 sm:h-7" />
+        <div className="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white border border-slate-200/90 shadow-xl shadow-slate-200/80 mb-3 sm:mb-4 p-2 overflow-hidden">
+          <TulipIcon className="w-full h-full object-contain" />
         </div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-l from-sky-700 via-teal-700 to-emerald-700 bg-clip-text text-transparent leading-tight">
-          آتلیه دیجیتال لاله
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight leading-tight">
+          <span className="text-slate-900">آتلیه دیجیتال </span>
+          <span className="text-red-600">لاله</span>
         </h1>
       </div>
 
       {/* Main Card */}
       <div className="w-full max-w-md bg-white/95 border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-7 backdrop-blur-xl shadow-xl shadow-slate-200/60 z-10">
-        {/* Admin Credentials Info Bar */}
-        <div className="mb-5 p-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-sky-50 to-emerald-50 border border-sky-200 text-slate-800 text-xs">
-          <div className="flex items-center gap-2 font-bold mb-1 text-sky-700">
-            <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-            <span>اطلاعات ورود ادمین سیستم:</span>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2 pt-2 border-t border-sky-200/80">
-            <div className="text-[11px] sm:text-xs text-slate-700">
-              کاربری: <span className="font-mono font-bold text-sky-900 bg-sky-100/80 px-1.5 py-0.5 rounded">ehsan</span> | رمز: <span className="font-mono font-bold text-sky-900 bg-sky-100/80 px-1.5 py-0.5 rounded">ehsan123</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleAdminQuickFill}
-              className="text-[11px] bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-95 text-white font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center shadow-xs"
-            >
-              ورود سریع ادمین
-            </button>
-          </div>
-        </div>
-
         {/* Tab switch */}
         <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl mb-5 border border-slate-200">
           <button
@@ -262,6 +253,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
         ) : (
           /* REGISTER FORM */
           <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+            {/* 100,000 Tomans Welcome Gift Banner */}
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200/80 flex items-center gap-2.5 text-right">
+              <span className="text-xl">🎁</span>
+              <div>
+                <p className="text-xs font-black text-amber-900">
+                  ۱۰۰,۰۰۰ تومان اعتبار هدیه کیف پول
+                </p>
+                <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
+                  با ثبت‌نام شما، این اعتبار به‌صورت خودکار در فاکتور اولین سفارش کسر می‌شود.
+                </p>
+              </div>
+            </div>
+
             {regError && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs text-right font-medium">
                 {regError}

@@ -17,8 +17,6 @@ interface StepUploadPhotoProps {
   onUpdateDraft: (updated: Partial<OrderDraft>) => void;
   onNext: () => void;
   onBack: () => void;
-  openaiTokens?: string[];
-  printTypePrompts?: Record<string, string>;
 }
 
 export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
@@ -224,11 +222,11 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
       </div>
 
       {/* Navigation Buttons */}
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex items-center justify-between gap-3 pt-3">
         <button
           type="button"
           onClick={onBack}
-          className="bg-white hover:bg-slate-100 active:scale-95 text-slate-700 font-bold px-6 py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all border border-slate-200 cursor-pointer flex items-center gap-1.5 min-h-[44px]"
+          className="flex-1 sm:flex-none sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
         >
           <ChevronRight className="w-4 h-4" />
           <span>مرحله قبل</span>
@@ -238,9 +236,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
           type="button"
           onClick={handleProceed}
           disabled={!draft.uploadedImage}
-          className={`bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-98 text-white font-bold px-8 py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-sky-500/25 cursor-pointer flex items-center gap-2 min-h-[44px] ${
-            !draft.uploadedImage ? 'opacity-60 cursor-not-allowed' : ''
-          }`}
+          className="flex-1 sm:flex-none sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span>مرحله بعد</span>
           <ChevronLeft className="w-4 h-4" />

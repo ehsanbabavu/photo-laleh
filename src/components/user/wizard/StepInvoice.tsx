@@ -5,7 +5,7 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
-import { OrderDraft } from '../../../types';
+import { OrderDraft, PrintTypeOption, User } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../../data/mockData';
 import { formatPrice } from '../../../utils/formatters';
 
@@ -14,13 +14,17 @@ interface StepInvoiceProps {
   onUpdateDraft: (updated: Partial<OrderDraft>) => void;
   onNext: () => void;
   onBack: () => void;
+  printTypes?: PrintTypeOption[];
+  user?: User;
 }
 
 export const StepInvoice: React.FC<StepInvoiceProps> = ({
   draft,
   onUpdateDraft,
   onNext,
-  onBack
+  onBack,
+  printTypes,
+  user
 }) => {
   const [voucherInput, setVoucherInput] = useState('');
   const [voucherMessage, setVoucherMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(
@@ -28,7 +32,25 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   );
   const [addressError, setAddressError] = useState('');
 
-  const printType = PRINT_TYPES.find((t) => t.id === draft.printType) || PRINT_TYPES[0];
+  // 100,000 Tomans wallet gift eligibility for first order
+  const userWallet = user?.walletBalance ?? 100000;
+  const isFirstOrderGiftAvailable = userWallet > 0 && !user?.hasUsedFirstOrderGift;
+  const [applyWalletGift, setApplyWalletGift] = useState<boolean>(isFirstOrderGiftAvailable);
+
+  // Dynamically resolve printType from props, localStorage database, or fallback
+  const activePrintTypes: PrintTypeOption[] = (() => {
+    if (printTypes && printTypes.length > 0) return printTypes;
+    try {
+      const saved = localStorage.getItem('studio_print_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return PRINT_TYPES;
+  })();
+
+  const printType = activePrintTypes.find((t) => t.id === draft.printType) || activePrintTypes[0];
   const dimension = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
   const material = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
@@ -37,7 +59,12 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
   const shippingCost = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-  const finalTotal = Math.max(0, subtotal + shippingCost - draft.discountAmount);
+  const grossBeforeWallet = subtotal + shippingCost - draft.discountAmount;
+  
+  // Calculate wallet gift deduction (up to 100,000 Tomans)
+  const maxGiftDeductible = Math.min(100000, userWallet, Math.max(0, grossBeforeWallet));
+  const walletDeduction = (applyWalletGift && isFirstOrderGiftAvailable) ? maxGiftDeductible : 0;
+  const finalTotal = Math.max(0, grossBeforeWallet - walletDeduction);
 
   const handleApplyVoucher = () => {
     const code = voucherInput.trim().toUpperCase();
@@ -67,6 +94,9 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
       }
     }
     setAddressError('');
+    onUpdateDraft({
+      walletCreditUsed: walletDeduction
+    });
     onNext();
   };
 
@@ -77,22 +107,13 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
       <div className={`grid grid-cols-1 ${isPostDelivery ? 'lg:grid-cols-12' : 'max-w-2xl mx-auto'} gap-5 items-start`}>
         {/* Itemized Invoice */}
         <div className={`${isPostDelivery ? 'lg:col-span-7' : 'w-full'} bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 shadow-xs`}>
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-400 to-emerald-400 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                <Receipt className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-xs sm:text-sm font-black text-slate-900">پیش‌فاکتور الکترونیکی سفارش</h3>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  {new Date().toLocaleDateString('fa-IR')}
-                </span>
-              </div>
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-400 to-emerald-400 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+              <Receipt className="w-5 h-5" />
             </div>
-
-            <span className="text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-              محاسبه آنی
-            </span>
+            <div>
+              <h3 className="text-xs sm:text-sm font-black text-slate-900">پیش‌فاکتور الکترونیکی سفارش</h3>
+            </div>
           </div>
 
           {/* Line items table */}
@@ -108,16 +129,18 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               </span>
             </div>
 
-            {/* Dimension item */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-2">
-              <div>
-                <p className="font-bold text-slate-900 text-xs">{dimension.title}</p>
-                <p className="text-slate-500 text-[10px] font-mono mt-0.5">{dimension.dimensionsCm}</p>
+            {/* Dimension item (Hidden for 6 pieces 3x4 promotional card) */}
+            {dimension.id !== 'personnel_6x3x4' && !dimension.title.includes('۶ عدد عکس ۳×۴') && (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-bold text-slate-900 text-xs">{dimension.title}</p>
+                  <p className="text-slate-500 text-[10px] font-mono mt-0.5">{dimension.dimensionsCm}</p>
+                </div>
+                <span className="font-mono font-bold text-sky-700 text-xs flex-shrink-0">
+                  {dimension.basePrice === 0 ? 'رایگان' : `+ ${formatPrice(dimension.basePrice)}`}
+                </span>
               </div>
-              <span className="font-mono font-bold text-sky-700 text-xs flex-shrink-0">
-                {dimension.basePrice === 0 ? 'رایگان' : `+ ${formatPrice(dimension.basePrice)}`}
-              </span>
-            </div>
+            )}
 
             {/* Optional additions */}
             {draft.hasLamination && (
@@ -205,6 +228,38 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
             )}
           </div>
 
+          {/* 100,000 Tomans Gift Credit from Wallet (First Invoice Special Infrastructure) */}
+          {isFirstOrderGiftAvailable && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-300 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black text-sm flex-shrink-0 shadow-xs">
+                  🎁
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-black text-emerald-900">اعتبار کیف پول</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                      ویژه اولین سفارش
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 mt-0.5 leading-snug">
+                    مبلغ {formatPrice(maxGiftDeductible)} از فاکتور این سفارش کسر خواهد شد.
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0 bg-white/80 px-2.5 py-1.5 rounded-xl border border-emerald-200">
+                <input
+                  type="checkbox"
+                  checked={applyWalletGift}
+                  onChange={(e) => setApplyWalletGift(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-emerald-300 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-emerald-900 select-none">کسر از فاکتور</span>
+              </label>
+            </div>
+          )}
+
           {/* Totals Summary */}
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50/80 to-emerald-50/80 border border-sky-200 space-y-1.5 text-xs">
             <div className="flex justify-between text-slate-600">
@@ -217,8 +272,18 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
             </div>
             {draft.discountAmount > 0 && (
               <div className="flex justify-between text-emerald-700 font-bold">
-                <span>تخفیف ویژه:</span>
+                <span>تخفیف کوپن ویژه:</span>
                 <span className="font-mono">- {formatPrice(draft.discountAmount)}</span>
+              </div>
+            )}
+            {walletDeduction > 0 && (
+              <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-100/70 p-2 rounded-xl border border-emerald-300/80">
+                <div className="flex items-center gap-1.5">
+                  <span>🎁 کسر هدیه کیف پول (سفارش اول):</span>
+                </div>
+                <span className="font-mono font-black text-xs sm:text-sm text-emerald-700">
+                  - {formatPrice(walletDeduction)}
+                </span>
               </div>
             )}
             <div className="pt-2 border-t border-sky-200/80 flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
@@ -329,12 +394,12 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
         )}
       </div>
 
-      {/* Navigation Buttons (Side by Side on mobile and desktop) */}
-      <div className="flex items-center justify-between gap-2.5 sm:gap-4 pt-2">
+      {/* Navigation Buttons */}
+      <div className="flex items-center justify-between gap-3 pt-3">
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 sm:flex-none bg-white hover:bg-slate-100 active:scale-98 text-slate-700 font-bold px-4 sm:px-6 py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-colors cursor-pointer text-center min-h-[44px] border border-slate-200 flex items-center justify-center gap-1.5 shadow-xs"
+          className="flex-1 sm:flex-none sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
         >
           <ChevronRight className="w-4 h-4" />
           <span>مرحله قبل</span>
@@ -343,7 +408,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
         <button
           type="button"
           onClick={handleProceed}
-          className="flex-1 sm:flex-none bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-98 text-white font-bold px-5 sm:px-8 py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-sky-500/25 cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 min-h-[44px]"
+          className="flex-1 sm:flex-none sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
         >
           <span>مرحله بعد</span>
           <ChevronLeft className="w-4 h-4" />

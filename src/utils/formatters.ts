@@ -13,7 +13,7 @@ export const getStatusBadge = (status: string): { label: string; color: string }
     case 'pending_review':
       return { label: 'در انتظار بررسی', color: 'text-amber-700 bg-amber-50 border-amber-200' };
     case 'ai_processing':
-      return { label: 'پردازش هوش مصنوعی', color: 'text-sky-700 bg-sky-50 border-sky-200' };
+      return { label: 'در حال آماده‌سازی و رتوش', color: 'text-sky-700 bg-sky-50 border-sky-200' };
     case 'printing':
       return { label: 'در حال چاپ در استودیو', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
     case 'ready_to_ship':

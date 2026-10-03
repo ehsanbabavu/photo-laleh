@@ -3,67 +3,129 @@ import {
   TrendingUp,
   Package,
   BotMessageSquare,
-  Network,
   Printer,
   ChevronLeft,
   Sparkles,
-  ArrowUpRight
+  ArrowUpRight,
+  LifeBuoy
 } from 'lucide-react';
-import { Order, ApiConnection } from '../../types';
+import { Order, SupportTicket } from '../../types';
+import { AdminTab } from './AdminSidebar';
 import { formatPrice, formatNumber, getStatusBadge } from '../../utils/formatters';
+import { QueueStateInfo } from '../../utils/aiQueueManager';
+import { RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
 
 interface AdminDashboardProps {
   orders: Order[];
-  apis: ApiConnection[];
-  onNavigateTab: (tab: 'chatgpt' | 'apis' | 'orders') => void;
+  queueInfo?: QueueStateInfo;
+  tickets?: SupportTicket[];
+  onNavigateTab: (tab: AdminTab) => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, apis, onNavigateTab }) => {
-  const activeApisCount = apis.filter((a) => a.isEnabled).length;
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInfo, tickets = [], onNavigateTab }) => {
   const totalRevenue = orders.reduce((sum, o) => sum + (o.paymentStatus === 'paid' ? o.totalPrice : 0), 0);
   const pendingPrintCount = orders.filter((o) => o.status === 'printing' || o.status === 'ai_processing').length;
+  const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-sky-600 via-teal-600 to-emerald-600 rounded-2xl sm:rounded-3xl p-4 sm:p-7 relative overflow-hidden shadow-lg shadow-sky-600/15 text-white">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 text-sky-100 text-xs font-bold mb-1">
-              <Sparkles className="w-4 h-4 flex-shrink-0 text-emerald-200" />
-              <span>پنل اختصاصی مدیریت استودیو</span>
+      {/* Live AI Queue Monitoring Widget */}
+      {queueInfo && (
+        <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                queueInfo.isProcessing
+                  ? 'bg-sky-50 text-sky-600 border border-sky-200'
+                  : queueInfo.cooldownRemainingSeconds > 0
+                  ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                  : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+              }`}>
+                {queueInfo.isProcessing ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : queueInfo.cooldownRemainingSeconds > 0 ? (
+                  <Clock className="w-4 h-4 animate-pulse" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-base font-black text-slate-900">
+                  وضعیت صف پردازش هوش مصنوعی (Queue Monitor)
+                </h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  مدیریت خودکار و ترتیبی سفارشات هوش مصنوعی
+                </p>
+              </div>
             </div>
-            <h1 className="text-lg sm:text-2xl lg:text-3xl font-black text-white">
-              درود احسان عزیز، وقت بخیر!
-            </h1>
-            <p className="text-xs sm:text-sm text-sky-100 mt-1 max-w-xl leading-relaxed">
-              تمامی ۱۰ سرویس API متصل و درگاه پرداخت شاپرک فعال است. هم‌اکنون {pendingPrintCount} سفارش در مرحله پردازش هوش مصنوعی و صف چاپ قرار دارد.
-            </p>
+
+            <div className="flex items-center gap-2">
+              {queueInfo.isProcessing ? (
+                <span className="px-3 py-1.5 rounded-xl bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>در حال پردازش سفارش #{queueInfo.currentOrderTrackingCode}</span>
+                </span>
+              ) : queueInfo.cooldownRemainingSeconds > 0 ? (
+                <span className="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs animate-pulse">
+                  <span>⏳ فاصله امن: {queueInfo.cooldownRemainingSeconds} ثانیه دیگر</span>
+                </span>
+              ) : (
+                <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                  🟢 آماده دریافت سفارش
+                </span>
+              )}
+
+              <button
+                onClick={() => onNavigateTab('orders')}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                مشاهده سفارشات
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 pt-2 sm:pt-0">
-            <button
-              onClick={() => onNavigateTab('chatgpt')}
-              className="flex-1 sm:flex-none bg-white/15 hover:bg-white/25 active:scale-95 text-white font-bold px-3.5 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 border border-white/20 cursor-pointer min-h-[40px] backdrop-blur-xs"
-            >
-              <BotMessageSquare className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-              <span>تست چت‌جی‌پی‌تی</span>
-            </button>
-            <button
-              onClick={() => onNavigateTab('orders')}
-              className="flex-1 sm:flex-none bg-white hover:bg-slate-50 active:scale-95 text-slate-900 font-black px-4 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md min-h-[40px]"
-            >
-              <Printer className="w-4 h-4 text-sky-600 flex-shrink-0" />
-              <span>مشاهده صف چاپ</span>
-            </button>
-          </div>
+          {/* Queue Details / Cooldown Progress */}
+          {queueInfo.cooldownRemainingSeconds > 0 && (
+            <div className="mt-3.5 space-y-1.5 bg-amber-50/70 border border-amber-200/60 rounded-xl p-3">
+              <div className="flex justify-between text-xs text-amber-900 font-bold">
+                <span>شمارش معکوس تا آغاز پردازش سفارش بعدی در صف (فاصله محافظتی ۱ دقیقه):</span>
+                <span>{queueInfo.cooldownRemainingSeconds} ثانیه</span>
+              </div>
+              <div className="w-full h-2 bg-amber-200/60 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 transition-all duration-1000"
+                  style={{ width: `${((60 - queueInfo.cooldownRemainingSeconds) / 60) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {queueInfo.queueList.length > 0 ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-500 font-bold">سفارش‌های در نوبت:</span>
+              {queueInfo.queueList.map((item, idx) => (
+                <div
+                  key={item.orderId}
+                  className="bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200 text-slate-700 font-medium flex items-center gap-1.5"
+                >
+                  <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] font-black flex items-center justify-center font-mono">
+                    {idx + 1}
+                  </span>
+                  <span className="font-bold">{item.userName}</span>
+                  <span className="font-mono text-sky-600 text-[11px]">#{item.trackingCode}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-slate-400">
+              هیچ سفارشی در صف انتظار قرار ندارد.
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* 4 Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* 2 Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         {/* Total Orders */}
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-sky-300 hover:shadow-md transition-all shadow-xs">
           <div className="flex items-center justify-between mb-2">
@@ -94,47 +156,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, apis, on
           </div>
           <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 sm:mt-2 font-medium">
             تسویه شاپرک
-          </div>
-        </div>
-
-        {/* ChatGPT Status */}
-        <div
-          onClick={() => onNavigateTab('chatgpt')}
-          className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group active:scale-98 shadow-xs"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">چت جی پی تی</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform border border-emerald-100">
-              <BotMessageSquare className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs sm:text-sm font-bold text-slate-900">GPT-4o</span>
-          </div>
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-emerald-600 font-bold mt-1 sm:mt-2">
-            <span>۲۴۰ms</span>
-            <ArrowUpRight className="w-3 h-3" />
-          </div>
-        </div>
-
-        {/* 10 APIs Status */}
-        <div
-          onClick={() => onNavigateTab('apis')}
-          className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-sky-400 hover:shadow-md transition-all cursor-pointer group active:scale-98 shadow-xs"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">۱۰ API مجزا</span>
-            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:scale-110 transition-transform border border-sky-100">
-              <Network className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 font-mono">
-            {activeApisCount} <span className="text-xs font-normal text-slate-500">از ۱۰</span>
-          </div>
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-sky-600 font-bold mt-1 sm:mt-2">
-            <span>مدیریت</span>
-            <ArrowUpRight className="w-3 h-3" />
           </div>
         </div>
       </div>

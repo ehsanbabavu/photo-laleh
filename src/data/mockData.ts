@@ -1,157 +1,4 @@
-import { ApiConnection, PrintDimension, PaperMaterial, PrintTypeOption, Order } from '../types';
-
-export const INITIAL_APIS: ApiConnection[] = [
-  {
-    id: 1,
-    name: 'OpenAI ChatGPT (GPT-4o)',
-    provider: 'OpenAI (ChatGPT)',
-    endpoint: 'https://api.openai.com/v1/chat/completions',
-    apiKey: 'sk-proj-994827103847592837492817349182749',
-    model: 'gpt-4o',
-    status: 'connected',
-    lastPing: '۲ دقیقه پیش',
-    requestsCount: 1420,
-    quotaLimit: 5000,
-    latencyMs: 310,
-    isEnabled: true,
-    description: 'تحلیل پرامپت هوشمند، تولید توضیحات محصول و پردازش درخواست‌های روتوش چهره'
-  },
-  {
-    id: 2,
-    name: 'ChatGPT Vision & Inspector',
-    provider: 'OpenAI (ChatGPT)',
-    endpoint: 'https://api.openai.com/v1/chat/completions',
-    apiKey: 'sk-proj-vis-8472910482719284729104827109283',
-    model: 'gpt-4o-mini',
-    status: 'connected',
-    lastPing: '۵ دقیقه پیش',
-    requestsCount: 890,
-    quotaLimit: 3000,
-    latencyMs: 240,
-    isEnabled: true,
-    description: 'بررسی کیفیت وضوح تصویر ارسالی و تشخیص نویز قبل از تایید چاپ'
-  },
-  {
-    id: 3,
-    name: 'API بازسازی و رنگ‌آمیزی هوشمند',
-    provider: 'Colorize AI',
-    endpoint: 'https://api.deepcolor.ai/v2/colorize',
-    apiKey: 'col_live_948201948201948201948',
-    model: 'deepcolor-v3-artistic',
-    status: 'connected',
-    lastPing: '۱۲ دقیقه پیش',
-    requestsCount: 420,
-    quotaLimit: 1000,
-    latencyMs: 650,
-    isEnabled: true,
-    description: 'تبدیل عکس‌های قدیمی سیاه و سفید به رنگی طبیعی بر اساس تن پوست و بافت لباس'
-  },
-  {
-    id: 4,
-    name: 'API حذف و تغییر پس‌زمینه پرسنلی',
-    provider: 'Background Remover',
-    endpoint: 'https://api.rmbg.io/v1/segment',
-    apiKey: 'rmbg_sec_8471029481029384710',
-    model: 'rmbg-birefnet-portrait',
-    status: 'connected',
-    lastPing: '۱۸ دقیقه پیش',
-    requestsCount: 680,
-    quotaLimit: 2000,
-    latencyMs: 180,
-    isEnabled: true,
-    description: 'جداسازی مو و پیرایش دقیق برای تعویض بک‌گراند به سفید اداری یا آبی رسمی'
-  },
-  {
-    id: 5,
-    name: 'API افزایش کیفیت و سوپر رزولوشن',
-    provider: 'Upscale Restoration',
-    endpoint: 'https://api.esrgan.cloud/v1/upscale',
-    apiKey: 'esr_token_39481029481029384',
-    model: 'gfpgan-real-esrgan-4x',
-    status: 'connected',
-    lastPing: '۲۵ دقیقه پیش',
-    requestsCount: 310,
-    quotaLimit: 1500,
-    latencyMs: 820,
-    isEnabled: true,
-    description: 'ترمیم شکستگی‌ها و افزایش وضوح تا ۴ برابر بدون افت کیفیت برای چاپ سایز بزرگ'
-  },
-  {
-    id: 6,
-    name: 'Google Gemini 2.5 Flash',
-    provider: 'Gemini AI',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta',
-    apiKey: 'AIzaSyA839482019482019384729104829104',
-    model: 'gemini-2.5-flash',
-    status: 'connected',
-    lastPing: '۱ ساعت پیش',
-    requestsCount: 2150,
-    quotaLimit: 10000,
-    latencyMs: 195,
-    isEnabled: true,
-    description: 'پردازش همزمان دستورات ویرایش کاربر و دسته‌بندی خودکار سفارشات ورودی'
-  },
-  {
-    id: 7,
-    name: 'Claude 3.5 Sonnet API',
-    provider: 'Claude AI',
-    endpoint: 'https://api.anthropic.com/v1/messages',
-    apiKey: 'sk-ant-api03-93847102948102938471029384',
-    model: 'claude-3-5-sonnet',
-    status: 'disconnected',
-    lastPing: 'دیروز',
-    requestsCount: 120,
-    quotaLimit: 500,
-    latencyMs: 410,
-    isEnabled: false,
-    description: 'سیستم پشتیبان نگارش متن تسلیت و متون کتیبه‌ای یادبود مراسم ختم'
-  },
-  {
-    id: 8,
-    name: 'Stability AI - SDXL Fine Art',
-    provider: 'Stability AI',
-    endpoint: 'https://api.stability.ai/v1/generation',
-    apiKey: 'sk-stab-49102948102938471029384',
-    model: 'stable-diffusion-xl-1024',
-    status: 'connected',
-    lastPing: '۳ ساعت پیش',
-    requestsCount: 195,
-    quotaLimit: 1000,
-    latencyMs: 1200,
-    isEnabled: true,
-    description: 'تولید بوکه، نورپردازی رمانتیک و پس‌زمینه‌های لوکس عمارت برای عکس‌های عروسی'
-  },
-  {
-    id: 9,
-    name: 'درگاه پرداخت شاپرک (سامان کیش / زرین‌پال)',
-    provider: 'Shaparak Pay',
-    endpoint: 'https://api.sep.ir/v1/paymentGate',
-    apiKey: 'sep_mid_994820194820_terminal_44',
-    model: 'shaparak-v2-direct',
-    status: 'connected',
-    lastPing: 'هم‌اکنون',
-    requestsCount: 540,
-    quotaLimit: 20000,
-    latencyMs: 85,
-    isEnabled: true,
-    description: 'تراکنش‌های ریالی درگاه شاپرک با بازگشت آنی و تاییدیه پیامکی بانکی'
-  },
-  {
-    id: 10,
-    name: 'سامانه پیامک کاوه‌نگار (اطلاع‌رسانی چاپ)',
-    provider: 'SMS Gateway',
-    endpoint: 'https://api.kavenegar.com/v1/sms/send',
-    apiKey: 'kav_key_8492019482019482019482019',
-    model: 'kav-pattern-fast-otp',
-    status: 'connected',
-    lastPing: '۱۰ دقیقه پیش',
-    requestsCount: 1820,
-    quotaLimit: 50000,
-    latencyMs: 120,
-    isEnabled: true,
-    description: 'ارسال خودکار پیامک تغییر وضعیت سفارش، فاکتور و کد رهگیری پستی به مشتری'
-  }
-];
+import { PrintDimension, PaperMaterial, PrintTypeOption, Order, SupportTicket, Announcement } from '../types';
 
 export const PRINT_TYPES: PrintTypeOption[] = [
   {
@@ -159,7 +6,7 @@ export const PRINT_TYPES: PrintTypeOption[] = [
     title: 'عکس پرسنلی',
     subtitle: 'سازمانی، گذرنامه، گواهینامه و مدارک اداری',
     description: 'چاپ باکیفیت و استاندارد با زمینه سفید یا آبی، تنظیم خودکار زاویه چهره، روتوش ملایم جای لک و ارائه در پک‌های ۶ و ۱۲ تایی.',
-    basePrice: 85000,
+    basePrice: 600000,
     tag: 'تحویل فوری',
     sampleImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
     features: [
@@ -167,6 +14,21 @@ export const PRINT_TYPES: PrintTypeOption[] = [
       'تعویض پس‌زمینه به سفید یا آبی پرسنلی',
       'صاف‌کردن و روتوش پوست به سبک استاندارد اداری',
       'امکان چاپ پک ۶ عددی روی کاغذ سیلک مات'
+    ]
+  },
+  {
+    id: 'commercial',
+    title: 'عکس تبلیغاتی و تجاری',
+    subtitle: 'معرفی محصول، برندینگ شخصی، تبلیغات و کاتالوگ',
+    description: 'عکاسی و پردازش حرفه‌ای هوش مصنوعی جهت معرفی محصولات، مدلینگ، خدمات و پوسترهای تبلیغاتی با نورپردازی صنعتی.',
+    basePrice: 250000,
+    tag: 'تبلیغات و برندینگ',
+    sampleImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80',
+    features: [
+      'نورپردازی متمرکز صنعتی و های‌لایت استودیویی',
+      'تعویض پس‌زمینه به دکورهای لوکس تبلیغاتی',
+      'افزایش شفافیت و جلا در جزئیات کالا و مدلینگ',
+      'مناسب پوستر، اینستاگرام، کاتالوگ و بیلبورد'
     ]
   },
   {
@@ -344,95 +206,22 @@ export const PAPER_MATERIALS: PaperMaterial[] = [
 
 export const INITIAL_ORDERS: Order[] = [
   {
-    id: 'ord-101',
-    trackingCode: 'NG-84920',
+    id: 'ord-sample-01',
+    trackingCode: 'NG-74920',
     userId: 'u-sara',
     userName: 'سارا رضایی',
-    date: '۱۴۰۵/۰۱/۱۱',
+    date: '۱۴۰۵/۰۱/۱۲',
     status: 'printing',
-    totalPrice: 420000,
-    paymentStatus: 'paid',
-    paymentReference: 'SHP-993821034',
-    printType: 'wedding',
-    uploadedImage: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80',
-    originalImageName: 'wedding_portrait_2026.jpg',
-    aiEffects: {
-      colorized: false,
-      bgMode: 'original',
-      memorialRibbon: false,
-      weddingFilter: 'warm',
-      autoEnhance: true
-    },
-    dimensionId: 'size_30x40',
-    materialId: 'chassis_16mm',
-    quantity: 1,
-    hasLamination: true,
-    designerRetouch: true,
-    deliveryMethod: 'peyk',
-    customerInfo: {
-      fullName: 'سارا رضایی',
-      phoneNumber: '09123456789',
-      province: 'تهران',
-      city: 'تهران',
-      address: 'خیابان ولیعصر، بالاتر از توانیر، کوچه سرو، پلاک ۱۲، واحد ۴',
-      postalCode: '1435678912',
-      notes: 'لطفاً کناره‌های شاسی کاملاً تمیز و بی‌نقص باشد.'
-    },
-    discountCode: 'WELCOME',
-    discountAmount: 40000,
-    paymentMethod: 'online'
-  },
-  {
-    id: 'ord-102',
-    trackingCode: 'NG-84921',
-    userId: 'u-ali',
-    userName: 'علی حسینی',
-    date: '۱۴۰۵/۰۱/۱۰',
-    status: 'ready_to_ship',
-    totalPrice: 195000,
-    paymentStatus: 'paid',
-    paymentReference: 'SHP-772918231',
-    printType: 'bw_to_color',
-    uploadedImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80',
-    originalImageName: 'grandfather_old_pic.jpg',
-    aiEffects: {
-      colorized: true,
-      bgMode: 'original',
-      memorialRibbon: false,
-      weddingFilter: 'natural',
-      autoEnhance: true
-    },
-    dimensionId: 'size_20x30',
-    materialId: 'chassis_8mm',
-    quantity: 1,
-    hasLamination: false,
-    designerRetouch: true,
-    deliveryMethod: 'pishtaz',
-    customerInfo: {
-      fullName: 'علی حسینی',
-      phoneNumber: '09351234567',
-      province: 'اصفهان',
-      city: 'اصفهان',
-      address: 'خیابان چهارباغ بالا، مجتمع تجاری کوثر',
-      postalCode: '8174567890',
-      notes: 'عکس قدیمی پدربزرگ بود، رنگ‌آمیزی عالی انجام شده ممنون.'
-    },
-    discountAmount: 0,
-    paymentMethod: 'online'
-  },
-  {
-    id: 'ord-103',
-    trackingCode: 'NG-84922',
-    userId: 'u-maryam',
-    userName: 'مریم اکبری',
-    date: '۱۴۰۵/۰۱/۰۹',
-    status: 'ai_processing',
     totalPrice: 125000,
     paymentStatus: 'paid',
-    paymentReference: 'SHP-661092834',
+    paymentReference: 'SHP-849102841',
     printType: 'personnel',
     uploadedImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80',
-    originalImageName: 'passport_raw.jpg',
+    aiProcessedImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80',
+    aiPromptUsed: 'پرتره پرسنلی رسمی و اداری، زمینه سفید یکدست، عکس ۳در۴ گذرنامه، نورپردازی آتلیه‌ای پرتره، کیفیت فوق‌العاده بالا',
+    aiStatus: 'completed',
+    aiCompletedAt: '۱۴:۳۵',
+    originalImageName: 'sample_portrait.jpg',
     aiEffects: {
       colorized: false,
       bgMode: 'white',
@@ -440,22 +229,115 @@ export const INITIAL_ORDERS: Order[] = [
       weddingFilter: 'natural',
       autoEnhance: true
     },
-    dimensionId: 'size_3x4',
+    dimensionId: 'personnel_6x3x4',
     materialId: 'silk_paper',
-    quantity: 2,
+    quantity: 1,
     hasLamination: false,
-    designerRetouch: false,
+    designerRetouch: true,
     deliveryMethod: 'peyk',
     customerInfo: {
-      fullName: 'مریم اکبری',
-      phoneNumber: '09197654321',
+      fullName: 'سارا رضایی',
+      phoneNumber: '09123456789',
       province: 'تهران',
       city: 'تهران',
-      address: 'سعادت‌آباد، میدان کاج، خیابان سرو غربی',
-      postalCode: '1998765432',
-      notes: 'برای تمدید گذرنامه نیاز دارم، زمینه کاملاً سفید باشد.'
+      address: 'خیابان ولیعصر، نرسیده به میدان ونک، برج نگار، طبقه ۵',
+      postalCode: '1969754321',
+      notes: 'کیفیت چاپ مات سیلک باشد و برش‌ها دقیق انجام شود.'
     },
     discountAmount: 0,
     paymentMethod: 'online'
   }
 ];
+
+export const INITIAL_TICKETS: SupportTicket[] = [
+  {
+    id: 't-101',
+    trackingNumber: 'TCK-9482',
+    userId: 'u-1',
+    userName: 'احسان باباگلی',
+    userPhone: '09123456789',
+    subject: 'درخواست ارسال فوری عکس پرسنلی با پیک اختصاصی',
+    category: 'order_tracking',
+    orderTrackingCode: 'ORD-98214',
+    priority: 'high',
+    status: 'answered',
+    createdAt: '۱۴۰۵/۰۱/۱۴ - ۱۰:۳۰',
+    updatedAt: '۱۴۰۵/۰۱/۱۴ - ۱۱:۱۵',
+    messages: [
+      {
+        id: 'm-1',
+        sender: 'user',
+        senderName: 'احسان باباگلی',
+        message: 'سلام وقت بخیر، سفارش عکس پرسنلی من برای تمدید گذرنامه فوری نیاز است. آیا امکان دارد تا ظهر امروز با پیک ارسال فرمایید؟ متشکرم.',
+        createdAt: '۱۴۰۵/۰۱/۱۴ - ۱۰:۳۰'
+      },
+      {
+        id: 'm-2',
+        sender: 'support',
+        senderName: 'پشتیبانی آتلیه دیجیتال لاله (محمدیان)',
+        message: 'درود بر شما آقای باباگلی عزیز، سفارش شما با اولویت چاپ ویژه در لابراتوار قرار گرفت. به محض خشک‌شدن و برش لیزری (حدود ساعت ۱۲:۱۵)، تحویل سفیر پیک فوری خواهد شد و پیامک حاوی شماره تماس راننده برایتان ارسال می‌گردد.',
+        createdAt: '۱۴۰۵/۰۱/۱۴ - ۱۱:۱۵'
+      }
+    ]
+  },
+  {
+    id: 't-102',
+    trackingNumber: 'TCK-8920',
+    userId: 'u-1',
+    userName: 'احسان باباگلی',
+    userPhone: '09123456789',
+    subject: 'استعلام چاپ روی بوم کنواس برای عکس نامزدی',
+    category: 'print_quality',
+    priority: 'medium',
+    status: 'in_progress',
+    createdAt: '۱۴۰۵/۰۱/۱۳ - ۱۶:۴۵',
+    updatedAt: '۱۴۰۵/۰۱/۱۳ - ۱۷:۰۰',
+    messages: [
+      {
+        id: 'm-3',
+        sender: 'user',
+        senderName: 'احسان باباگلی',
+        message: 'سلام، قصد دارم عکس مراسم نامزدی را در سایز ۵۰×۷۰ روی بوم کنواس با کلاف چوبی سفارش دهم. آیا روی بوم، روتوش چهره با رزولوشن بالا انجام می‌شود که بافت پارچه افت کیفیت نداشته باشد؟',
+        createdAt: '۱۴۰۵/۰۱/۱۳ - ۱۶:۴۵'
+      },
+      {
+        id: 'm-4',
+        sender: 'support',
+        senderName: 'کارشناس آتلیه لاله',
+        message: 'سلام و تبریک فراوان، بله دقیقاً؛ تمامی فایل‌های چاپ کنواس ابتدا از الگوریتم ارتقای رزولوشن ۴ برابری عبور داده می‌شوند و سپس با جوهر ۱۲ رنگ پیگمنت ضدآب روی بوم ایتالیایی چاپ می‌شوند. همکاران طراحی در حال بررسی کادر شما هستند.',
+        createdAt: '۱۴۰۵/۰۱/۱۳ - ۱۷:۰۰'
+      }
+    ]
+  }
+];
+
+export const INITIAL_ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: 'ann-1',
+    title: 'تخفیف ویژه ۱۰۰ هزار تومانی برای ثبت اولین سفارش چاپ و رتوش',
+    content: 'تمامی اعضای جدید استودیو می‌توانند در اولین سفارش خود از اعتبار ۱۰۰ هزار تومانی کیف پول بهره‌مند شوند. این تخفیف به‌صورت خودکار در فاکتور شما اعمال می‌گردد.',
+    priority: 'important',
+    createdAt: '۱۴۰۳/۰۷/۱۰',
+    isActive: true,
+    readBy: []
+  },
+  {
+    id: 'ann-2',
+    title: 'راه‌اندازی سیستم هوش مصنوعی نسل جدید برای تبدیل عکس‌های قدیمی به رنگی',
+    content: 'از این پس تمامی سفارش‌های تبدیل سیاه و سفید به رنگی با مدل اختصاصی هوش مصنوعی و احیای بافت طبیعی چهره پردازش می‌شوند.',
+    priority: 'normal',
+    createdAt: '۱۴۰۳/۰۷/۰۸',
+    isActive: true,
+    readBy: []
+  },
+  {
+    id: 'ann-3',
+    title: 'ساعات کاری و ارسال سریع سفارش‌های حضوری و پیکی در روزهای تعطیل',
+    content: 'بخش چاپ و لابراتوار تخصصی آتلیه دیجیتال لاله در تمام روزهای هفته فعال بوده و سفارشات فوری با پیک موتوری در کمتر از ۲ ساعت تحویل می‌گردند.',
+    priority: 'normal',
+    createdAt: '۱۴۰۳/۰۷/۰۵',
+    isActive: true,
+    readBy: []
+  }
+];
+
