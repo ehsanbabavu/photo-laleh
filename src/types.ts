@@ -93,6 +93,9 @@ export interface Order extends OrderDraft {
   aiCompletedAt?: string;
   printSheetImage?: string;
   printSheetCreatedAt?: string;
+  commercialImage?: string;
+  commercialPromptUsed?: string;
+  commercialSheet10x15Image?: string;
 }
 
 export type TicketCategory =

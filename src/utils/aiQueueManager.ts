@@ -9,7 +9,7 @@
 
 import { Order } from '../types';
 import { processOrderInBackend } from './aiBackend';
-import { generateNinePackSheet } from './sheetGenerator';
+import { generateNinePackSheet, generateSingle10x15Sheet } from './sheetGenerator';
 
 export interface QueueJob {
   order: Order;
@@ -17,6 +17,7 @@ export interface QueueJob {
   baseUrl?: string;
   model?: string;
   prompt: string;
+  commercialPrompt?: string;
   queuedAt: number;
 }
 
@@ -188,6 +189,41 @@ class AiQueueManager {
         console.warn('Auto 9-pack sheet generation warning:', sheetErr);
       }
 
+      // 3.5. If printType is personnel, automatically send secondary AI request for commercial photo
+      let commercialImageResult: string | undefined = undefined;
+      let commercial10x15SheetResult: string | undefined = undefined;
+      const commercialPromptToUse = this.currentJob.commercialPrompt || 'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی';
+
+      if (order.printType === 'personnel' && order.uploadedImage) {
+        try {
+          this.notifyOrderUpdate(
+            { ...order, status: 'ai_processing', aiStatus: 'processing', aiProcessedImage: result.imageUrl },
+            `عکس پرسنلی سفارش #${order.trackingCode} اماده شد. در حال ارسال درخواست دوم به صف برای عکس تبلیغاتی...`
+          );
+
+          const commResult = await processOrderInBackend({
+            uploadedImage: order.uploadedImage,
+            originalImageName: order.originalImageName,
+            printType: 'commercial',
+            prompt: commercialPromptToUse,
+            apiKey,
+            baseUrl,
+            model
+          });
+
+          commercialImageResult = commResult.imageUrl;
+
+          // Automatically size to 10x15 cm sheet
+          try {
+            commercial10x15SheetResult = await generateSingle10x15Sheet(commResult.imageUrl);
+          } catch (commSheetErr) {
+            console.warn('Auto 10x15 commercial sheet generation warning:', commSheetErr);
+          }
+        } catch (commErr) {
+          console.warn('Auto commercial generation warning:', commErr);
+        }
+      }
+
       const formattedNow = new Intl.DateTimeFormat('fa-IR', {
         year: 'numeric',
         month: '2-digit',
@@ -204,12 +240,18 @@ class AiQueueManager {
         aiProcessedImage: result.imageUrl,
         aiCompletedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
         printSheetImage: autoSheetDataUrl,
-        printSheetCreatedAt: autoSheetDataUrl ? formattedNow : undefined
+        printSheetCreatedAt: autoSheetDataUrl ? formattedNow : undefined,
+        commercialImage: commercialImageResult,
+        commercialPromptUsed: commercialPromptToUse,
+        commercialSheet10x15Image: commercial10x15SheetResult
       };
 
+      const hasCommercial = Boolean(commercialImageResult);
       this.notifyOrderUpdate(
         completedOrder,
-        `خروجی رتوش و شیت ۹ تایی سفارش #${order.trackingCode} با موفقیت آماده شد!`
+        hasCommercial
+          ? `عکس پرسنلی، شیت ۹تایی و عکس تبلیغاتی ۱۰×۱۵ سفارش #${order.trackingCode} با موفقیت آماده شد!`
+          : `خروجی رتوش و شیت ۹ تایی سفارش #${order.trackingCode} با موفقیت آماده شد!`
       );
     } catch (error) {
       console.error('Error processing order in queue:', error);

@@ -81,20 +81,20 @@ export const PRINT_TYPES: PrintTypeOption[] = [
 export const PERSONNEL_DIMENSIONS: PrintDimension[] = [
   {
     id: 'personnel_6x3x4',
-    title: '۶ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
-    dimensionsCm: '6x (3×4 cm) + 1x تبلیغاتی',
+    title: '۹ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
+    dimensionsCm: '9x (3×4 cm) + 1x تبلیغاتی',
     aspectRatio: '3:4',
     basePrice: 0,
-    description: 'شامل ۶ قطعه عکس استاندارد ۳×۴ به همراه یک قطعه عکس هدیه تبلیغاتی استودیو',
+    description: 'شامل ۹ قطعه عکس استاندارد ۳×۴ به همراه یک قطعه عکس هدیه تبلیغاتی استودیو',
     popular: true
   },
   {
     id: 'personnel_12x3x4',
-    title: '۱۲ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
-    dimensionsCm: '12x (3×4 cm) + 1x تبلیغاتی',
+    title: '۱۸ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
+    dimensionsCm: '18x (3×4 cm) + 1x تبلیغاتی',
     aspectRatio: '3:4',
     basePrice: 40000,
-    description: 'شامل ۱۲ قطعه عکس استاندارد ۳×۴ به همراه یک قطعه عکس هدیه تبلیغاتی استودیو',
+    description: 'شامل ۱۸ قطعه عکس استاندارد ۳×۴ به همراه یک قطعه عکس هدیه تبلیغاتی استودیو',
     popular: false
   }
 ];
@@ -219,6 +219,8 @@ export const INITIAL_ORDERS: Order[] = [
     uploadedImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80',
     aiProcessedImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80',
     aiPromptUsed: 'پرتره پرسنلی رسمی و اداری، زمینه سفید یکدست، عکس ۳در۴ گذرنامه، نورپردازی آتلیه‌ای پرتره، کیفیت فوق‌العاده بالا',
+    commercialImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80',
+    commercialPromptUsed: 'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی',
     aiStatus: 'completed',
     aiCompletedAt: '۱۴:۳۵',
     originalImageName: 'sample_portrait.jpg',

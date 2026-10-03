@@ -134,6 +134,63 @@ export async function generateNinePackSheet(
 export const generateSixPackSheet = generateNinePackSheet;
 
 /**
+ * Generates a single high-res 10x15 cm (1181 x 1772 px @ 300 DPI) photo layout sheet
+ */
+export async function generateSingle10x15Sheet(imageUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas 2D context not available');
+
+        // Exact 10x15 cm paper dimensions at 300 DPI:
+        const canvasWidth = 1181;
+        const canvasHeight = 1772;
+
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        // Clean white paper background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        // Aspect ratio crop (2:3 aspect ratio)
+        const srcW = img.naturalWidth || img.width;
+        const srcH = img.naturalHeight || img.height;
+        const targetAspect = 1181 / 1772;
+        const srcAspect = srcW / srcH;
+
+        let cropX = 0, cropY = 0, cropW = srcW, cropH = srcH;
+        if (srcAspect > targetAspect) {
+          cropW = Math.round(srcH * targetAspect);
+          cropX = Math.round((srcW - cropW) / 2);
+        } else {
+          cropH = Math.round(srcW / targetAspect);
+          cropY = Math.round((srcH - cropH) / 2);
+        }
+
+        ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, canvasWidth, canvasHeight);
+
+        // Faint border
+        ctx.strokeStyle = '#D1D5DB';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, canvasWidth, canvasHeight);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        resolve(dataUrl);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => reject(new Error('Failed to load image for 10x15 sheet generation'));
+    img.src = imageUrl;
+  });
+}
+
+/**
  * Triggers a direct browser download for a data URL or image source.
  */
 export function downloadImage(dataUrl: string, fileName: string) {

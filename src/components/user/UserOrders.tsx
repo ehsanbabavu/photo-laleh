@@ -53,7 +53,7 @@ export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNew
           {myOrders.map((order) => {
             const isProcessing = order.status === 'ai_processing' || order.aiStatus === 'processing';
             const isInQueue = order.aiStatus === 'in_queue';
-            const displayPhoto = order.printSheetImage || order.aiProcessedImage || order.uploadedImage;
+            const displayPhoto = order.uploadedImage;
 
             return (
               <div

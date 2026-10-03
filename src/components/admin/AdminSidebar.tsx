@@ -10,12 +10,13 @@ import {
   User as UserIcon,
   LifeBuoy,
   Sparkles,
-  Volume2
+  Volume2,
+  Send
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
 
-export type AdminTab = 'dashboard' | 'print_types' | 'announcements' | 'prompts_manager' | 'orders' | 'tickets' | 'chatgpt';
+export type AdminTab = 'dashboard' | 'print_types' | 'announcements' | 'prompts_manager' | 'orders' | 'tickets' | 'chatgpt' | 'telegram_bot';
 
 interface AdminSidebarProps {
   currentTab: AdminTab;
@@ -91,6 +92,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'chatgpt' as AdminTab,
       label: 'اتصال به هوش مصنوعی',
       icon: BotMessageSquare,
+      badge: null,
+      badgeStyle: null
+    },
+    {
+      id: 'telegram_bot' as AdminTab,
+      label: 'اتصال به ربات تلگرام',
+      icon: Send,
       badge: null,
       badgeStyle: null
     }

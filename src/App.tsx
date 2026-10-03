@@ -6,6 +6,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { User, Order, PrintTypeOption, SupportTicket, Announcement } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
+import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
 import { AdminSidebar, AdminTab } from './components/admin/AdminSidebar';
@@ -16,6 +17,7 @@ import { AdminOrders } from './components/admin/AdminOrders';
 import { PrintTypeManager } from './components/admin/PrintTypeManager';
 import { PromptsManager } from './components/admin/PromptsManager';
 import { AdminTickets } from './components/admin/AdminTickets';
+import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
@@ -136,6 +138,44 @@ export default function App() {
     }
   });
 
+  const [telegramToken, setTelegramToken] = useState<string>(() => {
+    try {
+      return localStorage.getItem('studio_telegram_token') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [telegramChatId, setTelegramChatId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('studio_telegram_chat_id') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [telegramEnabled, setTelegramEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('studio_telegram_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleSaveTelegramSettings = (token: string, chatId: string, isEnabled: boolean) => {
+    setTelegramToken(token);
+    setTelegramChatId(chatId);
+    setTelegramEnabled(isEnabled);
+    localStorage.setItem('studio_telegram_token', token);
+    localStorage.setItem('studio_telegram_chat_id', chatId);
+    localStorage.setItem('studio_telegram_enabled', String(isEnabled));
+    apiClient.saveSettings({
+      telegramToken: token,
+      telegramChatId: chatId,
+      telegramEnabled: isEnabled
+    });
+  };
+
   // Default prompts for image generation per print type mode
   const DEFAULT_PROMPTS: Record<string, string> = {
     personnel: 'پرتره پرسنلی رسمی و اداری، زمینه سفید یکدست، عکس ۳در۴ گذرنامه، نورپردازی آتلیه‌ای پرتره، کیفیت فوق‌العاده بالا، بدون عینک، نگاه روبرو',
@@ -154,10 +194,67 @@ export default function App() {
     }
   });
 
+  // Fetch initial database state from server
+  React.useEffect(() => {
+    async function loadBackendData() {
+      const data = await apiClient.getAllDb();
+      if (data) {
+        if (Array.isArray(data.orders) && data.orders.length > 0) {
+          setOrders(data.orders);
+          localStorage.setItem('studio_orders_list', JSON.stringify(data.orders));
+        }
+        if (Array.isArray(data.tickets) && data.tickets.length > 0) {
+          setTickets(data.tickets);
+          localStorage.setItem('studio_tickets_list', JSON.stringify(data.tickets));
+        }
+        if (Array.isArray(data.printTypes) && data.printTypes.length > 0) {
+          setPrintTypes(data.printTypes);
+          localStorage.setItem('studio_print_types', JSON.stringify(data.printTypes));
+        }
+        if (data.prompts && Object.keys(data.prompts).length > 0) {
+          setPrintTypePrompts(data.prompts);
+          localStorage.setItem('studio_print_type_prompts', JSON.stringify(data.prompts));
+        }
+        if (Array.isArray(data.announcements) && data.announcements.length > 0) {
+          setAnnouncements(data.announcements);
+          localStorage.setItem('studio_announcements_list', JSON.stringify(data.announcements));
+        }
+        if (data.settings) {
+          if (data.settings.avalaiApiKey) {
+            setAvalaiApiKey(data.settings.avalaiApiKey);
+            localStorage.setItem('studio_avalai_api_key', data.settings.avalaiApiKey);
+          }
+          if (data.settings.avalaiBaseUrl) {
+            setAvalaiBaseUrl(data.settings.avalaiBaseUrl);
+            localStorage.setItem('studio_avalai_base_url', data.settings.avalaiBaseUrl);
+          }
+          if (data.settings.avalaiModel) {
+            setAvalaiModel(data.settings.avalaiModel);
+            localStorage.setItem('studio_avalai_model', data.settings.avalaiModel);
+          }
+          if (data.settings.telegramToken !== undefined) {
+            setTelegramToken(data.settings.telegramToken);
+            localStorage.setItem('studio_telegram_token', data.settings.telegramToken);
+          }
+          if (data.settings.telegramChatId !== undefined) {
+            setTelegramChatId(data.settings.telegramChatId);
+            localStorage.setItem('studio_telegram_chat_id', data.settings.telegramChatId);
+          }
+          if (data.settings.telegramEnabled !== undefined) {
+            setTelegramEnabled(data.settings.telegramEnabled);
+            localStorage.setItem('studio_telegram_enabled', String(data.settings.telegramEnabled));
+          }
+        }
+      }
+    }
+    loadBackendData();
+  }, []);
+
   const handleUpdateAvalaiApiKey = (newKey: string) => {
     const trimmed = newKey.trim();
     setAvalaiApiKey(trimmed);
     localStorage.setItem('studio_avalai_api_key', trimmed);
+    apiClient.saveSettings({ avalaiApiKey: trimmed });
     showToast('کلید دسترسی AvalAI با موفقیت ذخیره شد.');
   };
 
@@ -165,6 +262,7 @@ export default function App() {
     const sanitized = newUrl.trim().replace(/\/$/, ''); // Remove trailing slash
     setAvalaiBaseUrl(sanitized);
     localStorage.setItem('studio_avalai_base_url', sanitized);
+    apiClient.saveSettings({ avalaiBaseUrl: sanitized });
     showToast('آدرس پایه API با موفقیت ذخیره شد.');
   };
 
@@ -172,6 +270,7 @@ export default function App() {
     const trimmed = newModel.trim();
     setAvalaiModel(trimmed);
     localStorage.setItem('studio_avalai_model', trimmed);
+    apiClient.saveSettings({ avalaiModel: trimmed });
     showToast('مدل تولید تصویر با موفقیت به‌روز شد.');
   };
 
@@ -179,6 +278,7 @@ export default function App() {
     setPrintTypePrompts((prev) => {
       const next = { ...prev, [printTypeId]: prompt };
       localStorage.setItem('studio_print_type_prompts', JSON.stringify(next));
+      apiClient.savePrompts(next);
       return next;
     });
     showToast('پرامپت سبک چاپ با موفقیت به‌روزرسانی شد.');
@@ -187,6 +287,7 @@ export default function App() {
   const handleResetPrompts = () => {
     setPrintTypePrompts(DEFAULT_PROMPTS);
     localStorage.setItem('studio_print_type_prompts', JSON.stringify(DEFAULT_PROMPTS));
+    apiClient.savePrompts(DEFAULT_PROMPTS);
     showToast('پرامپت‌ها به مقادیر پیش‌فرض بازنشانی شدند.');
   };
 
@@ -220,6 +321,7 @@ export default function App() {
     setAnnouncements((prev) => {
       const next = [newAnn, ...prev];
       localStorage.setItem('studio_announcements_list', JSON.stringify(next));
+      apiClient.saveAnnouncements(next);
       return next;
     });
     showToast('اطلاعیه جدید با موفقیت منتشر شد.');
@@ -229,6 +331,7 @@ export default function App() {
     setAnnouncements((prev) => {
       const next = prev.map((a) => (a.id === updated.id ? updated : a));
       localStorage.setItem('studio_announcements_list', JSON.stringify(next));
+      apiClient.saveAnnouncements(next);
       return next;
     });
     showToast('اطلاعیه با موفقیت به‌روزرسانی شد.');
@@ -238,6 +341,7 @@ export default function App() {
     setAnnouncements((prev) => {
       const next = prev.filter((a) => a.id !== id);
       localStorage.setItem('studio_announcements_list', JSON.stringify(next));
+      apiClient.saveAnnouncements(next);
       return next;
     });
     showToast('اطلاعیه با موفقیت حذف گردید.');
@@ -280,6 +384,7 @@ export default function App() {
       setOrders((prev) => {
         const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
         localStorage.setItem('studio_orders_list', JSON.stringify(next));
+        apiClient.saveOrder(updatedOrder);
         return next;
       });
       if (toastMsg) {
@@ -302,6 +407,7 @@ export default function App() {
     setPrintTypes((prev) => {
       const next = [...prev, newItem];
       localStorage.setItem('studio_print_types', JSON.stringify(next));
+      apiClient.savePrintTypes(next);
       return next;
     });
     showToast(`نوع چاپ «${newItem.title}» با موفقیت افزوده شد.`);
@@ -311,6 +417,7 @@ export default function App() {
     setPrintTypes((prev) => {
       const next = prev.map((p) => (p.id === updated.id ? updated : p));
       localStorage.setItem('studio_print_types', JSON.stringify(next));
+      apiClient.savePrintTypes(next);
       return next;
     });
     showToast(`تغییرات نوع چاپ «${updated.title}» ذخیره شد.`);
@@ -321,6 +428,7 @@ export default function App() {
       const target = prev.find((p) => p.id === id);
       const next = prev.filter((p) => p.id !== id);
       localStorage.setItem('studio_print_types', JSON.stringify(next));
+      apiClient.savePrintTypes(next);
       if (target) {
         showToast(`نوع چاپ «${target.title}» حذف گردید.`);
       }
@@ -331,6 +439,7 @@ export default function App() {
   const handleResetPrintTypes = () => {
     setPrintTypes(PRINT_TYPES);
     localStorage.setItem('studio_print_types', JSON.stringify(PRINT_TYPES));
+    apiClient.savePrintTypes(PRINT_TYPES);
     showToast('کارت‌های نوع چاپ به حالت اولیه بازنشانی شدند.');
   };
 
@@ -339,6 +448,7 @@ export default function App() {
     setOrders((prev) => {
       const next = prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o));
       localStorage.setItem('studio_orders_list', JSON.stringify(next));
+      apiClient.syncOrders(next);
       return next;
     });
     showToast('وضعیت سفارش با موفقیت تغییر یافت.');
@@ -348,6 +458,7 @@ export default function App() {
     setOrders((prev) => {
       const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
       localStorage.setItem('studio_orders_list', JSON.stringify(next));
+      apiClient.saveOrder(updatedOrder);
       return next;
     });
   };
@@ -356,6 +467,7 @@ export default function App() {
     setOrders((prev) => {
       const next = prev.filter((o) => o.id !== orderId);
       localStorage.setItem('studio_orders_list', JSON.stringify(next));
+      apiClient.deleteOrder(orderId);
       return next;
     });
     showToast('سفارش با موفقیت حذف گردید.');
@@ -364,6 +476,7 @@ export default function App() {
   const handleClearAllOrders = () => {
     setOrders([]);
     localStorage.setItem('studio_orders_list', JSON.stringify([]));
+    apiClient.syncOrders([]);
     showToast('تمامی سفارشات سیستم با موفقیت حذف شدند.');
   };
 
@@ -384,6 +497,7 @@ export default function App() {
       }
       const next = [newOrder, ...prev];
       localStorage.setItem('studio_orders_list', JSON.stringify(next));
+      apiClient.saveOrder(newOrder);
       return next;
     });
     setUserTab('orders');
@@ -395,6 +509,7 @@ export default function App() {
       baseUrl: avalaiBaseUrl,
       model: avalaiModel,
       prompt: newOrder.aiPromptUsed || printTypePrompts[newOrder.printType] || 'پرتره باکیفیت و رتوش شده آتلیه',
+      commercialPrompt: printTypePrompts['commercial'] || 'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی',
       queuedAt: Date.now()
     });
   };
@@ -428,6 +543,7 @@ export default function App() {
         const storedUsers: User[] = JSON.parse(storedUsersRaw);
         const next = storedUsers.map((u) => (u.id === updatedUser.id ? updatedUser : u));
         localStorage.setItem('registered_users', JSON.stringify(next));
+        apiClient.saveUsers(next);
       }
     } catch {
       // ignore
@@ -440,6 +556,10 @@ export default function App() {
     setTickets(nextTickets);
     try {
       localStorage.setItem('studio_tickets_list', JSON.stringify(nextTickets));
+      apiClient.saveAnnouncements; // or sync tickets
+      for (const t of nextTickets) {
+        apiClient.saveTicket(t);
+      }
     } catch {
       // ignore
     }
@@ -591,6 +711,8 @@ export default function App() {
                   onUpdateOrder={handleUpdateOrder}
                   onDeleteOrder={handleDeleteOrder}
                   onClearAllOrders={handleClearAllOrders}
+                  telegramToken={telegramToken}
+                  telegramChatId={telegramChatId}
                 />
               )}
 
@@ -599,6 +721,16 @@ export default function App() {
                   tickets={tickets}
                   onUpdateTickets={handleUpdateTickets}
                   orders={orders}
+                />
+              )}
+
+              {adminTab === 'telegram_bot' && (
+                <AdminTelegramBot
+                  token={telegramToken}
+                  chatId={telegramChatId}
+                  isEnabled={telegramEnabled}
+                  onSave={handleSaveTelegramSettings}
+                  showToast={showToast}
                 />
               )}
             </main>
