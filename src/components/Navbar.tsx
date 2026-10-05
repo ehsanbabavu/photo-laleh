@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ExternalLink,
   LifeBuoy,
-  Volume2
+  Volume2,
+  CreditCard
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -105,6 +106,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       badgeStyle: 'pulsing_red'
     },
     {
+      id: 'blupal' as AdminTab,
+      label: 'تنظیمات بلوپال',
+      icon: CreditCard,
+      badge: null,
+      badgeStyle: null
+    },
+    {
       id: 'chatgpt' as AdminTab,
       label: 'اتصال به هوش مصنوعی',
       icon: BotMessageSquare,
@@ -115,7 +123,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 shadow-xs">
+      <header className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 shadow-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
           
           {/* Right side: Brand and Hamburger for Admin */}

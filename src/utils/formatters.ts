@@ -4,6 +4,15 @@ export const formatPrice = (amount: number): string => {
   return new Intl.NumberFormat('fa-IR').format(amount) + ' تومان';
 };
 
+export const formatPriceRial = (amountInToman: number): string => {
+  const amountRial = amountInToman * 10;
+  return new Intl.NumberFormat('fa-IR').format(amountRial) + ' ریال';
+};
+
+export const formatRialDirect = (amountInRial: number): string => {
+  return new Intl.NumberFormat('fa-IR').format(amountInRial) + ' ریال';
+};
+
 export const formatNumber = (num: number): string => {
   return new Intl.NumberFormat('fa-IR').format(num);
 };

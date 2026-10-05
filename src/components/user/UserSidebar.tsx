@@ -71,7 +71,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
   ];
 
   return (
-    <aside className="hidden lg:flex fixed top-0 right-0 h-full w-72 bg-white border-l border-slate-200 z-30 flex-col justify-between shadow-xs">
+    <aside className="hidden lg:flex fixed top-[56px] sm:top-[72px] right-0 h-[calc(100vh-56px)] sm:h-[calc(100vh-72px)] w-72 bg-white border-l border-slate-200 z-30 flex-col justify-between shadow-xs">
       <div>
         {/* Header with Tulip Logo */}
         <div className="p-5 border-b border-slate-200 flex items-center justify-between">

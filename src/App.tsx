@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, SupportTicket, Announcement } from './types';
+import { User, Order, PrintTypeOption, SupportTicket, Announcement, BluPalSettings } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
@@ -18,6 +18,7 @@ import { PrintTypeManager } from './components/admin/PrintTypeManager';
 import { PromptsManager } from './components/admin/PromptsManager';
 import { AdminTickets } from './components/admin/AdminTickets';
 import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
+import { AdminBluPalSettings } from './components/admin/AdminBluPalSettings';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
@@ -138,6 +139,23 @@ export default function App() {
     }
   });
 
+  // AI Master On/Off Toggle state
+  const [aiEnabled, setAiEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('studio_ai_enabled');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleUpdateAiEnabled = (enabled: boolean) => {
+    setAiEnabled(enabled);
+    localStorage.setItem('studio_ai_enabled', String(enabled));
+    apiClient.saveSettings({ aiEnabled: enabled });
+    showToast(enabled ? 'موتور هوش مصنوعی روشن گردید.' : 'موتور هوش مصنوعی خاموش گردید.');
+  };
+
   const [telegramToken, setTelegramToken] = useState<string>(() => {
     try {
       return localStorage.getItem('studio_telegram_token') || '';
@@ -161,6 +179,32 @@ export default function App() {
       return false;
     }
   });
+
+  // BluPal Gateway Settings State
+  const [blupalSettings, setBlupalSettings] = useState<BluPalSettings>(() => {
+    try {
+      const saved = localStorage.getItem('studio_blupal_settings');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      blupalToken: '',
+      blupalBaseUrl: 'https://blupal.top',
+      blupalMerchantId: '',
+      blupalCardNumber: '6219 8619 4528 7193',
+      blupalAccountHolder: 'آتلیه تخصصی لاله',
+      blupalIban: 'IR720560086190004528719301',
+      blupalEnabled: true,
+      blupalSandboxMode: true,
+      blupalAutoPollInterval: 3
+    };
+  });
+
+  const handleSaveBluPalSettings = (newSettings: BluPalSettings) => {
+    setBlupalSettings(newSettings);
+    localStorage.setItem('studio_blupal_settings', JSON.stringify(newSettings));
+    apiClient.saveSettings(newSettings);
+    showToast('تنظیمات درگاه بلوپال با موفقیت ذخیره شد.');
+  };
 
   const handleSaveTelegramSettings = (token: string, chatId: string, isEnabled: boolean) => {
     setTelegramToken(token);
@@ -243,6 +287,21 @@ export default function App() {
           if (data.settings.telegramEnabled !== undefined) {
             setTelegramEnabled(data.settings.telegramEnabled);
             localStorage.setItem('studio_telegram_enabled', String(data.settings.telegramEnabled));
+          }
+          if (data.settings.blupalToken !== undefined || data.settings.blupalCardNumber) {
+            const nextBluPal: BluPalSettings = {
+              blupalToken: data.settings.blupalToken || '',
+              blupalBaseUrl: data.settings.blupalBaseUrl || 'https://blupal.top',
+              blupalMerchantId: data.settings.blupalMerchantId || '',
+              blupalCardNumber: data.settings.blupalCardNumber || '6219 8619 4528 7193',
+              blupalAccountHolder: data.settings.blupalAccountHolder || 'آتلیه تخصصی لاله',
+              blupalIban: data.settings.blupalIban || 'IR720560086190004528719301',
+              blupalEnabled: data.settings.blupalEnabled ?? true,
+              blupalSandboxMode: data.settings.blupalSandboxMode ?? true,
+              blupalAutoPollInterval: data.settings.blupalAutoPollInterval || 3
+            };
+            setBlupalSettings(nextBluPal);
+            localStorage.setItem('studio_blupal_settings', JSON.stringify(nextBluPal));
           }
         }
       }
@@ -627,7 +686,7 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-sky-500 selection:text-white pt-[56px] sm:pt-[72px]">
       {/* Toast Notification Alert */}
       {toastMessage && (
         <div className="fixed bottom-20 lg:bottom-6 right-4 left-4 sm:left-auto sm:right-6 z-50 bg-white border border-emerald-300 text-slate-900 px-4 py-3 rounded-2xl shadow-xl shadow-emerald-500/10 flex items-center gap-2.5 animate-fade-in backdrop-blur-xl">
@@ -709,6 +768,8 @@ export default function App() {
                   onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
                   model={avalaiModel}
                   onUpdateModel={handleUpdateAvalaiModel}
+                  aiEnabled={aiEnabled}
+                  onUpdateAiEnabled={handleUpdateAiEnabled}
                 />
               )}
 
@@ -739,6 +800,13 @@ export default function App() {
                   tickets={tickets}
                   onUpdateTickets={handleUpdateTickets}
                   orders={orders}
+                />
+              )}
+
+              {adminTab === 'blupal' && (
+                <AdminBluPalSettings
+                  settings={blupalSettings}
+                  onSaveSettings={handleSaveBluPalSettings}
                 />
               )}
 
@@ -799,6 +867,7 @@ export default function App() {
                   printTypePrompts={printTypePrompts}
                   avalaiBaseUrl={avalaiBaseUrl}
                   avalaiModel={avalaiModel}
+                  blupalSettings={blupalSettings}
                 />
               )}
 

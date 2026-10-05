@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  CreditCard,
   ShieldCheck,
   CheckCircle2,
-  Lock,
   RefreshCw,
   Smartphone,
   ChevronRight,
-  ChevronLeft
+  Copy,
+  Check,
+  Zap,
+  Clock
 } from 'lucide-react';
-import { OrderDraft, PrintTypeOption, User } from '../../../types';
-import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../../data/mockData';
-import { formatPrice } from '../../../utils/formatters';
+import { OrderDraft, PrintTypeOption, User, BluPalSettings, BluPalInvoice } from '../../../types';
+import { PRINT_TYPES, PRINT_DIMENSIONS } from '../../../data/mockData';
+import { formatPrice, formatRialDirect } from '../../../utils/formatters';
+import { apiClient } from '../../../services/apiClient';
 
 interface StepPaymentProps {
   draft: OrderDraft;
@@ -20,6 +22,7 @@ interface StepPaymentProps {
   onBack: () => void;
   printTypes?: PrintTypeOption[];
   user?: User;
+  blupalSettings?: BluPalSettings;
 }
 
 export const StepPayment: React.FC<StepPaymentProps> = ({
@@ -28,23 +31,19 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   onNext,
   onBack,
   printTypes,
-  user
+  user,
+  blupalSettings
 }) => {
-  const [selectedMethod, setSelectedMethod] = useState<'online' | 'card_to_card'>('online');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [invoice, setInvoice] = useState<BluPalInvoice | null>(null);
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [isPolling, setIsPolling] = useState(true);
   const [isPaid, setIsPaid] = useState(Boolean(draft.paymentReference));
   const [paymentRef, setPaymentRef] = useState(draft.paymentReference || '');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [countdownSeconds, setCountdownSeconds] = useState(15 * 60);
+  const [autoRedirecting, setAutoRedirecting] = useState(false);
 
-  // Shaparak simulator fields
-  const [cardNumber, setCardNumber] = useState('6037 9975 4321 8890');
-  const [cvv2, setCvv2] = useState('482');
-  const [expMonth, setExpMonth] = useState('08');
-  const [expYear, setExpYear] = useState('06');
-  const [dynamicOtp, setDynamicOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [timer, setTimer] = useState(120);
-
-  // Dynamically resolve printType from props, localStorage database, or fallback
+  // Dynamically resolve printType
   const activePrintTypes: PrintTypeOption[] = (() => {
     if (printTypes && printTypes.length > 0) return printTypes;
     try {
@@ -59,303 +58,326 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
 
   const printType = activePrintTypes.find((t) => t.id === draft.printType) || activePrintTypes[0];
   const dimension = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
-  const material = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
   const unitBase = printType.basePrice + dimension.basePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
   const shippingCost = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-  const walletCredit = draft.walletCreditUsed || 0;
-  const finalTotal = Math.max(0, subtotal + shippingCost - draft.discountAmount - walletCredit);
+  const walletCredit = draft.walletCreditUsed || draft.invoiceDetails?.walletCreditUsed || 0;
+  const computedTotal = Math.max(0, subtotal + shippingCost - (draft.discountAmount || 0) - walletCredit);
+
+  // Base final total from Step 4
+  const baseTotal = draft.invoiceDetails?.finalTotal ?? draft.totalPrice ?? computedTotal;
+
+  // Exact payable amount returned by BluPal API (with unique tracking digit)
+  const payableAmount = invoice?.finalAmount || invoice?.amount || baseTotal;
+  const payableAmountRial = invoice?.amountRial || (payableAmount * 10);
+
+  // Copy helper
+  const handleCopy = (text: string, fieldName: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  // Helper to format card number into 4-digit chunks
+  const formatCardNumber = (cardStr: string) => {
+    const clean = (cardStr || '').replace(/\D/g, '');
+    if (!clean) return '6219 8619 4528 7193';
+    return clean.match(/.{1,4}/g)?.join(' ') || clean;
+  };
+
+  // 1. Create Invoice on mount or when total changes
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initInvoice() {
+      if (isPaid) return;
+
+      const invDetails = draft.invoiceDetails;
+      const totalAmountToPay = invDetails ? invDetails.finalTotal : baseTotal;
+
+      if (totalAmountToPay === 0) {
+        handlePaymentSuccess('GIFT-FREE-' + Math.floor(10000000 + Math.random() * 90000000));
+        return;
+      }
+
+      setIsCreatingInvoice(true);
+
+      try {
+        const itemDesc = invDetails
+          ? `سفارش چاپ ${invDetails.printTypeTitle} (${invDetails.dimensionTitle}) - ${invDetails.quantity} عدد - ${invDetails.customerFullName}`
+          : `سفارش چاپ عکس ${printType?.title || 'آتلیه'}`;
+
+        const res = await apiClient.createBluPalInvoice({
+          amount: totalAmountToPay,
+          orderId: draft.id || ('ORD-' + Date.now()),
+          customerName: invDetails?.customerFullName || draft.customerInfo?.fullName || user?.name || 'مشتری آتلیه',
+          customerPhone: invDetails?.customerPhone || draft.customerInfo?.phoneNumber || user?.phone || '',
+          description: itemDesc,
+          invoiceDetails: invDetails
+        });
+
+        if (isMounted) {
+          if (res && res.success && res.invoice) {
+            setInvoice(res.invoice);
+          } else {
+            setInvoice({
+              invoiceId: 'BLU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000),
+              amount: totalAmountToPay,
+              finalAmount: totalAmountToPay,
+              amountRial: totalAmountToPay * 10,
+              customerName: invDetails?.customerFullName || draft.customerInfo?.fullName || user?.name || 'مشتری آتلیه',
+              customerPhone: invDetails?.customerPhone || draft.customerInfo?.phoneNumber || user?.phone || '',
+              description: itemDesc,
+              status: 'pending',
+              cardNumber: blupalSettings?.blupalCardNumber || '6219 8619 4528 7193',
+              accountHolder: blupalSettings?.blupalAccountHolder || 'آتلیه تخصصی لاله',
+              createdAt: new Date().toLocaleDateString('fa-IR'),
+              expiresAt: Date.now() + 15 * 60 * 1000,
+              invoiceDetails: invDetails
+            });
+          }
+          setIsCreatingInvoice(false);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setIsCreatingInvoice(false);
+        }
+      }
+    }
+
+    initInvoice();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [baseTotal, isPaid]);
+
+  // 2. Countdown timer
+  useEffect(() => {
+    if (isPaid || countdownSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setCountdownSeconds((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isPaid, countdownSeconds]);
+
+  // 3. Background polling
+  const hasTriggeredNextRef = useRef(false);
+
+  const handlePaymentSuccess = (referenceId: string) => {
+    if (hasTriggeredNextRef.current) return;
+    hasTriggeredNextRef.current = true;
+
+    setIsPaid(true);
+    setPaymentRef(referenceId);
+    setAutoRedirecting(true);
+
+    onUpdateDraft({
+      paymentMethod: 'card_to_card',
+      paymentReference: referenceId
+    });
+
+    setTimeout(() => {
+      onNext();
+    }, 1800);
+  };
 
   useEffect(() => {
-    let interval: any;
-    if (otpSent && timer > 0) {
-      interval = setInterval(() => setTimer((t) => t - 1), 1000);
-    }
+    if (!invoice || isPaid || !isPolling) return;
+
+    const pollIntervalSec = blupalSettings?.blupalAutoPollInterval || 3;
+    const interval = setInterval(async () => {
+      try {
+        const targetId = invoice.invoiceId || (invoice as any).localInvoiceId;
+        const res = await apiClient.checkBluPalInvoiceStatus(targetId);
+        if (res && res.success) {
+          if (res.status === 'paid' || res.invoice?.status === 'paid') {
+            const refCode = res.invoice?.referenceCode || res.referenceCode || ('BLU-REF-' + Math.floor(10000000 + Math.random() * 90000000));
+            handlePaymentSuccess(refCode);
+          }
+        }
+      } catch (err) {
+        // Polling retry
+      }
+    }, pollIntervalSec * 1000);
+
     return () => clearInterval(interval);
-  }, [otpSent, timer]);
+  }, [invoice, isPaid, isPolling, blupalSettings]);
 
-  const handleSendOtp = () => {
-    setOtpSent(true);
-    setTimer(120);
-    setDynamicOtp('847192');
+  // 4. Sandbox Test Pay button
+  const handleSimulateSandboxPayment = async () => {
+    setIsCreatingInvoice(true);
+    if (invoice?.invoiceId) {
+      const res = await apiClient.simulateBluPalPayment(invoice.invoiceId);
+      setIsCreatingInvoice(false);
+      if (res && res.success) {
+        handlePaymentSuccess(res.referenceCode || ('BLU-REF-' + Math.floor(100000000 + Math.random() * 900000000)));
+        return;
+      }
+    }
+    setIsCreatingInvoice(false);
+    handlePaymentSuccess('BLU-REF-' + Math.floor(100000000 + Math.random() * 900000000));
   };
 
-  const handleSimulatePayment = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const generatedRef = 'SHP-' + Math.floor(100000000 + Math.random() * 900000000);
-      setIsProcessing(false);
-      setIsPaid(true);
-      setPaymentRef(generatedRef);
-      onUpdateDraft({
-        paymentMethod: selectedMethod,
-        paymentReference: generatedRef
-      });
-    }, 1100);
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
+
+  const rawCard = invoice?.cardNumber || blupalSettings?.blupalCardNumber || '6219 8619 4528 7193';
+  const formattedCardNumber = formatCardNumber(rawCard);
+  const currentAccountHolder = invoice?.accountHolder || blupalSettings?.blupalAccountHolder || 'آتلیه تخصصی لاله';
+  const displayInvoiceId = invoice?.invoiceId || draft.id || 'BLU-PENDING';
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="text-right">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold mb-1.5">
-          <span>پرداخت امن صورت‌حساب</span>
-        </div>
-        <h2 className="text-lg sm:text-2xl font-black text-slate-900">
-          پرداخت فاکتور سفارش چاپ
-        </h2>
-        <p className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-relaxed font-medium">
-          پرداخت آنلاین از طریق کارت‌های عضو شبکه شتاب با اتصال امن شاپرک
-        </p>
-      </div>
-
+    <div className="space-y-4 max-w-2xl mx-auto px-1 sm:px-0">
       {!isPaid ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Payment Gateways Selection (4 cols) */}
-          <div className="lg:col-span-4 space-y-3.5">
-            <h3 className="text-xs font-bold text-slate-700">شیوه پرداخت:</h3>
-            <div className="grid grid-cols-2 lg:grid-cols-1 gap-2.5">
-              <button
-                type="button"
-                onClick={() => setSelectedMethod('online')}
-                className={`p-3 sm:p-3.5 rounded-2xl border text-right transition-all cursor-pointer flex items-center justify-between active:scale-98 shadow-xs ${
-                  selectedMethod === 'online'
-                    ? 'bg-gradient-to-r from-sky-50 to-emerald-50 border-sky-400 text-slate-900'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center flex-shrink-0">
-                    <CreditCard className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">درگاه شاپرک</p>
-                    <p className="text-[10px] text-slate-500">تمام کارت‌های شتاب</p>
-                  </div>
-                </div>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedMethod('card_to_card')}
-                className={`p-3 sm:p-3.5 rounded-2xl border text-right transition-all cursor-pointer flex items-center justify-between active:scale-98 shadow-xs ${
-                  selectedMethod === 'card_to_card'
-                    ? 'bg-gradient-to-r from-sky-50 to-emerald-50 border-sky-400 text-slate-900'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center flex-shrink-0">
-                    <Smartphone className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">کارت به کارت</p>
-                    <p className="text-[10px] text-slate-500">انتقال شتابی</p>
-                  </div>
-                </div>
-              </button>
+        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+          {/* Header Bar with Countdown */}
+          <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-emerald-300 flex-shrink-0" />
+              <span className="text-xs sm:text-sm font-bold">انتقال کارت به کارت</span>
             </div>
 
-            {/* Total Due Card */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2 text-xs shadow-xs">
-              <span className="text-slate-500 block text-[11px] font-medium">مبلغ نهایی قابل پرداخت:</span>
-              <p className="text-lg sm:text-xl font-black text-sky-700 font-mono">
-                {formatPrice(finalTotal)}
-              </p>
-
-              {walletCredit > 0 && (
-                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold flex items-center justify-between">
-                  <span>🎁 کسر هدیه کیف پول:</span>
-                  <span className="font-mono text-emerald-700 font-black">- {formatPrice(walletCredit)}</span>
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-600 flex items-center gap-1.5 font-medium">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>دارای مجوز رسمی و نماد اعتماد پرداخت</span>
-              </div>
+            {/* Countdown Badge */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/30 border border-white/15 text-xs font-mono font-bold">
+              <Clock className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+              <span className="text-slate-200 text-[10px] font-sans">مهلت واریز:</span>
+              <span className="text-amber-300">{formatCountdown(countdownSeconds)}</span>
             </div>
           </div>
 
-          {/* Shaparak Payment Portal Simulator (8 cols) */}
-          <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl sm:rounded-3xl overflow-hidden shadow-md">
-            {/* Shaparak Header */}
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-3.5 sm:p-4 border-b border-slate-700 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-white truncate">درگاه پرداخت الکترونیک شاپرک</h4>
-                  <span className="text-[10px] text-emerald-400 font-mono">اتصال SSL 256-bit امن</span>
-                </div>
+          {/* Body Content */}
+          <div className="p-4 sm:p-6 space-y-3.5">
+            {isCreatingInvoice ? (
+              <div className="py-10 flex flex-col items-center justify-center text-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
+                <p className="text-xs font-bold text-slate-700">در حال دریافت اطلاعات کارت مقصد...</p>
               </div>
+            ) : (
+              <>
+                {/* Card Details Container */}
+                <div className="p-3.5 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3.5 text-xs">
+                  {/* 1. Centered Card Number Box */}
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2 text-center">
+                    <span className="text-[11px] font-bold text-slate-500 block">شماره کارت مقصد (بانک/بلوبانک):</span>
+                    <div className="font-mono font-black text-slate-900 text-base sm:text-xl tracking-widest text-center dir-ltr py-1">
+                      {formattedCardNumber}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(rawCard.replace(/\s/g, ''), 'card')}
+                      className="mx-auto px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                      title="کپی شماره کارت"
+                    >
+                      {copiedField === 'card' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
+                      <span>{copiedField === 'card' ? 'کپی شد' : 'کپی شماره کارت'}</span>
+                    </button>
+                  </div>
 
-              <div className="text-left font-mono flex-shrink-0">
-                <span className="text-[10px] text-slate-400 block">مبلغ:</span>
-                <span className="text-xs font-bold text-white">{formatPrice(finalTotal)}</span>
-              </div>
-            </div>
+                  {/* 2. Centered Exact Amount Box (Displayed in Rials) */}
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2 text-center">
+                    <span className="text-[11px] font-bold text-slate-500 block">مبلغ دقیق واریز (ریال):</span>
+                    <div className="font-mono font-black text-emerald-700 text-base sm:text-xl text-center py-1">
+                      {formatRialDirect(payableAmountRial)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(String(payableAmountRial), 'amount')}
+                      className="mx-auto px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                      title="کپی مبلغ واریزی (ریال)"
+                    >
+                      {copiedField === 'amount' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
+                      <span>{copiedField === 'amount' ? 'کپی شد' : 'کپی مبلغ به ریال'}</span>
+                    </button>
+                  </div>
 
-            {/* Gateway Body */}
-            <div className="p-4 sm:p-6 space-y-3.5 text-xs bg-white">
-              {/* Card number */}
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">شماره ۱۶ رقمی کارت بانکی</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-center font-mono text-xs sm:text-sm tracking-widest text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 font-bold"
-                  />
-                  <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                </div>
-              </div>
+                  {/* 3. Invoice ID Box (Placed Below Amount Box, No Copy Button) */}
+                  <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500">شناسه رسمی فاکتور:</span>
+                    <span className="font-mono font-bold text-slate-900 text-xs sm:text-sm dir-ltr">
+                      {displayInvoiceId}
+                    </span>
+                  </div>
 
-              {/* CVV2 and Expiry */}
-              <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">کد CVV2</label>
-                  <input
-                    type="password"
-                    maxLength={4}
-                    value={cvv2}
-                    onChange={(e) => setCvv2(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2.5 text-center font-mono text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">انقضا (ماه / سال)</label>
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text"
-                      maxLength={2}
-                      value={expMonth}
-                      onChange={(e) => setExpMonth(e.target.value)}
-                      placeholder="ماه"
-                      className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2.5 text-center font-mono text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500"
-                    />
-                    <input
-                      type="text"
-                      maxLength={2}
-                      value={expYear}
-                      onChange={(e) => setExpYear(e.target.value)}
-                      placeholder="سال"
-                      className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2.5 text-center font-mono text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500"
-                    />
+                  {/* 4. Account Holder Box */}
+                  <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500">صاحب حساب:</span>
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                      {currentAccountHolder}
+                    </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Dynamic OTP */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-700 font-bold">رمز اینترنتی یکبار مصرف (رمز پویا)</label>
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    className="text-[10px] sm:text-[11px] text-sky-600 hover:text-sky-700 font-bold cursor-pointer"
-                  >
-                    {otpSent ? `ارسال مجدد (${timer} ثانیه)` : 'دریافت رمز پویا'}
-                  </button>
+                {/* Live Polling Status Indicator */}
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium flex items-center gap-2.5">
+                  <div className="relative flex items-center justify-center flex-shrink-0">
+                    <div className="w-3.5 h-3.5 bg-emerald-500 rounded-full animate-ping absolute" />
+                    <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full relative" />
+                  </div>
+                  <span className="leading-relaxed text-[11px] sm:text-xs">
+                    استعلام واریز به صورت آنلاین و خودکار انجام می‌شود؛ پس از واریز، نیازی به آپلود فیش نیست.
+                  </span>
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={dynamicOtp}
-                    onChange={(e) => setDynamicOtp(e.target.value)}
-                    placeholder="رمز پیامک شده"
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-center font-mono text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    className="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-[11px] sm:text-xs font-bold cursor-pointer flex-shrink-0 border border-slate-200"
-                  >
-                    دریافت
-                  </button>
-                </div>
-              </div>
 
-              {/* Action Button */}
-              <div className="pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={handleSimulatePayment}
-                  disabled={isProcessing}
-                  className="w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 active:scale-98 text-white font-black py-3.5 px-4 rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
-                >
-                  {isProcessing ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>در حال تایید با شاپرک...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>پرداخت و تایید نهایی ({formatPrice(finalTotal)})</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+                {/* Sandbox Quick Test Button */}
+                {(blupalSettings?.blupalSandboxMode ?? true) && (
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 via-emerald-50 to-sky-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
+                        <Zap className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-800">
+                        حالت آزمایشی (Sandbox Test Mode)
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSimulateSandboxPayment}
+                      className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>تست واریز موفق</span>
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       ) : (
-        /* SUCCESS RECEIPT VIEW */
-        <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-xl mx-auto text-center space-y-5 shadow-lg">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center mx-auto shadow-xs">
-            <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8" />
+        /* SUCCESS CELEBRATION */
+        <div className="p-6 sm:p-10 rounded-3xl bg-gradient-to-b from-emerald-500 to-teal-700 text-white text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 text-white flex items-center justify-center mx-auto backdrop-blur-md border border-white/30 animate-bounce">
+            <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10" />
           </div>
-
-          <div>
-            <h3 className="text-lg sm:text-xl font-black text-slate-900">پرداخت با موفقیت انجام شد!</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              تراکنش بانکی تایید شد و پیش‌فاکتور شما تسویه گردید.
-            </p>
+          <h3 className="text-lg sm:text-2xl font-black">پرداخت کارت به کارت تایید شد! 🎉</h3>
+          <p className="text-xs sm:text-sm text-emerald-100 max-w-md mx-auto">
+            واریز شما تایید گردید. کد پیگیری پرداخت:
+          </p>
+          <div className="inline-block px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 font-mono font-black text-sm tracking-wider dir-ltr">
+            {paymentRef || draft.paymentReference || 'BLU-CONFIRMED'}
           </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-right">
-            <div className="flex justify-between text-slate-600">
-              <span>شماره مرجع بانکی (شاپرک):</span>
-              <span className="font-mono font-bold text-slate-900 text-[11px] sm:text-xs">{paymentRef}</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>مبلغ پرداختی:</span>
-              <span className="font-mono font-bold text-emerald-700">{formatPrice(finalTotal)}</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>شیوه پرداخت:</span>
-              <span className="font-bold text-slate-800">درگاه مستقیم شتاب</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onNext}
-            className="w-full sm:w-44 mx-auto h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
-          >
-            <span>مرحله بعد</span>
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+          <p className="text-xs text-emerald-200">در حال انتقال خودکار به مرحله نهایی ثبت سفارش...</p>
         </div>
       )}
 
-      {/* Back button if not yet paid */}
+      {/* Navigation Button */}
       {!isPaid && (
-        <div className="flex justify-start pt-3">
+        <div className="flex items-center justify-start gap-3 pt-3">
           <button
             type="button"
             onClick={onBack}
+            disabled={autoRedirecting}
             className="w-full sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
           >
             <ChevronRight className="w-4 h-4" />
-            <span>مرحله قبل</span>
+            <span>بازگشت به پیش‌فاکتور</span>
           </button>
         </div>
       )}

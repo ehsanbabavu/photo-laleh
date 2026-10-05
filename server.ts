@@ -226,8 +226,20 @@ const INITIAL_DB = {
   settings: {
     avalaiApiKey: '',
     avalaiBaseUrl: 'https://api.avalai.ir/v1',
-    avalaiModel: 'gpt-image-2.5-sunburst'
-  }
+    avalaiModel: 'gpt-image-2.5-sunburst',
+    aiEnabled: true,
+    blupalToken: '',
+    blupalBaseUrl: 'https://blupal.top',
+    blupalMerchantId: '',
+    blupalCardNumber: '6219 8619 4528 7193',
+    blupalAccountHolder: 'آتلیه تخصصی لاله',
+    blupalIban: 'IR720560086190004528719301',
+    blupalEnabled: true,
+    blupalSandboxMode: true,
+    blupalAutoPollInterval: 3,
+    blupalCustomEndpoint: '/api/v1/invoices/create'
+  },
+  invoices: []
 };
 
 function readDb() {
@@ -467,6 +479,495 @@ app.post('/api/settings', (req, res) => {
   db.settings = { ...(db.settings || {}), ...req.body };
   writeDb(db);
   res.json({ success: true, settings: db.settings });
+});
+
+// Helper function to generate candidate BluPal endpoints
+function getBluPalEndpoints(baseUrl: string, customEndpoint?: string): string[] {
+  const host = (baseUrl || 'https://blupal.top').trim().replace(/\/+$/, '');
+  const bases = Array.from(new Set([
+    host,
+    host.replace('://blupal.top', '://api.blupal.top'),
+    host.replace('://blupal.net', '://api.blupal.net'),
+    host.replace('://blupal.ir', '://api.blupal.ir'),
+    'https://blupal.top',
+    'https://api.blupal.top',
+    'https://blupal.net',
+    'https://api.blupal.net'
+  ]));
+
+  const customEp = (customEndpoint || '').trim();
+  const paths = [
+    ...(customEp ? [customEp.startsWith('/') ? customEp : '/' + customEp] : []),
+    '/api/v1/invoices/create',
+    '/api/v1/invoices',
+    '/api/v1/invoice/create',
+    '/api/v1/invoice',
+    '/api/v1/create-invoice',
+    '/api/v1/create',
+    '/api/v1/factor',
+    '/api/v1/factors',
+    '/api/v1/pay',
+    '/api/v1/payment',
+    '/api/invoice/create',
+    '/api/invoices',
+    '/api/invoice',
+    '/api/create-invoice',
+    '/api/factor',
+    '/api/pay'
+  ];
+
+  const result: string[] = [];
+  for (const base of bases) {
+    for (const path of paths) {
+      const fullUrl = `${base}${path}`;
+      if (!result.includes(fullUrl)) {
+        result.push(fullUrl);
+      }
+    }
+  }
+  return result;
+}
+
+// Create Invoice
+app.post('/api/blupal/create-invoice', async (req, res) => {
+  try {
+    const db = readDb();
+    const settings = db.settings || {};
+    const { amount, orderId, customerName, customerPhone, description, invoiceDetails } = req.body;
+
+    const numAmount = typeof amount === 'number' ? amount : (Number(amount) || 0);
+    if (numAmount < 0) {
+      return res.status(400).json({ success: false, error: 'Invalid amount' });
+    }
+
+    const invoiceId = 'BLU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000);
+    // Amount in Rials (Minimum 100,000 Rials as required by BluPal API doc)
+    const amountRial = Math.max(100000, numAmount * 10);
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins
+    const isFree = numAmount === 0;
+
+    let externalPaymentUrl = '';
+    let remoteCardNumber = '';
+    let remoteInvoiceId = '';
+    let remoteFinalAmount = 0;
+
+    // If real token is configured and sandbox is disabled, call BluPal API (only if amount > 0)
+    if (numAmount > 0 && settings.blupalToken && !settings.blupalSandboxMode) {
+      try {
+        const baseUrl = (settings.blupalBaseUrl || 'https://blupal.top').replace(/\/+$/, '');
+
+        const requestBody = {
+          amount: amountRial,
+          card_number: settings.blupalCardNumber || undefined
+        };
+
+        const endpoints = getBluPalEndpoints(baseUrl, settings.blupalCustomEndpoint);
+
+        for (const endpoint of endpoints) {
+          try {
+            const blupalRes = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-API-Key': settings.blupalToken,
+                'Authorization': `Bearer ${settings.blupalToken}`
+              },
+              body: JSON.stringify(requestBody)
+            });
+
+            if (blupalRes.ok) {
+              const resData: any = await blupalRes.json();
+              const obj = resData.data || resData.result || resData.invoice || resData;
+
+              if (obj && (obj.success || resData.success || obj.payment_link || obj.invoice_id)) {
+                externalPaymentUrl = obj.payment_link || obj.payment_url || obj.url || obj.link || externalPaymentUrl;
+                remoteCardNumber = obj.card_number || obj.cardNumber || remoteCardNumber;
+                remoteInvoiceId = String(obj.invoice_id || obj.id || '');
+                if (obj.final_amount) {
+                  const rawFinal = Number(obj.final_amount) || 0;
+                  remoteFinalAmount = rawFinal > 10000 ? Math.round(rawFinal / 10) : rawFinal;
+                }
+                if (externalPaymentUrl || remoteInvoiceId) break; // Successfully retrieved invoice details!
+              }
+            }
+          } catch (endpointErr) {
+            // Try next endpoint fallback
+          }
+        }
+      } catch (e) {
+        console.warn('BluPal real API call failed, falling back to local invoice:', e);
+      }
+    }
+
+    const payableToman = remoteFinalAmount || numAmount;
+
+    const newInvoice = {
+      invoiceId: remoteInvoiceId || invoiceId,
+      localInvoiceId: invoiceId,
+      amount: numAmount,
+      finalAmount: payableToman,
+      amountRial: payableToman * 10,
+      orderId: orderId || '',
+      customerName: customerName || '',
+      customerPhone: customerPhone || '',
+      description: description || 'پرداخت سفارش آتلیه دیجیتال لاله',
+      status: isFree ? 'paid' : 'pending',
+      referenceCode: isFree ? ('GIFT-FREE-' + Math.floor(10000000 + Math.random() * 90000000)) : undefined,
+      paidAt: isFree ? new Date().toLocaleDateString('fa-IR') : undefined,
+      cardNumber: remoteCardNumber || settings.blupalCardNumber || '6219 8619 4528 7193',
+      accountHolder: settings.blupalAccountHolder || 'آتلیه تخصصی لاله',
+      iban: settings.blupalIban || 'IR720560086190004528719301',
+      qrData: `blupal://pay?invoice=${remoteInvoiceId || invoiceId}&amount=${payableToman}&to=${encodeURIComponent(settings.blupalAccountHolder || 'آتلیه لاله')}`,
+      paymentUrl: externalPaymentUrl || `https://blupal.top/pay/${remoteInvoiceId || invoiceId}`,
+      createdAt: new Date().toLocaleDateString('fa-IR'),
+      expiresAt,
+      invoiceDetails: invoiceDetails || null
+    };
+
+    db.invoices = [newInvoice, ...(db.invoices || []).slice(0, 99)];
+    writeDb(db);
+
+    res.json({ success: true, invoice: newInvoice });
+  } catch (err: any) {
+    console.error('Error creating BluPal invoice:', err);
+    res.status(500).json({ success: false, error: err.message || 'Internal error' });
+  }
+});
+
+// Check Invoice Status
+app.get('/api/blupal/status/:invoiceId', async (req, res) => {
+  try {
+    const db = readDb();
+    const reqId = String(req.params.invoiceId || '').trim();
+    const invoice = (db.invoices || []).find((inv: any) =>
+      String(inv.invoiceId || '').trim() === reqId ||
+      String(inv.localInvoiceId || '').trim() === reqId ||
+      String(inv.orderId || '').trim() === reqId
+    );
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+
+    // Check expiration
+    if (invoice.status === 'pending' && Date.now() > invoice.expiresAt) {
+      invoice.status = 'expired';
+      writeDb(db);
+    }
+
+    // If real token and not paid yet, check with BluPal API
+    const settings = db.settings || {};
+    if (invoice.status === 'pending' && settings.blupalToken && !settings.blupalSandboxMode) {
+      try {
+        const baseUrl = (settings.blupalBaseUrl || 'https://blupal.top').replace(/\/+$/, '');
+        const targetRemoteId = invoice.invoiceId || reqId;
+
+        const blupalRes = await fetch(`${baseUrl}/api/v1/invoices/${targetRemoteId}`, {
+          headers: {
+            'Accept': 'application/json',
+            'X-API-Key': settings.blupalToken,
+            'Authorization': `Bearer ${settings.blupalToken}`
+          }
+        });
+
+        if (blupalRes.ok) {
+          const data: any = await blupalRes.json();
+          const statusStr = String(data.status || data.event || '').toUpperCase();
+          if (
+            statusStr === 'PAID' ||
+            statusStr === 'COMPLETED' ||
+            statusStr === 'PAYMENT.COMPLETED' ||
+            (data.success && statusStr === 'PAID')
+          ) {
+            invoice.status = 'paid';
+            invoice.referenceCode = String(data.transaction_id || data.reference_id || ('BLU-' + Math.floor(10000000 + Math.random() * 90000000)));
+            invoice.paidAt = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+            writeDb(db);
+          }
+        }
+      } catch (e) {
+        // Ignore remote check failure
+      }
+    }
+
+    res.json({ success: true, status: invoice.status, invoice });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Simulate / Trigger instant payment (Sandbox / Demo mode)
+app.post('/api/blupal/simulate-pay/:invoiceId', (req, res) => {
+  try {
+    const db = readDb();
+    const invoiceId = req.params.invoiceId;
+    const invoice = (db.invoices || []).find((inv: any) => inv.invoiceId === invoiceId);
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+
+    invoice.status = 'paid';
+    invoice.referenceCode = 'BLU-' + Math.floor(100000000 + Math.random() * 900000000);
+    invoice.paidAt = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+    writeDb(db);
+
+    res.json({ success: true, status: 'paid', referenceCode: invoice.referenceCode, invoice });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Test Connection with BluPal (Performs real invoice creation test and reports exact result or error)
+app.post('/api/blupal/test-connection', async (req, res) => {
+  try {
+    const { token, baseUrl, customEndpoint } = req.body;
+    const url = (baseUrl || 'https://blupal.top').replace(/\/+$/, '');
+
+    if (!token) {
+      return res.json({
+        success: false,
+        message: 'لطفاً ابتدا توکن دسترسی API بلوپال را در کادر مربوطه وارد نمایید.'
+      });
+    }
+
+    const testOrderId = 'BLU-TEST-' + Date.now().toString(36).toUpperCase();
+
+    // 100,000 Rials = 10,000 Tomans (Minimum allowed amount by BluPal API doc!)
+    const requestBody = {
+      amount: 100000
+    };
+
+    const endpoints = getBluPalEndpoints(url, customEndpoint);
+
+    let lastError = '';
+    let lastStatus = 0;
+    let rawResponse: any = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        const blupalRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-API-Key': token,
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        lastStatus = blupalRes.status;
+        const contentType = blupalRes.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+          rawResponse = await blupalRes.json();
+        } else {
+          const rawText = await blupalRes.text();
+          rawResponse = { text: rawText };
+        }
+
+        const obj = rawResponse?.data || rawResponse?.result || rawResponse?.invoice || rawResponse;
+        const invoiceUrl = obj?.payment_link || obj?.payment_url || obj?.url || obj?.link || obj?.redirect_url;
+        const invoiceId = String(obj?.invoice_id || obj?.id || testOrderId);
+
+        if (blupalRes.ok && (rawResponse?.success || obj?.payment_link || obj?.invoice_id)) {
+          return res.json({
+            success: true,
+            message: `فاکتور واقعی با موفقیت در وب‌سرویس بلوپال ایجاد شد! ✅ (شناسه فاکتور: ${invoiceId})`,
+            invoiceUrl: invoiceUrl || '',
+            invoiceId,
+            details: rawResponse
+          });
+        } else {
+          const msg =
+            rawResponse?.message ||
+            rawResponse?.error ||
+            rawResponse?.errors ||
+            rawResponse?.detail ||
+            (typeof rawResponse?.text === 'string' ? rawResponse.text.slice(0, 150) : null) ||
+            `HTTP Error ${blupalRes.status}`;
+          lastError = typeof msg === 'object' ? JSON.stringify(msg) : String(msg);
+        }
+      } catch (endpointErr: any) {
+        lastError = endpointErr.message || 'خطا در شبکه';
+      }
+    }
+
+    // If all endpoints failed, report detailed error to admin
+    return res.json({
+      success: false,
+      message: `خطا در صدور فاکتور توسط سرور بلوپال (کد ${lastStatus || 'شبکه'}): ${lastError}`,
+      details: rawResponse
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: `خطای داخلی سرور هنگام تست اتصال: ${err.message}`
+    });
+  }
+});
+
+// BluPal Incoming Webhook Handler (POST /api/blupal/webhook)
+app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const db = readDb();
+
+    const rawInvoiceId = payload.invoice_id ?? payload.invoiceId ?? payload.id ?? payload.order_id ?? payload.orderId;
+    const strInvoiceId = String(rawInvoiceId || '').trim();
+
+    const rawStatus = String(payload.status || payload.event || '').toUpperCase();
+    const isPaid =
+      rawStatus === 'PAID' ||
+      rawStatus === 'COMPLETED' ||
+      rawStatus === 'SUCCESSFUL' ||
+      rawStatus === 'PAYMENT.COMPLETED' ||
+      payload.event === 'payment.completed' ||
+      payload.success === true;
+
+    const referenceCode = String(
+      payload.transaction_id ||
+      payload.reference_id ||
+      payload.tracking_code ||
+      payload.referenceCode ||
+      ('BLU-WH-' + Math.floor(10000000 + Math.random() * 90000000))
+    );
+    const amount = payload.amount || payload.amount_rial || payload.final_amount;
+
+    const timeFa = new Date().toLocaleString('fa-IR', {
+      timeZone: 'Asia/Tehran',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+
+    // 1. Update matching invoice in DB
+    let invoiceFound = false;
+    db.invoices = (db.invoices || []).map((inv: any) => {
+      const isMatch =
+        (strInvoiceId && String(inv.invoiceId || '').trim() === strInvoiceId) ||
+        (strInvoiceId && String(inv.localInvoiceId || '').trim() === strInvoiceId) ||
+        (strInvoiceId && String(inv.orderId || '').trim() === strInvoiceId) ||
+        (!strInvoiceId && inv.status === 'pending');
+
+      if (isMatch) {
+        invoiceFound = true;
+        return {
+          ...inv,
+          status: isPaid ? 'paid' : inv.status,
+          referenceCode,
+          paidAt: isPaid ? timeFa : inv.paidAt
+        };
+      }
+      return inv;
+    });
+
+    // 2. Update matching order in DB if any
+    db.orders = (db.orders || []).map((ord: any) => {
+      const isOrderMatch =
+        (strInvoiceId && String(ord.id || '').trim() === strInvoiceId) ||
+        (strInvoiceId && String(ord.trackingCode || '').trim() === strInvoiceId);
+      if (isOrderMatch && isPaid) {
+        return {
+          ...ord,
+          paymentStatus: 'paid',
+          paymentReference: referenceCode
+        };
+      }
+      return ord;
+    });
+
+    // 3. Record in webhook event logs
+    const logEntry = {
+      id: 'wh-' + Date.now(),
+      receivedAt: timeFa,
+      invoiceId: strInvoiceId || 'نامشخص',
+      status: isPaid ? 'paid' : rawStatus,
+      referenceCode,
+      amount: amount || '—',
+      rawPayload: payload,
+      isMatched: invoiceFound
+    };
+
+    db.webhookLogs = [logEntry, ...(db.webhookLogs || []).slice(0, 19)];
+    writeDb(db);
+
+    console.log(`[BluPal Webhook] Received status for invoice ${strInvoiceId}: ${isPaid ? 'PAID' : rawStatus} (Ref: ${referenceCode}, Matched: ${invoiceFound})`);
+
+    // Return HTTP 200 OK with received: true as specified in BluPal docs
+    res.status(200).json({
+      received: true,
+      success: true,
+      message: 'نتیجه تراکنش وب‌هوک با موفقیت پردازش شد',
+      invoiceId: strInvoiceId,
+      status: isPaid ? 'paid' : rawStatus
+    });
+  } catch (err: any) {
+    console.error('Error handling BluPal webhook:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get recent Webhook Logs
+app.get('/api/blupal/webhook-logs', (_req, res) => {
+  const db = readDb();
+  res.json(db.webhookLogs || []);
+});
+
+// Test/Simulate incoming Webhook trigger from admin
+app.post('/api/blupal/test-webhook', async (req, res) => {
+  try {
+    const db = readDb();
+    const { invoiceId, status = 'paid' } = req.body;
+    const targetInvoice = (db.invoices || [])[0];
+    const invId = invoiceId || targetInvoice?.invoiceId || ('BLU-DEMO-' + Date.now().toString(36).toUpperCase());
+
+    const timeFa = new Date().toLocaleString('fa-IR', {
+      timeZone: 'Asia/Tehran',
+      hour: '2-digit',
+      minute: '2-digit',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+
+    const refCode = 'BLU-TEST-' + Math.floor(10000000 + Math.random() * 90000000);
+
+    // Update invoice
+    db.invoices = (db.invoices || []).map((inv: any) => {
+      if (inv.invoiceId === invId) {
+        return { ...inv, status: 'paid', referenceCode: refCode, paidAt: timeFa };
+      }
+      return inv;
+    });
+
+    const logEntry = {
+      id: 'wh-test-' + Date.now(),
+      receivedAt: timeFa,
+      invoiceId: invId,
+      status: 'paid',
+      referenceCode: refCode,
+      amount: targetInvoice ? targetInvoice.amount : 125000,
+      rawPayload: { invoice_id: invId, status: 'paid', reference_id: refCode, simulated: true },
+      isMatched: true
+    };
+
+    db.webhookLogs = [logEntry, ...(db.webhookLogs || []).slice(0, 19)];
+    writeDb(db);
+
+    res.json({
+      success: true,
+      message: `تست وب‌هوک با موفقیت انجام شد و وضعیت فاکتور ${invId} به پرداخت شده تغییر یافت ✅`,
+      log: logEntry
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Unified Telegram Callback Query Handler

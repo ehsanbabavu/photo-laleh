@@ -142,5 +142,87 @@ export const apiClient = {
     } catch (err) {
       console.warn('API saveSettings error:', err);
     }
+  },
+
+  async createBluPalInvoice(data: {
+    amount: number;
+    orderId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    description?: string;
+    invoiceDetails?: any;
+  }) {
+    try {
+      const res = await fetch('/api/blupal/create-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('Failed to create invoice');
+      return await res.json();
+    } catch (err) {
+      console.warn('createBluPalInvoice error:', err);
+      return null;
+    }
+  },
+
+  async checkBluPalInvoiceStatus(invoiceId: string) {
+    try {
+      const res = await fetch(`/api/blupal/status/${invoiceId}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async simulateBluPalPayment(invoiceId: string) {
+    try {
+      const res = await fetch(`/api/blupal/simulate-pay/${invoiceId}`, {
+        method: 'POST'
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async testBluPalConnection(token: string, baseUrl?: string, customEndpoint?: string) {
+    try {
+      const res = await fetch('/api/blupal/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, baseUrl, customEndpoint })
+      });
+      if (!res.ok) return { success: false, message: 'خطا در ارتباط با سرور' };
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, message: err.message || 'خطا در شبکه' };
+    }
+  },
+
+  async getBluPalWebhookLogs() {
+    try {
+      const res = await fetch('/api/blupal/webhook-logs');
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  },
+
+  async testBluPalWebhook(invoiceId?: string) {
+    try {
+      const res = await fetch('/api/blupal/test-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId })
+      });
+      if (!res.ok) return { success: false, message: 'خطا در ارسال تست وب‌هوک' };
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, message: err.message || 'خطا در شبکه' };
+    }
   }
 };

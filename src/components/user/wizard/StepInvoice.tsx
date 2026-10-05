@@ -66,6 +66,17 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   const walletDeduction = (applyWalletGift && isFirstOrderGiftAvailable) ? maxGiftDeductible : 0;
   const finalTotal = Math.max(0, grossBeforeWallet - walletDeduction);
 
+  const isPostDelivery = draft.deliveryMethod === 'pishtaz';
+  const customerInfo = draft.customerInfo || {
+    fullName: user?.name || '',
+    phoneNumber: user?.phone || '',
+    province: 'تهران',
+    city: 'تهران',
+    address: '',
+    postalCode: '',
+    notes: ''
+  };
+
   const handleApplyVoucher = () => {
     const code = voucherInput.trim().toUpperCase();
     if (code === 'EHSAN' || code === 'EHSAN20' || code === 'STUDIO') {
@@ -88,19 +99,41 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
 
   const handleProceed = () => {
     if (draft.deliveryMethod === 'pishtaz') {
-      if (!draft.customerInfo.fullName.trim() || !draft.customerInfo.phoneNumber.trim()) {
+      if (!customerInfo.fullName?.trim() || !customerInfo.phoneNumber?.trim()) {
         setAddressError('لطفاً نام و شماره تماس تحویل‌گیرنده را وارد نمایید.');
         return;
       }
     }
     setAddressError('');
+
+    const invDetails = {
+      printTypeTitle: printType.title,
+      dimensionTitle: dimension.title,
+      materialTitle: material.name || '',
+      quantity: draft.quantity || 1,
+      unitBasePrice: unitBase,
+      extrasPrice: unitExtras,
+      subtotal,
+      shippingCost,
+      deliveryMethod: draft.deliveryMethod,
+      discountAmount: draft.discountAmount || 0,
+      discountCode: draft.discountCode || '',
+      walletCreditUsed: walletDeduction,
+      finalTotal,
+      customerFullName: customerInfo.fullName || user?.name || 'مشتری آتلیه',
+      customerPhone: customerInfo.phoneNumber || user?.phone || '',
+      customerAddress: `${customerInfo.province || ''} ${customerInfo.city || ''} ${customerInfo.address || ''}`.trim(),
+      createdAtFa: new Date().toLocaleDateString('fa-IR')
+    };
+
     onUpdateDraft({
-      walletCreditUsed: walletDeduction
+      customerInfo,
+      walletCreditUsed: walletDeduction,
+      totalPrice: finalTotal,
+      invoiceDetails: invDetails
     });
     onNext();
   };
-
-  const isPostDelivery = draft.deliveryMethod === 'pishtaz';
 
   return (
     <div className="space-y-5">
@@ -318,10 +351,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                 <input
                   type="text"
                   placeholder="مثال: سارا رضایی"
-                  value={draft.customerInfo.fullName}
+                  value={customerInfo.fullName}
                   onChange={(e) =>
                     onUpdateDraft({
-                      customerInfo: { ...draft.customerInfo, fullName: e.target.value }
+                      customerInfo: { ...customerInfo, fullName: e.target.value }
                     })
                   }
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"
@@ -333,10 +366,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                 <input
                   type="tel"
                   placeholder="09123456789"
-                  value={draft.customerInfo.phoneNumber}
+                  value={customerInfo.phoneNumber}
                   onChange={(e) =>
                     onUpdateDraft({
-                      customerInfo: { ...draft.customerInfo, phoneNumber: e.target.value }
+                      customerInfo: { ...customerInfo, phoneNumber: e.target.value }
                     })
                   }
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"
@@ -349,10 +382,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                   <input
                     type="text"
                     placeholder="تهران"
-                    value={draft.customerInfo.province}
+                    value={customerInfo.province}
                     onChange={(e) =>
                       onUpdateDraft({
-                        customerInfo: { ...draft.customerInfo, province: e.target.value }
+                        customerInfo: { ...customerInfo, province: e.target.value }
                       })
                     }
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"
@@ -364,10 +397,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                   <input
                     type="text"
                     placeholder="تهران"
-                    value={draft.customerInfo.city}
+                    value={customerInfo.city}
                     onChange={(e) =>
                       onUpdateDraft({
-                        customerInfo: { ...draft.customerInfo, city: e.target.value }
+                        customerInfo: { ...customerInfo, city: e.target.value }
                       })
                     }
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"
@@ -380,10 +413,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                 <textarea
                   rows={2}
                   placeholder="خیابان، کوچه، پلاک، واحد..."
-                  value={draft.customerInfo.address}
+                  value={customerInfo.address}
                   onChange={(e) =>
                     onUpdateDraft({
-                      customerInfo: { ...draft.customerInfo, address: e.target.value }
+                      customerInfo: { ...customerInfo, address: e.target.value }
                     })
                   }
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"

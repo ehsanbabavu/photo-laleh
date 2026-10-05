@@ -8,7 +8,7 @@ import {
   Eye,
   CheckCircle2
 } from 'lucide-react';
-import { OrderDraft, Order, User, PrintTypeOption } from '../../types';
+import { OrderDraft, Order, User, PrintTypeOption, BluPalSettings } from '../../types';
 import { StepPrintType } from './wizard/StepPrintType';
 import { StepUploadPhoto } from './wizard/StepUploadPhoto';
 import { StepDimensions } from './wizard/StepDimensions';
@@ -26,6 +26,7 @@ interface OrderWizardProps {
   printTypePrompts?: Record<string, string>;
   avalaiBaseUrl?: string;
   avalaiModel?: string;
+  blupalSettings?: BluPalSettings;
 }
 
 export const OrderWizard: React.FC<OrderWizardProps> = ({
@@ -36,7 +37,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   avalaiApiKey = '',
   printTypePrompts = {},
   avalaiBaseUrl = 'https://api.avalai.ir/v1',
-  avalaiModel = 'gpt-image-2.5-sunburst'
+  avalaiModel = 'gpt-image-2.5-sunburst',
+  blupalSettings
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
@@ -239,6 +241,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onBack={() => setCurrentStep(4)}
             printTypes={printTypes}
             user={user}
+            blupalSettings={blupalSettings}
           />
         )}
 

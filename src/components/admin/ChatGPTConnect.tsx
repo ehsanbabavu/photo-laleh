@@ -7,7 +7,8 @@ import {
   Sparkles,
   Eye,
   EyeOff,
-  Save
+  Save,
+  Power
 } from 'lucide-react';
 
 interface ChatGPTConnectProps {
@@ -17,6 +18,8 @@ interface ChatGPTConnectProps {
   onUpdateBaseUrl?: (url: string) => void;
   model?: string;
   onUpdateModel?: (model: string) => void;
+  aiEnabled?: boolean;
+  onUpdateAiEnabled?: (enabled: boolean) => void;
   // Legacy props compatibility
   openaiTokens?: string[];
   onUpdateOpenaiTokens?: (tokens: string[]) => void;
@@ -31,6 +34,8 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   onUpdateBaseUrl,
   model = 'gpt-image-2.5-sunburst',
   onUpdateModel,
+  aiEnabled = true,
+  onUpdateAiEnabled,
   openaiTokens,
   onUpdateOpenaiTokens,
   openaiBaseUrl,
@@ -42,6 +47,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   const [inputKey, setInputKey] = useState(currentKey);
   const [inputBaseUrl, setInputBaseUrl] = useState(currentBaseUrl);
   const [inputModel, setInputModel] = useState(model);
+  const [isAiEnabled, setIsAiEnabled] = useState(aiEnabled);
   const [showKey, setShowKey] = useState(false);
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
@@ -60,6 +66,16 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     if (model) setInputModel(model);
   }, [model]);
 
+  useEffect(() => {
+    setIsAiEnabled(aiEnabled);
+  }, [aiEnabled]);
+
+  const handleToggleAi = () => {
+    const nextState = !isAiEnabled;
+    setIsAiEnabled(nextState);
+    if (onUpdateAiEnabled) onUpdateAiEnabled(nextState);
+  };
+
   const handleSaveAll = () => {
     const trimmedKey = inputKey.trim();
     const trimmedUrl = inputBaseUrl.trim().replace(/\/$/, '');
@@ -75,6 +91,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     if (onUpdateBaseUrl) onUpdateBaseUrl(trimmedUrl);
     if (onUpdateOpenaiBaseUrl) onUpdateOpenaiBaseUrl(trimmedUrl);
     if (onUpdateModel) onUpdateModel(trimmedModel);
+    if (onUpdateAiEnabled) onUpdateAiEnabled(isAiEnabled);
   };
 
   // Test AvalAI API Connection
@@ -138,6 +155,54 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
         <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-900 pb-4 border-b border-slate-100">
           <Key className="w-5 h-5 text-teal-600" />
           <span>پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)</span>
+        </div>
+
+        {/* Master AI On/Off Toggle Switch */}
+        <div className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+          isAiEnabled
+            ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-emerald-300 text-emerald-950 shadow-xs'
+            : 'bg-gradient-to-r from-rose-50 via-red-50 to-slate-50 border-rose-300 text-rose-950 shadow-xs'
+        }`}>
+          <div className="flex items-center gap-3.5">
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm transition-all ${
+              isAiEnabled ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            }`}>
+              <Power className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-black">
+                  موتور پردازش و رتوش هوش مصنوعی:
+                </h3>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  isAiEnabled
+                    ? 'bg-emerald-200/80 text-emerald-900 border border-emerald-300'
+                    : 'bg-rose-200/80 text-rose-900 border border-rose-300'
+                }`}>
+                  {isAiEnabled ? 'روشن (فعال) 🟢' : 'خاموش (غیرفعال) 🔴'}
+                </span>
+              </div>
+              <p className="text-[11px] opacity-80 mt-1 leading-relaxed font-medium">
+                {isAiEnabled
+                  ? 'سرویس هوش مصنوعی فعال است؛ سفارشات ثبت‌شده توسط مدل اختصاصی AvalAI پردازش و رتوش می‌گردند.'
+                  : 'سرویس هوش مصنوعی غیرفعال گردیده است. در این حالت فراخوانی API متوقف شده و عکس‌ها مستقیم ثبت می‌شوند.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleAi}
+            className={`relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              isAiEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                isAiEnabled ? '-translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
 
         <div className="space-y-5">

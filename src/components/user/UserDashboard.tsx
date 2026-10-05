@@ -583,20 +583,49 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {printTypes
             .filter((item) => item.isEnabled !== false)
-            .map((item) => (
-              <div
-                key={item.id}
-                onClick={onStartNewOrder}
-                className="p-3.5 rounded-2xl bg-gradient-to-b from-sky-50/40 via-white to-white border border-slate-200/90 hover:border-sky-300 hover:shadow-xs transition-all cursor-pointer group"
-              >
-                <h4 className="text-xs font-black text-slate-900 group-hover:text-sky-600 transition-colors">
-                  {item.title}
-                </h4>
-                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                  {item.description}
-                </p>
-              </div>
-            ))}
+            .map((item) => {
+              const getServiceBgImage = (it: any) => {
+                if (it.cardBgImage) {
+                  return it.cardBgImage;
+                }
+                switch (it.id) {
+                  case 'personnel': return '/service_card_portrait.jpg';
+                  case 'commercial': return '/service_commercial.jpg';
+                  case 'bw_to_color': return '/service_bw_to_color.jpg';
+                  case 'memorial': return '/service_memorial.jpg';
+                  case 'wedding': return '/service_wedding.jpg';
+                  default: return null;
+                }
+              };
+              const bgImg = getServiceBgImage(item);
+
+              return (
+                <div
+                  key={item.id}
+                  className="relative overflow-hidden p-4 pl-24 rounded-2xl bg-white border border-slate-200/90 hover:border-slate-300/80 transition-all cursor-default group min-h-[110px] flex flex-col justify-between"
+                >
+                  {/* Clean, Full Opacity Portrait Background on Left Side */}
+                  {bgImg && (
+                    <div className="absolute left-0 top-0 bottom-0 w-24 pointer-events-none select-none z-0">
+                      <img
+                        src={bgImg}
+                        alt=""
+                        className="w-full h-full object-cover object-center opacity-100"
+                      />
+                    </div>
+                  )}
+
+                  <div className="relative z-10">
+                    <h4 className="text-xs font-black text-sky-600 group-hover:text-sky-700 transition-colors">
+                      {item.title}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed line-clamp-3">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </div>
 

@@ -24,6 +24,7 @@ export interface PrintTypeOption {
   sampleImage?: string;
   tag?: string;
   isEnabled?: boolean;
+  cardBgImage?: string;
 }
 
 export interface PrintDimension {
@@ -45,7 +46,28 @@ export interface PaperMaterial {
   spec: string;
 }
 
+export interface OrderInvoiceDetails {
+  printTypeTitle: string;
+  dimensionTitle: string;
+  materialTitle: string;
+  quantity: number;
+  unitBasePrice: number;
+  extrasPrice: number;
+  subtotal: number;
+  shippingCost: number;
+  deliveryMethod: string;
+  discountAmount: number;
+  discountCode?: string;
+  walletCreditUsed: number;
+  finalTotal: number;
+  customerFullName: string;
+  customerPhone: string;
+  customerAddress: string;
+  createdAtFa: string;
+}
+
 export interface OrderDraft {
+  id?: string;
   printType: PrintTypeId;
   uploadedImage: string | null;
   originalImageName?: string;
@@ -74,8 +96,10 @@ export interface OrderDraft {
   discountCode?: string;
   discountAmount: number;
   walletCreditUsed?: number; // 100,000 Tomans gift deduction from first invoice
+  totalPrice?: number;
   paymentMethod: 'online' | 'card_to_card' | 'wallet';
   paymentReference?: string;
+  invoiceDetails?: OrderInvoiceDetails;
 }
 
 export interface Order extends OrderDraft {
@@ -144,4 +168,40 @@ export interface Announcement {
   createdAt: string;
   isActive: boolean;
   readBy?: string[];
+}
+
+export interface BluPalSettings {
+  blupalToken: string;
+  blupalBaseUrl: string;
+  blupalMerchantId: string;
+  blupalCardNumber: string;
+  blupalAccountHolder: string;
+  blupalIban: string;
+  blupalEnabled: boolean;
+  blupalSandboxMode: boolean;
+  blupalAutoPollInterval: number;
+  blupalWebhookSecret?: string;
+  blupalCustomWebhookUrl?: string;
+  blupalCustomEndpoint?: string;
+}
+
+export interface BluPalInvoice {
+  invoiceId: string;
+  amount: number; // in Tomans
+  finalAmount?: number; // exact payable amount returned by BluPal (with tracking digit)
+  amountRial: number;
+  orderId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  description?: string;
+  status: 'pending' | 'paid' | 'expired' | 'failed';
+  cardNumber: string;
+  accountHolder: string;
+  iban?: string;
+  qrData?: string;
+  paymentUrl?: string;
+  referenceCode?: string;
+  createdAt: string;
+  expiresAt: number; // timestamp in ms
+  invoiceDetails?: OrderInvoiceDetails;
 }

@@ -10,7 +10,9 @@ import {
   X,
   Layers,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { PrintTypeOption } from '../../types';
 import { formatPrice } from '../../utils/formatters';
@@ -39,6 +41,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
   const [basePrice, setBasePrice] = useState<number>(85000);
   const [description, setDescription] = useState('');
   const [features, setFeatures] = useState<string[]>(['']);
+  const [cardBgImage, setCardBgImage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Delete confirmation modal state
@@ -50,6 +53,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     setBasePrice(100000);
     setDescription('');
     setFeatures(['کیفیت استاندارد چاپ آتلیه', 'امکان تحویل فوری و بسته‌بندی ویژه']);
+    setCardBgImage(null);
     setFormError(null);
     setEditingItem(null);
     setModalMode('create');
@@ -62,6 +66,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     setBasePrice(item.basePrice);
     setDescription(item.description);
     setFeatures(item.features && item.features.length > 0 ? [...item.features] : ['']);
+    setCardBgImage(item.cardBgImage || null);
     setFormError(null);
     setModalMode('edit');
   };
@@ -80,6 +85,24 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
       next[index] = val;
       return next;
     });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      setFormError('حجم تصویر نباید بیشتر از ۸ مگابایت باشد.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setCardBgImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -115,7 +138,8 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         description: description.trim() || 'ارائه خدمات تخصصی چاپ با بالاترین کیفیت رنگ و ماندگاری در استودیو.',
         features: cleanFeatures,
         sampleImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
-        tag: 'خدمت تخصصی'
+        tag: 'خدمت تخصصی',
+        cardBgImage: cardBgImage || undefined
       };
       onAddPrintType(newItem);
     } else if (modalMode === 'edit' && editingItem) {
@@ -125,7 +149,8 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         subtitle: subtitle.trim(),
         basePrice: Number(basePrice),
         description: description.trim(),
-        features: cleanFeatures
+        features: cleanFeatures,
+        cardBgImage: cardBgImage || undefined
       };
       onUpdatePrintType(updatedItem);
     }
@@ -373,6 +398,46 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 leading-relaxed"
                 />
+              </div>
+
+              {/* Card Background Image Upload */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                <label className="block text-slate-700 font-bold">
+                  تصویر پس‌زمینه کارت خدمت
+                </label>
+                <p className="text-[10px] text-slate-500">
+                  یک عکس با پس‌زمینه سفیدِ خالص آپلود کنید تا در کارت‌های کاربری سمت چپ نمایش داده شود. (در صورت خالی بودن، از پیش‌فرض مناسبِ این کارت استفاده خواهد شد).
+                </p>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer transition-all bg-white hover:bg-sky-50/20">
+                    <Upload className="w-4 h-4 text-slate-400 mb-1" />
+                    <span className="text-[11px] font-bold text-slate-600">انتخاب تصویر جدید</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {cardBgImage && (
+                    <div className="relative w-16 h-16 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 flex-shrink-0 flex items-center justify-center">
+                      <img
+                        src={cardBgImage}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCardBgImage(null)}
+                        className="absolute top-0.5 right-0.5 bg-red-600 hover:bg-red-700 text-white p-0.5 rounded-md active:scale-90 transition-all shadow-md"
+                        title="حذف تصویر"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Features items */}
