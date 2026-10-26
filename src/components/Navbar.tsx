@@ -296,6 +296,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 );
               })}
+
+              <div className="pt-1">
+                <button
+                  onClick={() => setSettingsOpen((v) => !v)}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer min-h-[44px] ${
+                    isSettingsActive
+                      ? 'bg-gradient-to-r from-sky-50 to-emerald-50 text-sky-800 border border-sky-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Settings className={`w-4 h-4 ${isSettingsActive ? 'text-sky-600' : 'text-slate-500'}`} />
+                    <span>تنظیمات</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {settingsOpen && (
+                  <div className="mt-0.5 space-y-0.5 pr-3">
+                    {settingsItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = adminTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleAdminTabSelect(item.id)}
+                          className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer min-h-[36px] border-r-2 ${
+                            isActive
+                              ? 'text-sky-800 bg-sky-50 border-sky-500'
+                              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                          }`}
+                        >
+                          <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Bottom Actions */}
