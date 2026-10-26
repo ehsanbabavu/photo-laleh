@@ -72,6 +72,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       badgeStyle: null
     },
     {
+      id: 'orders' as AdminTab,
+      label: 'سفارشات چاپ عکس',
+      icon: Printer,
+      badge: activeOrdersCount > 0 ? activeOrdersCount : null,
+      badgeStyle: 'normal'
+    },
+    {
       id: 'announcements' as AdminTab,
       label: 'مدیریت اطلاعیه‌ها',
       icon: Volume2,
@@ -85,13 +92,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       badge: null,
       badgeStyle: null
     },
-    {
-      id: 'orders' as AdminTab,
-      label: 'سفارشات چاپ عکس',
-      icon: Printer,
-      badge: activeOrdersCount > 0 ? activeOrdersCount : null,
-      badgeStyle: 'normal'
-    },
+
     {
       id: 'tickets' as AdminTab,
       label: 'تیکت‌های پشتیبانی',
