@@ -13,6 +13,8 @@ import {
   createSession,
   findSession,
   deleteSession,
+  saveOtpCode,
+  verifyOtpCode,
   disconnectDb,
   DEFAULT_DB_NAME
 } from './mongoStore';
@@ -153,6 +155,110 @@ app.post('/api/auth/login', async (req, res) => {
   if (token) setSessionCookie(res, token);
   const { password: _pw, ...safeUser } = user;
   res.json({ success: true, user: { ...safeUser, password: user.password } });
+});
+
+// Request an SMS one-time code for registration
+app.post('/api/auth/otp/request', async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    if (!/^09\d{9}$/.test(phone)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    }
+
+    const db = await readDb();
+    if ((db.users || []).some((u: any) => normalizePhone(u.phone) === phone)) {
+      return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
+    }
+
+    const token = String(db.settings?.smsApiToken || process.env.SMS_API_TOKEN || '').trim();
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'توکن پیامک در تنظیمات ثبت نشده است' });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+
+    let smsOk = false;
+    let smsMessage = '';
+    try {
+      const smsRes = await fetch('https://s.api.ir/api/sw1/SmsOTP', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ code, mobile: phone, template: 2 })
+      });
+      const smsData: any = await smsRes.json().catch(() => null);
+      smsOk = Boolean(smsRes.ok && smsData && smsData.success !== false);
+      smsMessage = smsData?.message || '';
+    } catch (err: any) {
+      smsOk = false;
+      smsMessage = err?.message || '';
+    }
+
+    if (!smsOk) {
+      return res.status(400).json({ success: false, error: smsMessage || 'ارسال پیامک ناموفق بود' });
+    }
+
+    const saved = await saveOtpCode(phone, code, 2 * 60 * 1000);
+    if (!saved) {
+      return res.status(500).json({ success: false, error: 'ذخیره کد ناموفق بود' });
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+  }
+});
+
+// Complete registration after the SMS code is verified
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const phone = normalizePhone(req.body?.phone);
+    const password = String(req.body?.password || '');
+    const code = String(req.body?.code || '').trim();
+
+    if (!name || !phone || !password) {
+      return res.status(400).json({ success: false, error: 'اطلاعات ثبت‌نام کامل نیست' });
+    }
+    if (!/^09\d{9}$/.test(phone)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    }
+    if (!code) {
+      return res.status(400).json({ success: false, error: 'کد تایید را وارد کنید' });
+    }
+
+    const db = await readDb();
+    if ((db.users || []).some((u: any) => normalizePhone(u.phone) === phone)) {
+      return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
+    }
+
+    const verification = await verifyOtpCode(phone, code);
+    if (!verification.ok) {
+      return res.status(400).json({ success: false, error: verification.error });
+    }
+
+    const newUser: any = {
+      id: 'usr-' + Date.now(),
+      name,
+      phone,
+      password,
+      role: 'user',
+      createdAt: new Date().toLocaleDateString('fa-IR'),
+      walletBalance: 100000,
+      hasUsedFirstOrderGift: false
+    };
+
+    db.users = [...(db.users || []), newUser];
+    await writeDb(db);
+
+    const token = await createSession(newUser.id);
+    if (token) setSessionCookie(res, token);
+    res.json({ success: true, user: newUser });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+  }
 });
 
 app.get('/api/auth/me', async (req, res) => {
