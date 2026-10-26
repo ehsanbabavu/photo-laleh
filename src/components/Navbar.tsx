@@ -16,7 +16,8 @@ import {
   Volume2,
   CreditCard,
   Database,
-  Users
+  Users,
+  Send
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -118,6 +119,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       id: 'chatgpt' as AdminTab,
       label: 'اتصال به هوش مصنوعی',
       icon: BotMessageSquare,
+      badge: null,
+      badgeStyle: null
+    },
+    {
+      id: 'telegram_bot' as AdminTab,
+      label: 'اتصال به ربات تلگرام',
+      icon: Send,
       badge: null,
       badgeStyle: null
     },
