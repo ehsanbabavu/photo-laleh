@@ -98,7 +98,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-slate-900 truncate">{user.name}</p>
               <p className="text-[11px] text-slate-500 font-mono truncate">
-                {user.phone || `@${user.username}`}
+                {user.phone || ''}
               </p>
             </div>
           </div>
@@ -149,7 +149,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
 
       {/* Bottom Actions */}
       <div className="p-4 border-t border-slate-200 space-y-2">
-        {(user.role === 'admin' || user.username === 'ehsan') && onSwitchToAdmin && (
+        {user.role === 'admin' && onSwitchToAdmin && (
           <button
             onClick={onSwitchToAdmin}
             className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors cursor-pointer min-h-[42px]"
