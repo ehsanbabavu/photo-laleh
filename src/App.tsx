@@ -23,6 +23,8 @@ import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings'
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
+import { AdminSessions } from './components/admin/AdminSessions';
+import { AdminAudit } from './components/admin/AdminAudit';
 import { parseRoute, routeToPath } from './utils/router';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
@@ -723,6 +725,10 @@ export default function App() {
               {adminTab === 'backup' && <AdminBackup showToast={showToast} />}
 
               {adminTab === 'sms' && <AdminSmsSettings showToast={showToast} />}
+
+              {adminTab === 'sessions' && <AdminSessions showToast={showToast} />}
+
+              {adminTab === 'audit' && <AdminAudit showToast={showToast} />}
               </div>
             </main>
           </>
