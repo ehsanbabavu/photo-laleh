@@ -208,7 +208,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
       </div>
 
       {/* Grid of Print Type Cards (Live Preview & Management) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {printTypes.map((item, index) => (
           <div
             key={item.id}
