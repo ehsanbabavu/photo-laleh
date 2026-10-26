@@ -12,7 +12,8 @@ export const ADMIN_TABS = [
   'database',
   'telegram_bot',
   'blupal',
-  'backup'
+  'backup',
+  'sms'
 ] as const;
 
 export const USER_TABS = ['dashboard', 'wizard', 'orders', 'tickets'] as const;
