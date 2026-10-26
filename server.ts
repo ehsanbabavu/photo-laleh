@@ -1049,6 +1049,30 @@ async function pollTelegramUpdates() {
 setInterval(pollTelegramUpdates, 2000);
 
 // Telegram Send Order API
+app.post('/api/telegram/test', async (req, res) => {
+  const { token, chatId } = req.body || {};
+  if (!token || !chatId) {
+    return res.status(400).json({ success: false, error: 'توکن ربات و شناسه چت الزامی است' });
+  }
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${String(token).trim()}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: String(chatId).trim(),
+        text: 'تست اتصال ربات تلگرام آتلیه دیجیتال لاله ✅'
+      })
+    });
+    const data: any = await response.json().catch(() => null);
+    if (response.ok && data?.ok) {
+      return res.json({ success: true });
+    }
+    res.status(400).json({ success: false, error: data?.description || 'ارسال پیام تست ناموفق بود' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خطا در ارتباط با تلگرام' });
+  }
+});
+
 app.post('/api/telegram/send-order', async (req, res) => {
   try {
     const { botToken, chatId, order, dimensionTitle, materialName } = req.body;
