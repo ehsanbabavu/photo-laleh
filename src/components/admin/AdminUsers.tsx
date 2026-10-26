@@ -9,7 +9,7 @@ import {
   Save,
   Loader2,
   Wallet,
-  Phone
+  CalendarDays
 } from 'lucide-react';
 import { User } from '../../types';
 
@@ -181,7 +181,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                     </span>
                   </span>
                   <span className="inline-flex items-center gap-1 text-slate-400">
-                    <Phone className="w-3.5 h-3.5" />
+                    <CalendarDays className="w-3.5 h-3.5" />
                     <span dir="ltr">{user.createdAt || '—'}</span>
                   </span>
                 </div>
