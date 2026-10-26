@@ -51,144 +51,40 @@ export default function App() {
   const [userTab, setUserTab] = useState<UserTab>('dashboard');
 
   // Data states
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const saved = localStorage.getItem('studio_orders_list');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-      return INITIAL_ORDERS;
-    } catch {
-      return INITIAL_ORDERS;
-    }
-  });
+  const [orders, setOrders] = useState<Order[]>([]);
 
   // Support Tickets State
-  const [tickets, setTickets] = useState<SupportTicket[]>(() => {
-    try {
-      const saved = localStorage.getItem('studio_tickets_list');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-      return INITIAL_TICKETS;
-    } catch {
-      return INITIAL_TICKETS;
-    }
-  });
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
 
   // Dynamic Print Types State (Managed by Admin & Database)
-  const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(() => {
-    try {
-      const saved = localStorage.getItem('studio_print_types');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const updated = parsed.map((item: PrintTypeOption) =>
-            item.id === 'personnel' && item.basePrice === 85000
-              ? { ...item, basePrice: 600000 }
-              : item
-          );
-          localStorage.setItem('studio_print_types', JSON.stringify(updated));
-          return updated;
-        }
-      }
-      return PRINT_TYPES;
-    } catch {
-      return PRINT_TYPES;
-    }
-  });
+  const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(PRINT_TYPES);
 
   // AvalAI API configuration state
-  const [avalaiApiKey, setAvalaiApiKey] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('studio_avalai_api_key');
-      if (saved) return saved;
-      // Check legacy saved tokens
-      const legacyTokens = localStorage.getItem('studio_openai_tokens');
-      if (legacyTokens) {
-        const parsed = JSON.parse(legacyTokens);
-        if (Array.isArray(parsed) && parsed[0] && !parsed[0].includes('placeholder')) {
-          return parsed[0];
-        }
-      }
-    } catch {}
-    return '';
-  });
+  const [avalaiApiKey, setAvalaiApiKey] = useState<string>('');
 
   // AvalAI Base URL state (https://api.avalai.ir/v1)
-  const [avalaiBaseUrl, setAvalaiBaseUrl] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('studio_avalai_base_url');
-      return saved || 'https://api.avalai.ir/v1';
-    } catch {
-      return 'https://api.avalai.ir/v1';
-    }
-  });
+  const [avalaiBaseUrl, setAvalaiBaseUrl] = useState<string>('https://api.avalai.ir/v1');
 
   // Active Image Generation Model (gpt-image-2.5-sunburst)
-  const [avalaiModel, setAvalaiModel] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('studio_avalai_model');
-      return saved || 'gpt-image-2.5-sunburst';
-    } catch {
-      return 'gpt-image-2.5-sunburst';
-    }
-  });
+  const [avalaiModel, setAvalaiModel] = useState<string>('gpt-image-2.5-sunburst');
 
   // AI Master On/Off Toggle state
-  const [aiEnabled, setAiEnabled] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('studio_ai_enabled');
-      return saved !== null ? saved === 'true' : true;
-    } catch {
-      return true;
-    }
-  });
+  const [aiEnabled, setAiEnabled] = useState<boolean>(true);
 
   const handleUpdateAiEnabled = (enabled: boolean) => {
     setAiEnabled(enabled);
-    localStorage.setItem('studio_ai_enabled', String(enabled));
     apiClient.saveSettings({ aiEnabled: enabled });
     showToast(enabled ? 'موتور هوش مصنوعی روشن گردید.' : 'موتور هوش مصنوعی خاموش گردید.');
   };
 
-  const [telegramToken, setTelegramToken] = useState<string>(() => {
-    try {
-      return localStorage.getItem('studio_telegram_token') || '';
-    } catch {
-      return '';
-    }
-  });
+  const [telegramToken, setTelegramToken] = useState<string>('');
 
-  const [telegramChatId, setTelegramChatId] = useState<string>(() => {
-    try {
-      return localStorage.getItem('studio_telegram_chat_id') || '';
-    } catch {
-      return '';
-    }
-  });
+  const [telegramChatId, setTelegramChatId] = useState<string>('');
 
-  const [telegramEnabled, setTelegramEnabled] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('studio_telegram_enabled') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [telegramEnabled, setTelegramEnabled] = useState<boolean>(false);
 
   // BluPal Gateway Settings State
-  const [blupalSettings, setBlupalSettings] = useState<BluPalSettings>(() => {
-    try {
-      const saved = localStorage.getItem('studio_blupal_settings');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {
+  const [blupalSettings, setBlupalSettings] = useState<BluPalSettings>({
       blupalToken: '',
       blupalBaseUrl: 'https://blupal.top',
       blupalMerchantId: '',
@@ -198,12 +94,10 @@ export default function App() {
       blupalEnabled: true,
       blupalSandboxMode: true,
       blupalAutoPollInterval: 3
-    };
-  });
+    });
 
   const handleSaveBluPalSettings = (newSettings: BluPalSettings) => {
     setBlupalSettings(newSettings);
-    localStorage.setItem('studio_blupal_settings', JSON.stringify(newSettings));
     apiClient.saveSettings(newSettings);
     showToast('تنظیمات درگاه بلوپال با موفقیت ذخیره شد.');
   };
@@ -212,9 +106,6 @@ export default function App() {
     setTelegramToken(token);
     setTelegramChatId(chatId);
     setTelegramEnabled(isEnabled);
-    localStorage.setItem('studio_telegram_token', token);
-    localStorage.setItem('studio_telegram_chat_id', chatId);
-    localStorage.setItem('studio_telegram_enabled', String(isEnabled));
     apiClient.saveSettings({
       telegramToken: token,
       telegramChatId: chatId,
@@ -231,64 +122,46 @@ export default function App() {
     wedding: 'عکس دونفره عروس و داماد شیک و رمانتیک در عمارت باغ لوکس، نورپردازی بوکه رویایی غروب آفتاب، کیفیت ۳۲کی سینمایی'
   };
 
-  const [printTypePrompts, setPrintTypePrompts] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('studio_print_type_prompts');
-      return saved ? JSON.parse(saved) : DEFAULT_PROMPTS;
-    } catch {
-      return DEFAULT_PROMPTS;
-    }
-  });
+  const [printTypePrompts, setPrintTypePrompts] = useState<Record<string, string>>(DEFAULT_PROMPTS);
 
   // Fetch initial database state from server
   React.useEffect(() => {
     async function loadBackendData() {
       const data = await apiClient.getAllDb();
       if (data) {
-        if (Array.isArray(data.orders) && data.orders.length > 0) {
+        if (Array.isArray(data.orders)) {
           setOrders(data.orders);
-          localStorage.setItem('studio_orders_list', JSON.stringify(data.orders));
         }
-        if (Array.isArray(data.tickets) && data.tickets.length > 0) {
+        if (Array.isArray(data.tickets)) {
           setTickets(data.tickets);
-          localStorage.setItem('studio_tickets_list', JSON.stringify(data.tickets));
         }
-        if (Array.isArray(data.printTypes) && data.printTypes.length > 0) {
+        if (Array.isArray(data.printTypes)) {
           setPrintTypes(data.printTypes);
-          localStorage.setItem('studio_print_types', JSON.stringify(data.printTypes));
         }
         if (data.prompts && Object.keys(data.prompts).length > 0) {
           setPrintTypePrompts(data.prompts);
-          localStorage.setItem('studio_print_type_prompts', JSON.stringify(data.prompts));
         }
-        if (Array.isArray(data.announcements) && data.announcements.length > 0) {
+        if (Array.isArray(data.announcements)) {
           setAnnouncements(data.announcements);
-          localStorage.setItem('studio_announcements_list', JSON.stringify(data.announcements));
         }
         if (data.settings) {
           if (data.settings.avalaiApiKey) {
             setAvalaiApiKey(data.settings.avalaiApiKey);
-            localStorage.setItem('studio_avalai_api_key', data.settings.avalaiApiKey);
           }
           if (data.settings.avalaiBaseUrl) {
             setAvalaiBaseUrl(data.settings.avalaiBaseUrl);
-            localStorage.setItem('studio_avalai_base_url', data.settings.avalaiBaseUrl);
           }
           if (data.settings.avalaiModel) {
             setAvalaiModel(data.settings.avalaiModel);
-            localStorage.setItem('studio_avalai_model', data.settings.avalaiModel);
           }
           if (data.settings.telegramToken !== undefined) {
             setTelegramToken(data.settings.telegramToken);
-            localStorage.setItem('studio_telegram_token', data.settings.telegramToken);
           }
           if (data.settings.telegramChatId !== undefined) {
             setTelegramChatId(data.settings.telegramChatId);
-            localStorage.setItem('studio_telegram_chat_id', data.settings.telegramChatId);
           }
           if (data.settings.telegramEnabled !== undefined) {
             setTelegramEnabled(data.settings.telegramEnabled);
-            localStorage.setItem('studio_telegram_enabled', String(data.settings.telegramEnabled));
           }
           if (data.settings.blupalToken !== undefined || data.settings.blupalCardNumber) {
             const nextBluPal: BluPalSettings = {
@@ -303,7 +176,6 @@ export default function App() {
               blupalAutoPollInterval: data.settings.blupalAutoPollInterval || 3
             };
             setBlupalSettings(nextBluPal);
-            localStorage.setItem('studio_blupal_settings', JSON.stringify(nextBluPal));
           }
         }
       }
@@ -332,7 +204,6 @@ export default function App() {
   const handleUpdateAvalaiApiKey = (newKey: string) => {
     const trimmed = newKey.trim();
     setAvalaiApiKey(trimmed);
-    localStorage.setItem('studio_avalai_api_key', trimmed);
     apiClient.saveSettings({ avalaiApiKey: trimmed });
     showToast('کلید دسترسی AvalAI با موفقیت ذخیره شد.');
   };
@@ -340,7 +211,6 @@ export default function App() {
   const handleUpdateAvalaiBaseUrl = (newUrl: string) => {
     const sanitized = newUrl.trim().replace(/\/$/, ''); // Remove trailing slash
     setAvalaiBaseUrl(sanitized);
-    localStorage.setItem('studio_avalai_base_url', sanitized);
     apiClient.saveSettings({ avalaiBaseUrl: sanitized });
     showToast('آدرس پایه API با موفقیت ذخیره شد.');
   };
@@ -348,7 +218,6 @@ export default function App() {
   const handleUpdateAvalaiModel = (newModel: string) => {
     const trimmed = newModel.trim();
     setAvalaiModel(trimmed);
-    localStorage.setItem('studio_avalai_model', trimmed);
     apiClient.saveSettings({ avalaiModel: trimmed });
     showToast('مدل تولید تصویر با موفقیت به‌روز شد.');
   };
@@ -356,7 +225,6 @@ export default function App() {
   const handleSavePrompt = (printTypeId: string, prompt: string) => {
     setPrintTypePrompts((prev) => {
       const next = { ...prev, [printTypeId]: prompt };
-      localStorage.setItem('studio_print_type_prompts', JSON.stringify(next));
       apiClient.savePrompts(next);
       return next;
     });
@@ -365,26 +233,12 @@ export default function App() {
 
   const handleResetPrompts = () => {
     setPrintTypePrompts(DEFAULT_PROMPTS);
-    localStorage.setItem('studio_print_type_prompts', JSON.stringify(DEFAULT_PROMPTS));
     apiClient.savePrompts(DEFAULT_PROMPTS);
     showToast('پرامپت‌ها به مقادیر پیش‌فرض بازنشانی شدند.');
   };
 
   // Announcements state
-  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
-    try {
-      const saved = localStorage.getItem('studio_announcements_list');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-      return INITIAL_ANNOUNCEMENTS;
-    } catch {
-      return INITIAL_ANNOUNCEMENTS;
-    }
-  });
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   const handleAddAnnouncement = (newAnnData: Omit<Announcement, 'id' | 'createdAt' | 'readBy'>) => {
     const newAnn: Announcement = {
@@ -399,7 +253,6 @@ export default function App() {
     };
     setAnnouncements((prev) => {
       const next = [newAnn, ...prev];
-      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
       apiClient.saveAnnouncements(next);
       return next;
     });
@@ -409,7 +262,6 @@ export default function App() {
   const handleUpdateAnnouncement = (updated: Announcement) => {
     setAnnouncements((prev) => {
       const next = prev.map((a) => (a.id === updated.id ? updated : a));
-      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
       apiClient.saveAnnouncements(next);
       return next;
     });
@@ -419,7 +271,6 @@ export default function App() {
   const handleDeleteAnnouncement = (id: string) => {
     setAnnouncements((prev) => {
       const next = prev.filter((a) => a.id !== id);
-      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
       apiClient.saveAnnouncements(next);
       return next;
     });
@@ -441,7 +292,6 @@ export default function App() {
         }
         return a;
       });
-      localStorage.setItem('studio_announcements_list', JSON.stringify(next));
       return next;
     });
   };
@@ -462,7 +312,6 @@ export default function App() {
     const unsubOrder = aiQueueManager.onOrderUpdate((updatedOrder, toastMsg) => {
       setOrders((prev) => {
         const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
-        localStorage.setItem('studio_orders_list', JSON.stringify(next));
         apiClient.saveOrder(updatedOrder);
         return next;
       });
@@ -485,7 +334,6 @@ export default function App() {
   const handleAddPrintType = (newItem: PrintTypeOption) => {
     setPrintTypes((prev) => {
       const next = [...prev, newItem];
-      localStorage.setItem('studio_print_types', JSON.stringify(next));
       apiClient.savePrintTypes(next);
       return next;
     });
@@ -495,7 +343,6 @@ export default function App() {
   const handleUpdatePrintType = (updated: PrintTypeOption) => {
     setPrintTypes((prev) => {
       const next = prev.map((p) => (p.id === updated.id ? updated : p));
-      localStorage.setItem('studio_print_types', JSON.stringify(next));
       apiClient.savePrintTypes(next);
       return next;
     });
@@ -506,7 +353,6 @@ export default function App() {
     setPrintTypes((prev) => {
       const target = prev.find((p) => p.id === id);
       const next = prev.filter((p) => p.id !== id);
-      localStorage.setItem('studio_print_types', JSON.stringify(next));
       apiClient.savePrintTypes(next);
       if (target) {
         showToast(`نوع چاپ «${target.title}» حذف گردید.`);
@@ -517,7 +363,6 @@ export default function App() {
 
   const handleResetPrintTypes = () => {
     setPrintTypes(PRINT_TYPES);
-    localStorage.setItem('studio_print_types', JSON.stringify(PRINT_TYPES));
     apiClient.savePrintTypes(PRINT_TYPES);
     showToast('کارت‌های نوع چاپ به حالت اولیه بازنشانی شدند.');
   };
@@ -526,7 +371,6 @@ export default function App() {
   const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
     setOrders((prev) => {
       const next = prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o));
-      localStorage.setItem('studio_orders_list', JSON.stringify(next));
       apiClient.syncOrders(next);
       return next;
     });
@@ -536,7 +380,6 @@ export default function App() {
   const handleUpdateOrder = (updatedOrder: Order) => {
     setOrders((prev) => {
       const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
-      localStorage.setItem('studio_orders_list', JSON.stringify(next));
       apiClient.saveOrder(updatedOrder);
       return next;
     });
@@ -545,7 +388,6 @@ export default function App() {
   const handleDeleteOrder = (orderId: string) => {
     setOrders((prev) => {
       const next = prev.filter((o) => o.id !== orderId);
-      localStorage.setItem('studio_orders_list', JSON.stringify(next));
       apiClient.deleteOrder(orderId);
       return next;
     });
@@ -554,7 +396,6 @@ export default function App() {
 
   const handleClearAllOrders = () => {
     setOrders([]);
-    localStorage.setItem('studio_orders_list', JSON.stringify([]));
     apiClient.syncOrders([]);
     showToast('تمامی سفارشات سیستم با موفقیت حذف شدند.');
   };
@@ -575,7 +416,6 @@ export default function App() {
         return prev;
       }
       const next = [newOrder, ...prev];
-      localStorage.setItem('studio_orders_list', JSON.stringify(next));
       apiClient.saveOrder(newOrder);
       return next;
     });
@@ -615,53 +455,29 @@ export default function App() {
   // Handle User Profile Update (Name, Password)
   const handleUpdateUser = (updatedUser: User) => {
     setCurrentUser(updatedUser);
-    try {
-      localStorage.setItem('studio_current_user', JSON.stringify(updatedUser));
-      const storedUsersRaw = localStorage.getItem('registered_users');
-      if (storedUsersRaw) {
-        const storedUsers: User[] = JSON.parse(storedUsersRaw);
-        const next = storedUsers.map((u) => (u.id === updatedUser.id ? updatedUser : u));
-        localStorage.setItem('registered_users', JSON.stringify(next));
-        apiClient.saveUsers(next);
-      }
-    } catch {
-      // ignore
-    }
+    apiClient.updateUser(updatedUser.id, updatedUser).catch(() => undefined);
     showToast('اطلاعات کاربری با موفقیت به‌روزرسانی شد.');
   };
 
   // Handle Support Tickets Update (Sync across Admin and User)
   const handleUpdateTickets = (nextTickets: SupportTicket[]) => {
+    const removedIds = tickets.filter((t) => !nextTickets.some((n) => n.id === t.id)).map((t) => t.id);
     setTickets(nextTickets);
-    try {
-      localStorage.setItem('studio_tickets_list', JSON.stringify(nextTickets));
-      apiClient.saveAnnouncements; // or sync tickets
-      for (const t of nextTickets) {
-        apiClient.saveTicket(t);
-      }
-    } catch {
-      // ignore
-    }
+    nextTickets.forEach((t) => {
+      apiClient.saveTicket(t).catch(() => undefined);
+    });
+    removedIds.forEach((id) => {
+      apiClient.deleteTicket(id).catch(() => undefined);
+    });
   };
 
   // Track which tickets have been read/seen by user to manage the blinking reply indicator
-  const [readTicketTimestamps, setReadTicketTimestamps] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('studio_read_ticket_timestamps');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [readTicketTimestamps, setReadTicketTimestamps] = useState<Record<string, string>>({});
 
   const handleTicketRead = useCallback((ticketId: string, updatedAt: string) => {
     setReadTicketTimestamps((prev) => {
       if (prev[ticketId] === updatedAt) return prev;
-      const next = { ...prev, [ticketId]: updatedAt };
-      try {
-        localStorage.setItem('studio_read_ticket_timestamps', JSON.stringify(next));
-      } catch {}
-      return next;
+      return { ...prev, [ticketId]: updatedAt };
     });
   }, []);
 
