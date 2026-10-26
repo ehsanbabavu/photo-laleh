@@ -156,7 +156,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-slate-900 truncate leading-tight">{user.name}</p>
-            <p className="text-[10px] text-slate-500 font-mono">@{user.username}</p>
+            <p className="text-[10px] text-slate-500 font-mono" dir="ltr">{user.phone}</p>
           </div>
         </div>
 
