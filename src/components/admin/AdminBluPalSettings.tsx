@@ -66,10 +66,10 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-2xl lg:max-w-none mx-auto">
       <form
         onSubmit={handleSubmit}
-        className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4"
+        className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 space-y-4"
       >
         <div className="flex items-center gap-2">
           <CreditCard className="w-4 h-4 text-sky-600 flex-shrink-0" />
@@ -89,7 +89,8 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
           </label>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="space-y-1.5 lg:col-span-2">
           <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
             <Key className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
             <span>کلید دسترسی وب‌سرویس / توکن API بلوپال</span>
@@ -130,12 +131,13 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
             className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
           />
         </div>
+        </div>
 
         <button
           type="button"
           onClick={handleTestConnection}
           disabled={isTesting}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold cursor-pointer"
+          className="w-full lg:w-1/2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold cursor-pointer"
         >
           {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
           <span>ثبت صدور فاکتور واقعی در وب‌سرویس بلوپال</span>
@@ -171,7 +173,7 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 pt-1">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
           {saveSuccess ? (
             <span className="inline-flex items-center gap-1.5 text-emerald-600 font-bold text-[11px]">
               <ShieldCheck className="w-4 h-4" />
@@ -182,7 +184,7 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
           )}
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer w-full sm:w-auto"
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>ذخیره تنظیمات بلوپال</span>
