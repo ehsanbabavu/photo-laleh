@@ -188,9 +188,6 @@ export const UserTickets: React.FC<UserTicketsProps> = ({
 
     const updated = [newTicket, ...tickets];
     onUpdateTickets(updated);
-    try {
-      localStorage.setItem('studio_tickets_list', JSON.stringify(updated));
-    } catch {}
 
     // Reset and close
     setSubject('');
@@ -229,10 +226,6 @@ export const UserTickets: React.FC<UserTicketsProps> = ({
     onUpdateTickets(updatedTickets);
     setReplyMessage('');
     setIsSendingReply(false);
-
-    try {
-      localStorage.setItem('studio_tickets_list', JSON.stringify(updatedTickets));
-    } catch {}
   };
 
   return (
