@@ -13,7 +13,8 @@ import {
   Volume2,
   Send,
   CreditCard,
-  Database
+  Database,
+  Users
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
@@ -28,7 +29,8 @@ export type AdminTab =
   | 'blupal'
   | 'chatgpt'
   | 'telegram_bot'
-  | 'database';
+  | 'database'
+  | 'users';
 
 interface AdminSidebarProps {
   currentTab: AdminTab;
@@ -118,6 +120,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'telegram_bot' as AdminTab,
       label: 'اتصال به ربات تلگرام',
       icon: Send,
+      badge: null,
+      badgeStyle: null
+    },
+    {
+      id: 'users' as AdminTab,
+      label: 'مدیریت کاربران',
+      icon: Users,
       badge: null,
       badgeStyle: null
     },
