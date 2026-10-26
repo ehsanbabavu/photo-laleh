@@ -177,6 +177,14 @@ app.put('/api/tickets/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+app.delete('/api/tickets/:id', async (req, res) => {
+  const db = await readDb();
+  const ticketId = req.params.id;
+  db.tickets = (db.tickets || []).filter((t: any) => t.id !== ticketId);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
 // Prompts APIs
 app.get('/api/prompts', async (_req, res) => {
   const db = await readDb();
