@@ -36,6 +36,56 @@ app.get('/api/db/all', async (_req, res) => {
   res.json(db);
 });
 
+// --- Backup & restore ---
+app.get('/api/backup', async (_req, res) => {
+  const state = await readDb();
+  const payload = {
+    app: 'laleh-digital-studio',
+    version: 1,
+    createdAt: new Date().toISOString(),
+    data: state
+  };
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="laleh-backup-${stamp}.json"`);
+  res.send(JSON.stringify(payload, null, 2));
+});
+
+app.post('/api/backup/restore', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
+
+    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'announcements', 'invoices', 'webhookLogs'];
+    const objectKeys = ['settings', 'prompts'];
+    const providedKeys = [...arrayKeys, ...objectKeys].filter((key) => data[key] !== undefined);
+    if (providedKeys.length === 0) {
+      return res.status(400).json({ success: false, error: 'فایل پشتیبان معتبر نیست' });
+    }
+    for (const key of arrayKeys) {
+      if (data[key] !== undefined && !Array.isArray(data[key])) {
+        return res.status(400).json({ success: false, error: `ساختار ${key} نامعتبر است` });
+      }
+    }
+
+    const current = await readDb();
+    const next: any = { ...current };
+    for (const key of arrayKeys) {
+      if (data[key] !== undefined) next[key] = data[key];
+    }
+    for (const key of objectKeys) {
+      if (data[key] !== undefined && data[key] !== null && typeof data[key] === 'object') {
+        next[key] = data[key];
+      }
+    }
+
+    await writeDb(next);
+    res.json({ success: true, restored: providedKeys });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'بازیابی ناموفق بود' });
+  }
+});
+
 // --- MongoDB connection settings (admin panel) ---
 // Optional extra protection: set ADMIN_SETUP_KEY in the environment and the
 // panel must send the same value in the x-setup-key header.
