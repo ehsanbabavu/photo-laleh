@@ -16,7 +16,8 @@ import {
   Database,
   Users,
   Settings,
-  ChevronDown
+  ChevronDown,
+  HardDrive
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
@@ -32,7 +33,8 @@ export type AdminTab =
   | 'chatgpt'
   | 'telegram_bot'
   | 'database'
-  | 'users';
+  | 'users'
+  | 'backup';
 
 interface AdminSidebarProps {
   currentTab: AdminTab;
@@ -133,6 +135,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'blupal' as AdminTab,
       label: 'تنظیمات بلوپال',
       icon: CreditCard
+    },
+    {
+      id: 'backup' as AdminTab,
+      label: 'پشتیبان‌گیری و بازیابی',
+      icon: HardDrive
     }
   ];
 
