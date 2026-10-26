@@ -1,0 +1,374 @@
+/**
+ * MongoDB persistence layer.
+ *
+ * All application data (users, orders, tickets, print types, announcements,
+ * prompts, settings, BluPal invoices and webhook logs) lives in MongoDB.
+ * The only thing kept on local disk is the connection config that an admin
+ * enters in the panel (or, preferably, the MONGODB_URI environment variable).
+ */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { MongoClient, Db } from 'mongodb';
+import { INITIAL_DB } from './seedData';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const IS_SERVERLESS = Boolean(process.env.VERCEL);
+const CONFIG_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : IS_SERVERLESS
+    ? path.join('/tmp', 'laleh-data')
+    : path.join(__dirname, 'data');
+const CONFIG_FILE = path.join(CONFIG_DIR, 'db-config.json');
+
+export const DEFAULT_DB_NAME = process.env.MONGODB_DB || 'laleh_studio';
+
+/** Collections where every record has its own document (keyed by `id`). */
+const ARRAY_COLLECTIONS = [
+  'users',
+  'orders',
+  'tickets',
+  'printTypes',
+  'announcements',
+  'invoices',
+  'webhookLogs'
+] as const;
+
+/** Collections that hold a single settings document (`_id: 'main'`). */
+const SINGLETON_COLLECTIONS = ['settings', 'prompts'] as const;
+
+type ArrayCollection = (typeof ARRAY_COLLECTIONS)[number];
+type SingletonCollection = (typeof SINGLETON_COLLECTIONS)[number];
+
+export interface DbConfig {
+  uri: string;
+  dbName: string;
+}
+
+export interface DbStatus {
+  configured: boolean;
+  connected: boolean;
+  source: 'admin' | 'env' | 'none';
+  dbName: string;
+  maskedUri: string;
+  error?: string;
+  counts?: Record<string, number>;
+}
+
+// ---------------------------------------------------------------------------
+// Connection config resolution: admin-saved file first, then environment.
+// ---------------------------------------------------------------------------
+
+function readConfigFile(): DbConfig | null {
+  try {
+    if (!fs.existsSync(CONFIG_FILE)) return null;
+    const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    if (parsed && typeof parsed.uri === 'string' && parsed.uri.trim()) {
+      return { uri: parsed.uri.trim(), dbName: (parsed.dbName || DEFAULT_DB_NAME).trim() };
+    }
+    return null;
+  } catch (err) {
+    console.error('Could not read db-config.json:', err);
+    return null;
+  }
+}
+
+export function resolveConfig(): { config: DbConfig; source: 'admin' | 'env' | 'none' } {
+  const fromFile = readConfigFile();
+  if (fromFile) return { config: fromFile, source: 'admin' };
+
+  const fromEnv = (process.env.MONGODB_URI || '').trim();
+  if (fromEnv) return { config: { uri: fromEnv, dbName: DEFAULT_DB_NAME }, source: 'env' };
+
+  return { config: { uri: '', dbName: DEFAULT_DB_NAME }, source: 'none' };
+}
+
+export function saveDbConfig(config: DbConfig) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  // Files are written on the server only; nothing sensitive is logged.
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { encoding: 'utf-8', mode: 0o600 });
+}
+
+export function clearDbConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) fs.unlinkSync(CONFIG_FILE);
+  } catch (err) {
+    console.error('Could not remove db-config.json:', err);
+  }
+}
+
+export function maskUri(uri: string) {
+  if (!uri) return '';
+  return uri.replace(/\/\/([^@/]+)@/, (_m, creds) => {
+    const user = String(creds).split(':')[0];
+    return `//${user}:••••@`;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Client cache (survives warm serverless invocations).
+// ---------------------------------------------------------------------------
+
+type Cache = { uri: string; client: MongoClient; db: Db };
+const globalCache = globalThis as unknown as { __lalehMongo?: Cache | null };
+
+async function connect(uri: string, dbName: string): Promise<Db> {
+  const cached = globalCache.__lalehMongo;
+  if (cached && cached.uri === uri) return cached.db;
+
+  if (cached) {
+    try {
+      await cached.client.close();
+    } catch {
+      /* ignore */
+    }
+    globalCache.__lalehMongo = null;
+  }
+
+  const client = new MongoClient(uri, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000,
+    maxPoolSize: 5
+  });
+  await client.connect();
+  const db = client.db(dbName || DEFAULT_DB_NAME);
+  await db.command({ ping: 1 });
+  globalCache.__lalehMongo = { uri, client, db };
+  return db;
+}
+
+export async function getDb(): Promise<Db | null> {
+  const { config, source } = resolveConfig();
+  if (source === 'none' || !config.uri) return null;
+  return connect(config.uri, config.dbName);
+}
+
+export async function disconnectDb() {
+  const cached = globalCache.__lalehMongo;
+  if (cached) {
+    try {
+      await cached.client.close();
+    } catch {
+      /* ignore */
+    }
+    globalCache.__lalehMongo = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// State read / write. The Express layer works with one state object; this
+// module keeps it in sync with real per-entity Mongo collections.
+// ---------------------------------------------------------------------------
+
+let stateCache: any = null;
+
+function emptyState() {
+  const state: any = {};
+  for (const name of ARRAY_COLLECTIONS) state[name] = [];
+  for (const name of SINGLETON_COLLECTIONS) state[name] = {};
+  return state;
+}
+
+function cloneSeed() {
+  return JSON.parse(JSON.stringify(INITIAL_DB));
+}
+
+function hashDoc(value: any): string {
+  const text = JSON.stringify(value ?? null);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${(hash >>> 0).toString(36)}:${text.length}`;
+}
+
+/** Snapshot of the ids + content hashes currently stored in MongoDB. */
+let signatures: Record<string, Map<string, string>> = {};
+
+function buildSignatures(state: any): Record<string, Map<string, string>> {
+  const result: Record<string, Map<string, string>> = {};
+  for (const name of ARRAY_COLLECTIONS as readonly ArrayCollection[]) {
+    const map = new Map<string, string>();
+    for (const item of Array.isArray(state[name]) ? state[name] : []) {
+      if (item && item.id !== undefined) map.set(String(item.id), hashDoc(item));
+    }
+    result[name] = map;
+  }
+  for (const name of SINGLETON_COLLECTIONS as readonly SingletonCollection[]) {
+    result[name] = new Map([['main', hashDoc(state[name] || {})]]);
+  }
+  return result;
+}
+
+async function ensureSeeded(db: Db) {
+  const meta = db.collection('meta');
+  const seeded = await meta.findOne({ _id: 'seed' as any });
+  if (seeded) return;
+
+  const seed = cloneSeed();
+  for (const name of ARRAY_COLLECTIONS) {
+    const items = Array.isArray(seed[name]) ? seed[name] : [];
+    if (items.length) {
+      await db.collection(name).insertMany(items.map((item: any) => ({ ...item })), { ordered: false });
+    }
+    await db.collection(name).createIndex({ id: 1 }, { unique: true, sparse: true }).catch(() => undefined);
+  }
+  for (const name of SINGLETON_COLLECTIONS) {
+    await db.collection(name).replaceOne({ _id: 'main' as any }, { ...(seed[name] || {}) }, { upsert: true });
+  }
+  await meta.insertOne({ _id: 'seed' as any, seededAt: new Date().toISOString() });
+}
+
+async function loadState(db: Db) {
+  const state = emptyState();
+  for (const name of ARRAY_COLLECTIONS) {
+    const docs = await db.collection(name).find({}, { projection: { _id: 0 } }).toArray();
+    state[name] = docs;
+  }
+  for (const name of SINGLETON_COLLECTIONS) {
+    const doc = await db.collection(name).findOne({ _id: 'main' as any }, { projection: { _id: 0 } });
+    state[name] = doc || {};
+  }
+  return state;
+}
+
+export async function readDb(): Promise<any> {
+  const db = await getDb();
+
+  // Not configured yet: serve the seed so the panel (and the admin page that
+  // lets you set the connection URL) still works.
+  if (!db) {
+    stateCache = stateCache || cloneSeed();
+    return stateCache;
+  }
+
+  // Always reload from Mongo so every instance sees the same data. The object
+  // returned here is mutated in place by the Express layer; `signatures` keeps
+  // a snapshot of what is actually stored so writeDb() can diff against it.
+  await ensureSeeded(db);
+  stateCache = await loadState(db);
+  signatures = buildSignatures(stateCache);
+  return stateCache;
+}
+
+export async function writeDb(state: any): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    stateCache = state;
+    signatures = buildSignatures(state);
+    return;
+  }
+
+  for (const name of ARRAY_COLLECTIONS as readonly ArrayCollection[]) {
+    const nextItems: any[] = Array.isArray(state[name]) ? state[name] : [];
+    const stored = signatures[name] || new Map<string, string>();
+    const nextIds = new Set<string>();
+
+    const operations: any[] = [];
+    for (const item of nextItems) {
+      if (!item || item.id === undefined) continue;
+      const id = String(item.id);
+      nextIds.add(id);
+      const hash = hashDoc(item);
+      if (stored.get(id) !== hash) {
+        const replacement = { ...item };
+        delete replacement._id;
+        operations.push({ replaceOne: { filter: { id: item.id }, replacement, upsert: true } });
+      }
+    }
+    for (const id of stored.keys()) {
+      if (!nextIds.has(id)) {
+        operations.push({ deleteOne: { filter: { id } } });
+      }
+    }
+
+    if (operations.length) {
+      await db.collection(name).bulkWrite(operations, { ordered: false });
+    }
+  }
+
+  for (const name of SINGLETON_COLLECTIONS as readonly SingletonCollection[]) {
+    const nextValue = state[name] || {};
+    if (signatures[name]?.get('main') !== hashDoc(nextValue)) {
+      await db.collection(name).replaceOne({ _id: 'main' as any }, { ...nextValue }, { upsert: true });
+    }
+  }
+
+  stateCache = state;
+  signatures = buildSignatures(state);
+}
+
+// ---------------------------------------------------------------------------
+// Admin helpers
+// ---------------------------------------------------------------------------
+
+export async function testDbConnection(uri: string, dbName?: string): Promise<{ ok: boolean; error?: string; collections?: number }> {
+  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 8000, connectTimeoutMS: 8000, maxPoolSize: 1 });
+  try {
+    await client.connect();
+    const db = client.db(dbName || DEFAULT_DB_NAME);
+    await db.command({ ping: 1 });
+    const collections = await db.listCollections().toArray();
+    return { ok: true, collections: collections.length };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'اتصال به دیتابیس ناموفق بود' };
+  } finally {
+    await client.close().catch(() => undefined);
+  }
+}
+
+export async function getDbStatus(): Promise<DbStatus> {
+  const { config, source } = resolveConfig();
+  if (source === 'none' || !config.uri) {
+    return { configured: false, connected: false, source: 'none', dbName: config.dbName, maskedUri: '' };
+  }
+
+  const status: DbStatus = {
+    configured: true,
+    connected: false,
+    source,
+    dbName: config.dbName,
+    maskedUri: maskUri(config.uri)
+  };
+
+  try {
+    const db = await getDb();
+    if (!db) return status;
+    await ensureSeeded(db);
+    const counts: Record<string, number> = {};
+    for (const name of [...ARRAY_COLLECTIONS, 'meta'] as string[]) {
+      counts[name] = await db.collection(name).countDocuments();
+    }
+    status.connected = true;
+    status.counts = counts;
+  } catch (err: any) {
+    status.error = err?.message || 'اتصال برقرار نشد';
+  }
+
+  return status;
+}
+
+/** Apply a new connection config at runtime (validated before saving). */
+export async function applyDbConfig(uri: string, dbName: string): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = (uri || '').trim();
+  if (!/^mongodb(\+srv)?:\/\//i.test(trimmed)) {
+    return { ok: false, error: 'آدرس دیتابیس باید با mongodb:// یا mongodb+srv:// شروع شود' };
+  }
+  if (!/^[A-Za-z0-9_-]{1,63}$/.test(dbName || '')) {
+    return { ok: false, error: 'نام دیتابیس نامعتبر است (فقط حروف، عدد، - و _)' };
+  }
+
+  const test = await testDbConnection(trimmed, dbName);
+  if (!test.ok) return { ok: false, error: test.error };
+
+  saveDbConfig({ uri: trimmed, dbName });
+  stateCache = null;
+  signatures = {};
+  await disconnectDb();
+  // Connect once immediately so the first read does not pay the handshake.
+  await getDb();
+  return { ok: true };
+}
