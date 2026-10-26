@@ -8,7 +8,15 @@ interface AuthViewProps {
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
+
+  // Forgot password state
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotCode, setForgotCode] = useState('');
+  const [forgotPassword, setForgotPassword] = useState('');
+  const [forgotStep, setForgotStep] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotDone, setForgotDone] = useState(false);
   
   // Login fields
   const [phone, setPhone] = useState('');
@@ -140,6 +148,75 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     }
   };
 
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    const enteredPhone = normalizeDigits(forgotPhone);
+
+    if (!forgotStep) {
+      if (!/^09\d{9}$/.test(enteredPhone)) {
+        setForgotError('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const res = await fetch('/api/auth/password/otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: enteredPhone })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || data?.success === false) {
+          setForgotError(data?.error || 'ارسال کد تایید ناموفق بود.');
+          return;
+        }
+        setForgotStep(true);
+        setForgotCode('');
+      } catch {
+        setForgotError('ارسال کد تایید ناموفق بود.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    if (!forgotCode.trim()) {
+      setForgotError('کد تایید را وارد کنید.');
+      return;
+    }
+    if (forgotPassword.trim().length < 6) {
+      setForgotError('رمز عبور جدید باید حداقل ۶ نویسه باشد.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/auth/password/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: enteredPhone,
+          code: normalizeDigits(forgotCode.trim()),
+          password: forgotPassword.trim()
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        setForgotError(data?.error || 'تغییر رمز ناموفق بود.');
+        return;
+      }
+      if (data?.user) {
+        onLogin(data.user as User);
+        return;
+      }
+      setForgotDone(true);
+    } catch {
+      setForgotError('تغییر رمز ناموفق بود.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-[100dvh] bg-slate-50 text-slate-900 flex flex-col justify-center items-center px-3 sm:px-6 py-6 sm:py-12 relative overflow-x-hidden">
       {/* Light blue and green ambient glowing orbs */}
@@ -238,8 +315,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
               <ArrowLeft className="w-4 h-4" />
             </button>
 
+            <button
+              type="button"
+              onClick={() => {
+                setMode('forgot');
+                setForgotError('');
+                setForgotStep(false);
+                setForgotCode('');
+                setForgotPassword('');
+                setForgotPhone(phone);
+              }}
+              className="w-full text-[11px] font-bold text-slate-500 hover:text-sky-600 hover:underline cursor-pointer pt-1"
+            >
+              رمز عبور را فراموش کرده‌اید؟
+            </button>
           </form>
-        ) : (
+        ) : mode === 'register' ? (
           /* REGISTER FORM */
           <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
             {/* 100,000 Tomans Welcome Gift Banner */}
@@ -382,6 +473,118 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 </button>
               </div>
             )}
+          </form>
+        ) : null}
+
+        {mode === 'forgot' && (
+          <form onSubmit={handleForgotSubmit} className="space-y-3.5">
+            <p className="text-xs font-black text-slate-900 text-right">بازیابی رمز عبور</p>
+
+            {forgotError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs text-right font-medium">
+                {forgotError}
+              </div>
+            )}
+
+            {!forgotStep ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                  شماره موبایل
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    required
+                    placeholder="09123456789"
+                    value={forgotPhone}
+                    onChange={(e) => setForgotPhone(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  />
+                  <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-800">
+                  کد تایید به {normalizeDigits(forgotPhone)} ارسال شد
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                    کد تایید
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      required
+                      maxLength={6}
+                      placeholder="------"
+                      value={forgotCode}
+                      onChange={(e) => setForgotCode(e.target.value.replace(/[^0-9۰-۹]/g, ''))}
+                      dir="ltr"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-sm tracking-[0.4em] text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all font-mono"
+                    />
+                    <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                    رمز عبور جدید
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      placeholder="حداقل ۶ نویسه"
+                      value={forgotPassword}
+                      onChange={(e) => setForgotPassword(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                    />
+                    <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full mt-3 bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer min-h-[44px] disabled:opacity-60"
+            >
+              <span>
+                {isSubmitting
+                  ? 'در حال پردازش...'
+                  : forgotStep
+                    ? 'تغییر رمز عبور'
+                    : 'ارسال کد تایید'}
+              </span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center justify-between text-[11px] pt-1">
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setForgotError(''); setForgotStep(false); }}
+                className="text-slate-500 font-bold hover:underline cursor-pointer"
+              >
+                بازگشت به ورود
+              </button>
+              {forgotStep && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotStep(false);
+                    setForgotCode('');
+                    setForgotPassword('');
+                  }}
+                  className="text-sky-600 font-bold hover:underline cursor-pointer"
+                >
+                  تغییر شماره
+                </button>
+              )}
+            </div>
           </form>
         )}
       </div>
