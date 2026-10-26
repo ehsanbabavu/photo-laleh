@@ -350,7 +350,7 @@ export const AdminAnnouncements: React.FC<AdminAnnouncementsProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                 <div className="space-y-1.5">
                   <label className="font-bold text-slate-700 block">اولویت</label>
                   <select
