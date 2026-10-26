@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link2, Loader2, RefreshCw, Save, AlertCircle, CheckCircle2, Database } from 'lucide-react';
 
 interface AdminDatabaseSettingsProps {
@@ -13,6 +13,22 @@ export const AdminDatabaseSettings: React.FC<AdminDatabaseSettingsProps> = ({ sh
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/db/config');
+        const data = await res.json();
+        if (active && data?.uri) setUri(data.uri);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleTest = async () => {
     setError(null);
