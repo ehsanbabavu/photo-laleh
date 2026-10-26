@@ -351,6 +351,48 @@ export async function deleteSession(token: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// One-time codes for SMS verification
+// ---------------------------------------------------------------------------
+
+export async function saveOtpCode(phone: string, code: string, ttlMs = 120000): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const collection = db.collection('otps');
+  await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => undefined);
+  await collection.deleteMany({ phone }).catch(() => undefined);
+  await collection.insertOne({
+    phone,
+    code,
+    attempts: 0,
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + ttlMs)
+  });
+  return true;
+}
+
+export async function verifyOtpCode(phone: string, code: string): Promise<{ ok: boolean; error?: string }> {
+  const db = await getDb();
+  if (!db) return { ok: false, error: 'دیتابیس در دسترس نیست' };
+  const collection = db.collection('otps');
+  const doc: any = await collection.findOne({ phone });
+  if (!doc) return { ok: false, error: 'کدی برای این شماره ارسال نشده است' };
+  if (new Date(doc.expiresAt).getTime() < Date.now()) {
+    await collection.deleteOne({ phone }).catch(() => undefined);
+    return { ok: false, error: 'کد منقضی شده است' };
+  }
+  if (Number(doc.attempts || 0) >= 5) {
+    await collection.deleteOne({ phone }).catch(() => undefined);
+    return { ok: false, error: 'تعداد تلاش‌ها بیش از حد مجاز است' };
+  }
+  if (String(doc.code) !== String(code).trim()) {
+    await collection.updateOne({ phone }, { $inc: { attempts: 1 } }).catch(() => undefined);
+    return { ok: false, error: 'کد وارد شده صحیح نیست' };
+  }
+  await collection.deleteOne({ phone }).catch(() => undefined);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // Admin helpers
 // ---------------------------------------------------------------------------
 
