@@ -21,6 +21,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regError, setRegError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAdminQuickFill = () => {
     setMode('login');
@@ -36,12 +37,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     setLoginError('');
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
+    const normalizedId = username.trim().toLowerCase().replace(/[\s-]/g, '');
+    if (!normalizedId || !password) {
+      setLoginError('نام کاربری و رمز عبور را وارد کنید.');
+      return;
+    }
+
     // Check admin credentials
-    if (username.trim().toLowerCase() === 'ehsan' && password === 'ehsan123') {
+    if (normalizedId === 'ehsan' && password === 'ehsan123') {
       const adminUser: User = {
         id: 'admin-1',
         name: 'احسان محمدی (مدیر استودیو)',
@@ -58,7 +65,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     }
 
     // Check demo user
-    if (username.trim().toLowerCase() === 'sara' && password === '123456') {
+    if (normalizedId === 'sara' && password === '123456') {
       const demoUser: User = {
         id: 'u-sara',
         name: 'سارا رضایی',
@@ -74,15 +81,44 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       return;
     }
 
+    // Check users stored in the database (username or phone number)
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const dbUsers: User[] = await res.json();
+        const found = dbUsers.find(u => {
+          const byUsername = String(u.username || '').trim().toLowerCase().replace(/[\s-]/g, '') === normalizedId;
+          const byPhone = String(u.phone || '').replace(/[\s-]/g, '') === normalizedId;
+          return byUsername || byPhone;
+        });
+
+        if (found && found.password) {
+          if (String(found.password) !== password) {
+            setLoginError('رمز عبور اشتباه است.');
+            return;
+          }
+          onLogin(found);
+          return;
+        }
+      }
+    } catch {
+      // Network/API issue: fall through to the local fallbacks below
+    } finally {
+      setIsSubmitting(false);
+    }
+
     // Check stored registered users from localStorage
     try {
       const storedUsersRaw = localStorage.getItem('registered_users');
       if (storedUsersRaw) {
         const storedUsers: User[] = JSON.parse(storedUsersRaw);
-        const found = storedUsers.find(
-          u => u.username.toLowerCase() === username.trim().toLowerCase()
-        );
-        if (found) {
+        const found = storedUsers.find(u => {
+          const byUsername = String(u.username || '').trim().toLowerCase().replace(/[\s-]/g, '') === normalizedId;
+          const byPhone = String(u.phone || '').replace(/[\s-]/g, '') === normalizedId;
+          return byUsername || byPhone;
+        });
+        if (found && String(found.password || '') === password) {
           onLogin(found);
           return;
         }
@@ -94,7 +130,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     setLoginError('نام کاربری یا رمز عبور اشتباه است. (برای ادمین: ehsan / ehsan123)');
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
 
@@ -125,6 +161,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       const storedUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
       storedUsers.push(newUser);
       localStorage.setItem('registered_users', JSON.stringify(storedUsers));
+    } catch {
+      // ignore
+    }
+
+    // Persist the account in the database so it can log in from any device
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
     } catch {
       // ignore
     }
@@ -222,9 +269,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full mt-3 bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-98 text-white font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm transition-all duration-200 shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
             >
-              <span>ورود به سامانه</span>
+              <span>{isSubmitting ? 'در حال بررسی...' : 'ورود به سامانه'}</span>
               <ArrowLeft className="w-4 h-4" />
             </button>
 
@@ -341,6 +389,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full mt-3 bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-98 text-white font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm transition-all duration-200 shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
             >
               <span>ثبت‌نام و ورود مستقیم به پنل کاربری</span>
