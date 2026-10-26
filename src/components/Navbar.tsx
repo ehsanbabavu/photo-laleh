@@ -21,7 +21,9 @@ import {
   Settings,
   ChevronDown,
   HardDrive,
-  MessageSquare
+  MessageSquare,
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -129,7 +131,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'telegram_bot' as AdminTab, label: 'اتصال به ربات تلگرام', icon: Send },
     { id: 'blupal' as AdminTab, label: 'تنظیمات بلوپال', icon: CreditCard },
     { id: 'backup' as AdminTab, label: 'پشتیبان‌گیری و بازیابی', icon: HardDrive },
-    { id: 'sms' as AdminTab, label: 'تنظیمات پیامک', icon: MessageSquare }
+    { id: 'sms' as AdminTab, label: 'تنظیمات پیامک', icon: MessageSquare },
+    { id: 'sessions' as AdminTab, label: 'دستگاه‌های فعال', icon: ShieldCheck },
+    { id: 'audit' as AdminTab, label: 'گزارش فعالیت‌ها', icon: Activity }
   ];
 
   const isSettingsActive = settingsItems.some((item) => item.id === adminTab);
