@@ -252,6 +252,14 @@ app.put('/api/users/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+app.delete('/api/users/:id', async (req, res) => {
+  const db = await readDb();
+  const userId = req.params.id;
+  db.users = (db.users || []).filter((u: any) => u.id !== userId);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
 // Announcements APIs
 app.get('/api/announcements', async (_req, res) => {
   const db = await readDb();
