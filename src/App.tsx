@@ -190,6 +190,7 @@ export default function App() {
 
   // Fetch initial database state from server
   React.useEffect(() => {
+    if (!currentUser) return;
     async function loadBackendData() {
       const data = await apiClient.getAllDb();
       if (data) {
@@ -245,7 +246,7 @@ export default function App() {
       }
     }
     loadBackendData();
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
