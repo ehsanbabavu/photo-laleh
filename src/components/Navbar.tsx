@@ -184,7 +184,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 /* User View: Switcher, Profile and Logout button */
                 <>
                   {/* Admin Switcher if role is admin */}
-                  {(user.role === 'admin' || user.username === 'ehsan') && (
+                  {user.role === 'admin' && (
                     <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
                       <button
                         onClick={() => onSwitchView('admin')}
