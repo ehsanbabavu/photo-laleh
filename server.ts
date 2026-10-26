@@ -10,6 +10,9 @@ import {
   testDbConnection,
   applyDbConfig,
   resolveConfig,
+  createSession,
+  findSession,
+  deleteSession,
   disconnectDb,
   DEFAULT_DB_NAME
 } from './mongoStore';
@@ -85,6 +88,88 @@ app.post('/api/backup/restore', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'بازیابی ناموفق بود' });
   }
+});
+
+// --- Authentication (server-side sessions stored in MongoDB) ---
+const SESSION_COOKIE = 'laleh_session';
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const index = part.indexOf('=');
+    if (index === -1) continue;
+    out[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+  }
+  return out;
+}
+
+function setSessionCookie(res: any, token: string) {
+  const maxAge = 30 * 24 * 60 * 60;
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${IS_SERVERLESS ? '; Secure' : ''}`
+  );
+}
+
+function clearSessionCookie(res: any) {
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+const normalizePhone = (value: any) =>
+  String(value || '')
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[\s\-()]/g, '');
+
+async function currentUserFromRequest(req: any) {
+  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  if (!token) return null;
+  const session = await findSession(token);
+  if (!session) return null;
+  const db = await readDb();
+  const user = (db.users || []).find((u: any) => u.id === session.userId);
+  if (!user) return null;
+  return { user, token };
+}
+
+app.post('/api/auth/login', async (req, res) => {
+  const phone = normalizePhone(req.body?.phone);
+  const password = String(req.body?.password ?? '');
+  if (!phone || !password) {
+    return res.status(400).json({ success: false, error: 'شماره موبایل و رمز عبور را وارد کنید.' });
+  }
+
+  const db = await readDb();
+  const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+  if (!user) {
+    return res.status(401).json({ success: false, error: 'شماره موبایل یا رمز عبور اشتباه است.' });
+  }
+  if (String(user.password || '') !== password) {
+    return res.status(401).json({ success: false, error: 'رمز عبور اشتباه است.' });
+  }
+
+  const token = await createSession(user.id);
+  if (token) setSessionCookie(res, token);
+  const { password: _pw, ...safeUser } = user;
+  res.json({ success: true, user: { ...safeUser, password: user.password } });
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const session = await currentUserFromRequest(req);
+    if (!session) return res.status(401).json({ success: false, error: 'unauthenticated' });
+    res.json({ success: true, user: session.user });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'session error' });
+  }
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  if (token) await deleteSession(token);
+  clearSessionCookie(res);
+  res.json({ success: true });
 });
 
 // --- MongoDB connection settings (admin panel) ---
