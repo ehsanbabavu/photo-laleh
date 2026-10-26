@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, CheckCircle2, Key, MessageSquare } from 'lucide-react';
+import { Send, CheckCircle2, Key, MessageSquare, RefreshCw, AlertCircle, Zap } from 'lucide-react';
 
 interface AdminTelegramBotProps {
   token: string;
@@ -19,6 +19,34 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
   const [botToken, setBotToken] = useState(token);
   const [adminChatId, setAdminChatId] = useState(chatId);
   const [enabled, setEnabled] = useState(isEnabled);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTest = async () => {
+    setTestResult(null);
+    if (!botToken.trim() || !adminChatId.trim()) {
+      setTestResult({ success: false, message: 'توکن ربات و شناسه چت الزامی است' });
+      return;
+    }
+    setIsTesting(true);
+    try {
+      const res = await fetch('/api/telegram/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: botToken.trim(), chatId: adminChatId.trim() })
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setTestResult({ success: true, message: 'پیام تست ارسال شد' });
+      } else {
+        setTestResult({ success: false, message: data?.error || 'تست اتصال ناموفق بود' });
+      }
+    } catch {
+      setTestResult({ success: false, message: 'خطا در تست اتصال' });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,14 +108,43 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
           />
         </div>
 
-        <button
-          type="submit"
-          className="w-full sm:w-auto sm:float-left inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer"
-        >
-          <CheckCircle2 className="w-4 h-4" />
-          <span>ذخیره</span>
-        </button>
-        <div className="clear-both" />
+        {testResult && (
+          <div
+            className={`flex items-center gap-2 p-2.5 rounded-xl border ${
+              testResult.success
+                ? 'bg-emerald-50 border-emerald-200'
+                : 'bg-rose-50 border-rose-200'
+            }`}
+          >
+            {testResult.success ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+            )}
+            <p className={`text-[11px] ${testResult.success ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {testResult.message}
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={isTesting}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 disabled:opacity-60 text-xs font-bold transition-colors cursor-pointer"
+          >
+            {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            <span>تست اتصال</span>
+          </button>
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>ذخیره</span>
+          </button>
+        </div>
       </form>
     </div>
   );
