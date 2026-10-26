@@ -41,22 +41,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
     setIsSubmitting(true);
     try {
-      // Users live in the database and are identified by their mobile number.
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        const dbUsers: User[] = await res.json();
-        const found = dbUsers.find(u => normalizeDigits(String(u.phone || '')) === enteredPhone);
-        if (found) {
-          if (String(found.password || '') !== password) {
-            setLoginError('رمز عبور اشتباه است.');
-            return;
-          }
-          onLogin(found);
-          return;
-        }
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: enteredPhone, password })
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success && data.user) {
+        onLogin(data.user as User);
+        return;
+      }
+      if (data?.error) {
+        setLoginError(data.error);
+        return;
       }
     } catch {
-      // Network/API issue: fall through to the local fallback below
+      // network error -> generic message below
     } finally {
       setIsSubmitting(false);
     }
@@ -106,17 +106,30 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       };
 
       // Persist the account in the database so it can log in from any device
+      let created: User = newUser;
       try {
-        await fetch('/api/users', {
+        const createRes = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newUser)
         });
+        if (!createRes.ok) {
+          setRegError('ثبت‌نام ناموفق بود.');
+          return;
+        }
+        const loginRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: enteredPhone, password: newUser.password })
+        });
+        const loginData = await loginRes.json().catch(() => null);
+        if (loginData?.user) created = loginData.user as User;
       } catch {
-        // ignore
+        setRegError('ثبت‌نام ناموفق بود.');
+        return;
       }
 
-      onLogin(newUser);
+      onLogin(created);
     } finally {
       setIsSubmitting(false);
     }
