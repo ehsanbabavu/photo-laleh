@@ -343,6 +343,12 @@ export async function findSession(token: string): Promise<{ userId: string } | n
   return { userId: doc.userId };
 }
 
+export async function deleteUserSessions(userId: string): Promise<void> {
+  const collection = await sessionsCollection();
+  if (!collection) return;
+  await collection.deleteMany({ userId }).catch(() => undefined);
+}
+
 export async function deleteSession(token: string): Promise<void> {
   if (!token) return;
   const collection = await sessionsCollection();
