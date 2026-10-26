@@ -218,7 +218,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                   placeholder="09123456789"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                 />
                 <UserIcon className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
@@ -235,7 +235,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
@@ -284,7 +284,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                   placeholder="مثال: پوریا کریمی"
                   value={regFullName}
                   onChange={(e) => setRegFullName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                 />
                 <UserIcon className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
@@ -302,7 +302,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                   placeholder="09123456789"
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                 />
                 <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
@@ -319,7 +319,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                   placeholder="حداقل ۶ نویسه"
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
