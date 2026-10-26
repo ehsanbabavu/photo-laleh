@@ -8,8 +8,7 @@ import {
   Zap,
   ExternalLink,
   ShieldCheck,
-  User,
-  Building2
+  User
 } from 'lucide-react';
 import { BluPalSettings } from '../../types';
 import { apiClient } from '../../services/apiClient';
@@ -23,9 +22,7 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
   const [token, setToken] = useState(settings?.blupalToken || '');
   const [cardNumber, setCardNumber] = useState(settings?.blupalCardNumber || '');
   const [accountHolder, setAccountHolder] = useState(settings?.blupalAccountHolder || '');
-  const [iban, setIban] = useState(settings?.blupalIban || '');
   const [enabled, setEnabled] = useState(settings?.blupalEnabled ?? true);
-  const [sandboxMode, setSandboxMode] = useState(settings?.blupalSandboxMode ?? true);
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -62,9 +59,7 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
       blupalToken: token.trim(),
       blupalCardNumber: cardNumber.trim(),
       blupalAccountHolder: accountHolder.trim(),
-      blupalIban: iban.trim(),
       blupalEnabled: enabled,
-      blupalSandboxMode: sandboxMode
     });
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
@@ -91,19 +86,6 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600" />
-          </label>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span className="text-xs font-bold text-slate-900">حالت آزمایشی (Sandbox)</span>
-          <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-            <input
-              type="checkbox"
-              checked={sandboxMode}
-              onChange={(e) => setSandboxMode(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500" />
           </label>
         </div>
 
@@ -146,20 +128,6 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
             value={accountHolder}
             onChange={(e) => setAccountHolder(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
-            <span>شماره شبا (IBAN)</span>
-          </label>
-          <input
-            type="text"
-            value={iban}
-            onChange={(e) => setIban(e.target.value)}
-            dir="ltr"
-            className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono"
           />
         </div>
 
