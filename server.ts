@@ -9,6 +9,7 @@ import {
   clearDbConfig,
   testDbConnection,
   applyDbConfig,
+  resolveConfig,
   disconnectDb,
   DEFAULT_DB_NAME
 } from './mongoStore';
@@ -106,6 +107,17 @@ app.get('/api/db/status', async (_req, res) => {
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطا در بررسی وضعیت دیتابیس' });
   }
+});
+
+// Current saved connection string
+app.get('/api/db/config', async (_req, res) => {
+  const { config, source } = resolveConfig();
+  res.json({
+    success: true,
+    uri: config.uri || '',
+    dbName: config.dbName || DEFAULT_DB_NAME,
+    source
+  });
 });
 
 // Test a connection string without saving it
