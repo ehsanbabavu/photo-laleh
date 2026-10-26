@@ -17,6 +17,11 @@ import {
   deleteUserSessions,
   saveOtpCode,
   verifyOtpCode,
+  bumpRateLimit,
+  recordAudit,
+  listAudit,
+  listUserSessions,
+  revokeSession,
   disconnectDb,
   DEFAULT_DB_NAME
 } from './mongoStore';
@@ -85,6 +90,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/otp/request',
   '/api/auth/password/otp',
   '/api/auth/password/reset',
+  '/api/auth/login/otp',
   '/api/auth/me',
   '/api/auth/logout',
   '/api/blupal/webhook',
@@ -103,6 +109,28 @@ const ADMIN_ONLY_PREFIXES = [
   '/api/telegram/test',
   '/api/telegram/send-order'
 ];
+
+app.use('/api', (req: any, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    res.on('finish', () => {
+      const user = req.currentUser;
+      if (!user) return;
+      const path = String(req.originalUrl || '').split('?')[0];
+      if (!path.startsWith('/api/') || path.startsWith('/api/auth/')) return;
+      recordAudit({
+        userId: user.id,
+        userName: user.name,
+        phone: user.phone,
+        role: user.role,
+        method: req.method,
+        path,
+        status: res.statusCode,
+        ip: clientIp(req)
+      });
+    });
+  }
+  next();
+});
 
 app.use('/api', async (req: any, res, next) => {
   const path = String(req.originalUrl || req.url || '').split('?')[0].replace(/\/+$/, '') || '/api';
@@ -137,15 +165,21 @@ app.use('/api', async (req: any, res, next) => {
 // --- Simple in-memory rate limiter (per instance) ---
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
-function hitRateLimit(key: string, limit: number, windowMs: number): boolean {
-  const now = Date.now();
-  const bucket = rateBuckets.get(key);
-  if (!bucket || bucket.resetAt < now) {
-    rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
-    return false;
+async function hitRateLimit(key: string, limit: number, windowMs: number): Promise<boolean> {
+  try {
+    const count = await bumpRateLimit(key, windowMs);
+    return count > limit;
+  } catch {
+    // Fallback to per-instance memory when the database is unreachable
+    const now = Date.now();
+    const bucket = rateBuckets.get(key);
+    if (!bucket || bucket.resetAt < now) {
+      rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      return false;
+    }
+    bucket.count += 1;
+    return bucket.count > limit;
   }
-  bucket.count += 1;
-  return bucket.count > limit;
 }
 
 function clientIp(req: any): string {
@@ -229,11 +263,15 @@ app.get('/api/db/all', async (req: any, res) => {
 // --- Backup & restore ---
 app.get('/api/backup', async (_req, res) => {
   const state = await readDb();
+  const safeState = {
+    ...state,
+    users: sanitizeUsers(state.users)
+  };
   const payload = {
     app: 'laleh-digital-studio',
     version: 1,
     createdAt: new Date().toISOString(),
-    data: state
+    data: safeState
   };
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -259,6 +297,18 @@ app.post('/api/backup/restore', async (req, res) => {
     }
 
     const current = await readDb();
+    // Backups never contain passwords: keep the current ones for existing users
+    if (Array.isArray(data.users)) {
+      const passwordById = new Map(
+        (current.users || []).map((u: any) => [u.id, u.password])
+      );
+      data.users = data.users.map((u: any) => {
+        if (u.password) return u;
+        const existing = passwordById.get(u.id);
+        return existing ? { ...u, password: existing } : u;
+      });
+    }
+
     const next: any = { ...current };
     for (const key of arrayKeys) {
       if (data[key] !== undefined) next[key] = data[key];
@@ -326,7 +376,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ success: false, error: 'شماره موبایل و رمز عبور را وارد کنید.' });
   }
 
-  if (hitRateLimit(`login:${clientIp(req)}:${phone}`, 10, 10 * 60 * 1000)) {
+  if (await hitRateLimit(`login:${clientIp(req)}:${phone}`, 10, 10 * 60 * 1000)) {
     return res.status(429).json({ success: false, error: 'تلاش‌های ناموفق بیش از حد. چند دقیقه بعد دوباره تلاش کنید.' });
   }
 
@@ -340,6 +390,14 @@ app.post('/api/auth/login', async (req, res) => {
   if (!isHashedPassword(user.password)) {
     db.users = (db.users || []).map((u: any) => (u.id === user.id ? { ...u, password: hashPassword(password) } : u));
     await writeDb(db);
+  }
+
+  if (user.role === 'admin' && db.settings?.adminLoginOtp === true) {
+    const sent = await sendOtpSms(phone);
+    if (!sent.ok) {
+      return res.status(400).json({ success: false, error: sent.error });
+    }
+    return res.json({ success: true, requiresOtp: true, phone });
   }
 
   const token = await createSession(user.id);
@@ -381,11 +439,12 @@ app.post('/api/auth/otp/request', async (req, res) => {
     }
 
     const db = await readDb();
+    // Never reveal whether a number is already registered
     if ((db.users || []).some((u: any) => normalizePhone(u.phone) === phone)) {
-      return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
+      return res.json({ success: true });
     }
 
-    if (hitRateLimit(`otp:${phone}`, 3, 15 * 60 * 1000) || hitRateLimit(`otp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
+    if (await hitRateLimit(`otp:${phone}`, 3, 15 * 60 * 1000) || await hitRateLimit(`otp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
 
@@ -423,7 +482,7 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
     }
 
-    if (hitRateLimit(`register:${clientIp(req)}`, 8, 30 * 60 * 1000)) {
+    if (await hitRateLimit(`register:${clientIp(req)}`, 8, 30 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'درخواست‌های ثبت‌نام بیش از حد مجاز است' });
     }
 
@@ -463,10 +522,11 @@ app.post('/api/auth/password/otp', async (req, res) => {
     }
     const db = await readDb();
     const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+    // Do not reveal whether the number exists
     if (!user) {
-      return res.status(400).json({ success: false, error: 'کاربری با این شماره یافت نشد' });
+      return res.json({ success: true });
     }
-    if (hitRateLimit(`pwotp:${phone}`, 3, 15 * 60 * 1000) || hitRateLimit(`pwotp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
+    if (await hitRateLimit(`pwotp:${phone}`, 3, 15 * 60 * 1000) || await hitRateLimit(`pwotp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
 
@@ -523,6 +583,50 @@ app.post('/api/auth/password/reset', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
   }
+});
+
+// Optional second factor for admin accounts
+app.post('/api/auth/login/otp', async (req, res) => {
+  const phone = normalizePhone(req.body?.phone);
+  const code = String(req.body?.code || '').trim();
+  if (!phone || !code) {
+    return res.status(400).json({ success: false, error: 'کد تایید را وارد کنید' });
+  }
+  if (await hitRateLimit(`loginotp:${clientIp(req)}:${phone}`, 10, 10 * 60 * 1000)) {
+    return res.status(429).json({ success: false, error: 'تلاش‌های ناموفق بیش از حد مجاز است' });
+  }
+
+  const db = await readDb();
+  const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+  if (!user) return res.status(401).json({ success: false, error: 'کد تایید نامعتبر است' });
+
+  const verification = await verifyOtpCode(phone, code);
+  if (!verification.ok) return res.status(401).json({ success: false, error: verification.error });
+
+  const token = await createSession(user.id);
+  if (token) setSessionCookie(res, token);
+  res.json({ success: true, user: sanitizeUser(user) });
+});
+
+// Active sessions of the current account
+app.get('/api/auth/sessions', async (req: any, res) => {
+  const sessions = await listUserSessions(req.currentUser.id);
+  res.json(sessions);
+});
+
+app.delete('/api/auth/sessions', async (req: any, res) => {
+  await deleteUserSessions(req.currentUser.id);
+  clearSessionCookie(res);
+  res.json({ success: true });
+});
+
+// Audit trail (admin only)
+app.get('/api/audit', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  }
+  const limit = Number(req.query?.limit) || 100;
+  res.json(await listAudit(limit));
 });
 
 app.get('/api/auth/me', async (req, res) => {
