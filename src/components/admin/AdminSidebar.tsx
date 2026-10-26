@@ -149,7 +149,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const [settingsOpen, setSettingsOpen] = useState(isSettingsActive);
 
   return (
-    <aside className="hidden lg:flex fixed top-[56px] sm:top-[72px] right-0 h-[calc(100vh-56px)] sm:h-[calc(100vh-72px)] w-72 bg-white border-l border-slate-200 z-30 flex-col justify-between shadow-xs overflow-y-auto">
+    <aside className="hidden lg:flex fixed top-[56px] sm:top-[72px] lg:top-0 right-0 h-[calc(100vh-56px)] sm:h-[calc(100vh-72px)] lg:h-screen w-72 bg-white border-l border-slate-200 z-30 flex-col justify-between shadow-xs overflow-y-auto">
       <div>
         {/* Top Header with Tulip Logo */}
         <div className="p-3.5 px-4 border-b border-slate-200 flex items-center justify-between">
