@@ -234,7 +234,7 @@ app.get('/api/users', async (_req, res) => {
 app.post('/api/users', async (req, res) => {
   const db = await readDb();
   const newUser = req.body;
-  const existingIdx = (db.users || []).findIndex((u: any) => u.id === newUser.id || u.username === newUser.username);
+  const existingIdx = (db.users || []).findIndex((u: any) => u.id === newUser.id || (newUser.phone && u.phone === newUser.phone));
   if (existingIdx >= 0) {
     db.users[existingIdx] = { ...db.users[existingIdx], ...newUser };
   } else {
