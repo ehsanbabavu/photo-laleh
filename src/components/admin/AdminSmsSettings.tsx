@@ -7,6 +7,7 @@ interface AdminSmsSettingsProps {
 
 export const AdminSmsSettings: React.FC<AdminSmsSettingsProps> = ({ showToast }) => {
   const [token, setToken] = useState('');
+  const [adminOtp, setAdminOtp] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -18,6 +19,7 @@ export const AdminSmsSettings: React.FC<AdminSmsSettingsProps> = ({ showToast })
         const res = await fetch('/api/settings');
         const data = await res.json();
         if (active && data?.smsApiToken) setToken(data.smsApiToken);
+        if (active && data?.adminLoginOtp !== undefined) setAdminOtp(Boolean(data.adminLoginOtp));
       } catch {
         // ignore
       }
@@ -36,7 +38,7 @@ export const AdminSmsSettings: React.FC<AdminSmsSettingsProps> = ({ showToast })
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ smsApiToken: token.trim() })
+        body: JSON.stringify({ smsApiToken: token.trim(), adminLoginOtp: adminOtp })
       });
       if (!res.ok) throw new Error('save failed');
       setSuccess('ذخیره شد.');
@@ -65,6 +67,19 @@ export const AdminSmsSettings: React.FC<AdminSmsSettingsProps> = ({ showToast })
             dir="ltr"
             className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono"
           />
+        </div>
+
+        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+          <span className="text-xs font-bold text-slate-900">ورود دو مرحله‌ای ادمین</span>
+          <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+            <input
+              type="checkbox"
+              checked={adminOtp}
+              onChange={(e) => setAdminOtp(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600" />
+          </label>
         </div>
 
         {error && (
