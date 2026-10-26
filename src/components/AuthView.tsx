@@ -153,7 +153,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-start sm:justify-center items-center px-3 sm:px-6 pt-4 pb-6 sm:py-12 relative overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-slate-50 text-slate-900 flex flex-col justify-center items-center px-3 sm:px-6 py-6 sm:py-12 relative overflow-x-hidden">
       {/* Light blue and green ambient glowing orbs */}
       <div className="absolute top-1/4 -right-20 w-80 h-80 sm:w-96 sm:h-96 bg-sky-400/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -left-20 w-80 h-80 sm:w-96 sm:h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none" />
