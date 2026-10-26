@@ -18,7 +18,9 @@ import {
   Settings,
   ChevronDown,
   HardDrive,
-  MessageSquare
+  MessageSquare,
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
@@ -36,7 +38,9 @@ export type AdminTab =
   | 'database'
   | 'users'
   | 'backup'
-  | 'sms';
+  | 'sms'
+  | 'sessions'
+  | 'audit';
 
 interface AdminSidebarProps {
   currentTab: AdminTab;
@@ -149,6 +153,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'sms' as AdminTab,
       label: 'تنظیمات پیامک',
       icon: MessageSquare
+    },
+    {
+      id: 'sessions' as AdminTab,
+      label: 'دستگاه‌های فعال',
+      icon: ShieldCheck
+    },
+    {
+      id: 'audit' as AdminTab,
+      label: 'گزارش فعالیت‌ها',
+      icon: Activity
     }
   ];
 
