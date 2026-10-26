@@ -198,7 +198,81 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-xs text-slate-500">کاربری یافت نشد.</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
+        <>
+        <div className="hidden lg:block bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <table className="w-full text-right">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr className="text-[11px] font-black text-slate-600">
+                <th className="px-4 py-3">نام</th>
+                <th className="px-4 py-3">شماره موبایل</th>
+                <th className="px-4 py-3">نقش</th>
+                <th className="px-4 py-3">کیف پول (تومان)</th>
+                <th className="px-4 py-3">تاریخ عضویت</th>
+                <th className="px-4 py-3 text-center">عملیات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((user) => {
+                const isAdmin = user.role === 'admin';
+                return (
+                  <tr key={user.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                            isAdmin ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {(user.name || '?').trim().charAt(0)}
+                        </div>
+                        <span className="text-xs font-bold text-slate-900 truncate">{user.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-mono text-slate-600" dir="ltr">
+                      {user.phone}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isAdmin ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-lg">
+                          <ShieldCheck className="w-3 h-3" />
+                          ادمین
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                          کاربر
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-mono text-slate-700">
+                      {Number(user.walletBalance || 0).toLocaleString('fa-IR')}
+                    </td>
+                    <td className="px-4 py-3 text-[11px] text-slate-500">{user.createdAt || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => openEdit(user)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          ویرایش
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(user.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          حذف
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 lg:hidden">
           {filtered.map((user) => {
             const isAdmin = user.role === 'admin';
             return (
@@ -261,6 +335,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
             );
           })}
         </div>
+        </>
       )}
 
       {editing && (
