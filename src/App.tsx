@@ -19,6 +19,7 @@ import { PromptsManager } from './components/admin/PromptsManager';
 import { AdminTickets } from './components/admin/AdminTickets';
 import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
 import { AdminBluPalSettings } from './components/admin/AdminBluPalSettings';
+import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
@@ -819,6 +820,8 @@ export default function App() {
                   showToast={showToast}
                 />
               )}
+
+              {adminTab === 'database' && <AdminDatabaseSettings showToast={showToast} />}
             </main>
           </>
         ) : (
