@@ -1,5 +1,13 @@
-import React, { useRef, useState } from 'react';
-import { Download, Upload, Loader2, CheckCircle2, AlertCircle, HardDriveDownload, HardDriveUpload } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Download,
+  Upload,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  HardDriveDownload,
+  HardDriveUpload
+} from 'lucide-react';
 
 interface AdminBackupProps {
   showToast: (msg: string) => void;
@@ -11,7 +19,6 @@ export const AdminBackup: React.FC<AdminBackupProps> = ({ showToast }) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const handleBackup = async () => {
     setError(null);
@@ -73,51 +80,70 @@ export const AdminBackup: React.FC<AdminBackupProps> = ({ showToast }) => {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-3">
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <HardDriveDownload className="w-4 h-4 text-emerald-600" />
-          <h2 className="text-sm font-black text-slate-900">پشتیبان‌گیری</h2>
+    <div className="w-full max-w-4xl mx-auto space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+        {/* Backup */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+              <HardDriveDownload className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-black text-slate-900">پشتیبان‌گیری</h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                دریافت یک نسخه کامل از داده‌های دیتابیس در قالب فایل JSON
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleBackup}
+            disabled={isBackingUp}
+            className="mt-auto w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold cursor-pointer transition-colors"
+          >
+            {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span>دانلود پشتیبان</span>
+          </button>
         </div>
-        <button
-          onClick={handleBackup}
-          disabled={isBackingUp}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold cursor-pointer"
-        >
-          {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          <span>دانلود پشتیبان</span>
-        </button>
-      </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <HardDriveUpload className="w-4 h-4 text-sky-600" />
-          <h2 className="text-sm font-black text-slate-900">بازیابی</h2>
+        {/* Restore */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center flex-shrink-0">
+              <HardDriveUpload className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-black text-slate-900">بازیابی</h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                بازگردانی داده‌ها از یک فایل پشتیبان ذخیره‌شده
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 cursor-pointer flex-shrink-0">
+              <Upload className="w-3.5 h-3.5" />
+              <span>انتخاب فایل</span>
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+            </label>
+            <span className="text-[11px] text-slate-500 truncate" dir="ltr">
+              {selectedFile ? selectedFile.name : ''}
+            </span>
+          </div>
+
+          <button
+            onClick={handleRestore}
+            disabled={isRestoring || !selectedFile}
+            className="mt-auto w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold cursor-pointer transition-colors"
+          >
+            {isRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            <span>بازیابی</span>
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 cursor-pointer flex-shrink-0">
-            <Upload className="w-3.5 h-3.5" />
-            <span>انتخاب فایل</span>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              className="hidden"
-            />
-          </label>
-          <span className="text-[11px] text-slate-500 truncate" dir="ltr">
-            {selectedFile ? selectedFile.name : ''}
-          </span>
-        </div>
-        <button
-          onClick={handleRestore}
-          disabled={isRestoring || !selectedFile}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-bold cursor-pointer"
-        >
-          {isRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          <span>بازیابی</span>
-        </button>
       </div>
 
       {error && (
