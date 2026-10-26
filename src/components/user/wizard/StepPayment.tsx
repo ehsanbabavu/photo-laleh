@@ -43,18 +43,9 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const [countdownSeconds, setCountdownSeconds] = useState(15 * 60);
   const [autoRedirecting, setAutoRedirecting] = useState(false);
 
-  // Dynamically resolve printType
-  const activePrintTypes: PrintTypeOption[] = (() => {
-    if (printTypes && printTypes.length > 0) return printTypes;
-    try {
-      const saved = localStorage.getItem('studio_print_types');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return PRINT_TYPES;
-  })();
+  // Resolve printType from props
+  const activePrintTypes: PrintTypeOption[] =
+    printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
 
   const printType = activePrintTypes.find((t) => t.id === draft.printType) || activePrintTypes[0];
   const dimension = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
