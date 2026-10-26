@@ -37,18 +37,9 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   const isFirstOrderGiftAvailable = userWallet > 0 && !user?.hasUsedFirstOrderGift;
   const [applyWalletGift, setApplyWalletGift] = useState<boolean>(isFirstOrderGiftAvailable);
 
-  // Dynamically resolve printType from props, localStorage database, or fallback
-  const activePrintTypes: PrintTypeOption[] = (() => {
-    if (printTypes && printTypes.length > 0) return printTypes;
-    try {
-      const saved = localStorage.getItem('studio_print_types');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return PRINT_TYPES;
-  })();
+  // Resolve printType from the print types coming from the database
+  const activePrintTypes: PrintTypeOption[] =
+    printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
 
   const printType = activePrintTypes.find((t) => t.id === draft.printType) || activePrintTypes[0];
   const dimension = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
