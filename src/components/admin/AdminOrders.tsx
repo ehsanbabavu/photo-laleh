@@ -49,19 +49,12 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [generatingSheetId, setGeneratingSheetId] = useState<string | null>(null);
   const [activeImageTab, setActiveImageTab] = useState<'sheet' | 'ai' | 'commercial' | 'original'>('sheet');
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
-  const [sentOrderIds, setSentOrderIds] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem('studio_sent_order_ids');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [sentOrderIds, setSentOrderIds] = useState<Record<string, boolean>>({});
 
   const handleSendToTelegramPrint = async () => {
     if (!selectedOrder) return;
-    const token = telegramToken || localStorage.getItem('studio_telegram_token') || '';
-    const chatId = telegramChatId || localStorage.getItem('studio_telegram_chat_id') || '';
+    const token = telegramToken || '';
+    const chatId = telegramChatId || '';
 
     if (!token || !chatId) {
       showToast?.('لطفاً ابتدا توکن ربات تلگرام و Chat ID را در بخش «اتصال به ربات تلگرام» تنظیم کنید.');
@@ -89,7 +82,6 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
         showToast?.('فایل‌های شیت ۹تایی، عکس تبلیغاتی و مشخصات سفارش با موفقیت به تلگرام مدیر ارسال شد!');
         setSentOrderIds((prev) => {
           const next = { ...prev, [selectedOrder.id]: true };
-          localStorage.setItem('studio_sent_order_ids', JSON.stringify(next));
           return next;
         });
       } else {
