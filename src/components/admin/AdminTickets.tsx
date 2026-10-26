@@ -272,7 +272,11 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
           }`}
         >
           <span className="text-[11px] block opacity-80">کل تیکت‌ها</span>
-          <span className="text-2xl font-black font-mono block mt-1">
+          <span
+            className={`text-2xl font-black font-mono block mt-1 ${
+              activeStatusTab === 'all' ? 'text-white' : 'text-slate-900'
+            }`}
+          >
             {totalCount.toLocaleString('fa-IR')}
           </span>
         </div>
@@ -291,7 +295,7 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
             )}
           </div>
-          <span className="text-2xl font-black font-mono block mt-1 text-amber-600 group-hover:text-amber-700">
+          <span className="text-2xl font-black font-mono block mt-1 text-slate-900">
             {openCount.toLocaleString('fa-IR')}
           </span>
         </div>
@@ -305,7 +309,7 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
           }`}
         >
           <span className="text-[11px] block opacity-80">در حال بررسی</span>
-          <span className="text-2xl font-black font-mono block mt-1 text-sky-600">
+          <span className="text-2xl font-black font-mono block mt-1 text-slate-900">
             {inProgressCount.toLocaleString('fa-IR')}
           </span>
         </div>
@@ -319,7 +323,7 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
           }`}
         >
           <span className="text-[11px] block opacity-80">پاسخ داده شده</span>
-          <span className="text-2xl font-black font-mono block mt-1 text-emerald-600">
+          <span className="text-2xl font-black font-mono block mt-1 text-slate-900">
             {answeredCount.toLocaleString('fa-IR')}
           </span>
         </div>
