@@ -14,7 +14,8 @@ import {
   ExternalLink,
   LifeBuoy,
   Volume2,
-  CreditCard
+  CreditCard,
+  Database
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -116,6 +117,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       id: 'chatgpt' as AdminTab,
       label: 'اتصال به هوش مصنوعی',
       icon: BotMessageSquare,
+      badge: null,
+      badgeStyle: null
+    },
+    {
+      id: 'database' as AdminTab,
+      label: 'اتصال به دیتابیس MongoDB',
+      icon: Database,
       badge: null,
       badgeStyle: null
     }
