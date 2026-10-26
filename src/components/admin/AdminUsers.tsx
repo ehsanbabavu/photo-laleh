@@ -198,7 +198,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-xs text-slate-500">کاربری یافت نشد.</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
           {filtered.map((user) => {
             const isAdmin = user.role === 'admin';
             return (
