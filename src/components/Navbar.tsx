@@ -17,7 +17,9 @@ import {
   CreditCard,
   Database,
   Users,
-  Send
+  Send,
+  Settings,
+  ChevronDown
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -109,41 +111,23 @@ export const Navbar: React.FC<NavbarProps> = ({
       badgeStyle: 'pulsing_red'
     },
     {
-      id: 'blupal' as AdminTab,
-      label: 'تنظیمات بلوپال',
-      icon: CreditCard,
-      badge: null,
-      badgeStyle: null
-    },
-    {
-      id: 'chatgpt' as AdminTab,
-      label: 'اتصال به هوش مصنوعی',
-      icon: BotMessageSquare,
-      badge: null,
-      badgeStyle: null
-    },
-    {
-      id: 'telegram_bot' as AdminTab,
-      label: 'اتصال به ربات تلگرام',
-      icon: Send,
-      badge: null,
-      badgeStyle: null
-    },
-    {
       id: 'users' as AdminTab,
       label: 'مدیریت کاربران',
       icon: Users,
       badge: null,
       badgeStyle: null
     },
-    {
-      id: 'database' as AdminTab,
-      label: 'اتصال به دیتابیس MongoDB',
-      icon: Database,
-      badge: null,
-      badgeStyle: null
-    }
   ];
+
+  const settingsItems = [
+    { id: 'chatgpt' as AdminTab, label: 'اتصال به هوش مصنوعی', icon: BotMessageSquare },
+    { id: 'database' as AdminTab, label: 'اتصال به دیتابیس MongoDB', icon: Database },
+    { id: 'telegram_bot' as AdminTab, label: 'اتصال به ربات تلگرام', icon: Send },
+    { id: 'blupal' as AdminTab, label: 'تنظیمات بلوپال', icon: CreditCard }
+  ];
+
+  const isSettingsActive = settingsItems.some((item) => item.id === adminTab);
+  const [settingsOpen, setSettingsOpen] = useState(isSettingsActive);
 
   return (
     <>
