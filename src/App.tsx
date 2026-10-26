@@ -22,6 +22,7 @@ import { AdminBluPalSettings } from './components/admin/AdminBluPalSettings';
 import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings';
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
+import { parseRoute, routeToPath } from './utils/router';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
@@ -45,12 +46,15 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
-  // Active view: 'admin' or 'user'
-  const [activeView, setActiveView] = useState<'admin' | 'user'>('user');
-
-  // Sub-tabs
-  const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
-  const [userTab, setUserTab] = useState<UserTab>('dashboard');
+  // Active view + tabs are derived from the URL so a refresh keeps the page
+  const initialRoute = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { view: 'user' as const, tab: 'dashboard' };
+  const [activeView, setActiveView] = useState<'admin' | 'user'>(initialRoute.view);
+  const [adminTab, setAdminTab] = useState<AdminTab>(
+    initialRoute.view === 'admin' ? (initialRoute.tab as AdminTab) : 'dashboard'
+  );
+  const [userTab, setUserTab] = useState<UserTab>(
+    initialRoute.view === 'user' ? (initialRoute.tab as UserTab) : 'dashboard'
+  );
 
   // Data states
   const [orders, setOrders] = useState<Order[]>([]);
@@ -126,6 +130,31 @@ export default function App() {
 
   const [printTypePrompts, setPrintTypePrompts] = useState<Record<string, string>>(DEFAULT_PROMPTS);
 
+  // Keep the address bar in sync with the selected page
+  React.useEffect(() => {
+    if (isAuthChecking || !currentUser) return;
+    const target = routeToPath(activeView, activeView === 'admin' ? adminTab : userTab);
+    if (window.location.pathname !== target) {
+      window.history.pushState({}, '', target);
+    }
+  }, [activeView, adminTab, userTab, currentUser, isAuthChecking]);
+
+  // Browser back / forward
+  React.useEffect(() => {
+    const onPopState = () => {
+      const route = parseRoute(window.location.pathname);
+      if (route.view === 'admin') {
+        setAdminTab(route.tab as AdminTab);
+        setActiveView('admin');
+      } else {
+        setUserTab(route.tab as UserTab);
+        setActiveView('user');
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   // Restore the session from the server on page load
   React.useEffect(() => {
     let active = true;
@@ -136,7 +165,15 @@ export default function App() {
           const data = await res.json();
           if (active && data?.user) {
             setCurrentUser(data.user as User);
-            if (data.user.role === 'admin') setActiveView('admin');
+            const route = parseRoute(window.location.pathname);
+            if (data.user.role === 'admin') {
+              setActiveView(route.view === 'user' ? 'user' : 'admin');
+              if (route.view === 'admin') setAdminTab(route.tab as AdminTab);
+              else setUserTab(route.tab as UserTab);
+            } else {
+              setActiveView('user');
+              setUserTab(route.tab as UserTab);
+            }
           }
         }
       } catch {
@@ -465,9 +502,11 @@ export default function App() {
     if (user.role === 'admin') {
       setActiveView('admin');
       setAdminTab('dashboard');
+      window.history.pushState({}, '', routeToPath('admin', 'dashboard'));
     } else {
       setActiveView('user');
       setUserTab('dashboard');
+      window.history.pushState({}, '', routeToPath('user', 'dashboard'));
     }
   };
 
@@ -476,6 +515,7 @@ export default function App() {
     setCurrentUser(null);
     setActiveView('user');
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    window.history.pushState({}, '', '/');
     showToast('از حساب کاربری خارج شدید.');
   };
 
