@@ -43,6 +43,7 @@ import {
 export default function App() {
   // Current logged in user (null by default so Login/Register screen displays on home page)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Active view: 'admin' or 'user'
   const [activeView, setActiveView] = useState<'admin' | 'user'>('user');
@@ -124,6 +125,30 @@ export default function App() {
   };
 
   const [printTypePrompts, setPrintTypePrompts] = useState<Record<string, string>>(DEFAULT_PROMPTS);
+
+  // Restore the session from the server on page load
+  React.useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data?.user) {
+            setCurrentUser(data.user as User);
+            if (data.user.role === 'admin') setActiveView('admin');
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (active) setIsAuthChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Fetch initial database state from server
   React.useEffect(() => {
@@ -450,6 +475,7 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveView('user');
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
     showToast('از حساب کاربری خارج شدید.');
   };
 
@@ -483,6 +509,14 @@ export default function App() {
   }, []);
 
   // If not logged in -> Show Login & Register page on main page
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50">
+        <div className="w-6 h-6 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return <AuthView onLogin={handleLogin} />;
   }
