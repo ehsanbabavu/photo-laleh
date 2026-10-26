@@ -61,21 +61,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       setIsSubmitting(false);
     }
 
-    // Fallback for accounts created before the database was connected
-    try {
-      const storedUsersRaw = localStorage.getItem('registered_users');
-      if (storedUsersRaw) {
-        const storedUsers: User[] = JSON.parse(storedUsersRaw);
-        const found = storedUsers.find(u => normalizeDigits(String(u.phone || '')) === enteredPhone);
-        if (found && String(found.password || '') === password) {
-          onLogin(found);
-          return;
-        }
-      }
-    } catch {
-      // Fallback
-    }
-
     setLoginError('شماره موبایل یا رمز عبور اشتباه است.');
   };
 
@@ -103,12 +88,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       } catch {
         // ignore
       }
-      try {
-        const storedUsersRaw = localStorage.getItem('registered_users');
-        if (storedUsersRaw) existing = [...existing, ...JSON.parse(storedUsersRaw)];
-      } catch {
-        // ignore
-      }
 
       if (existing.some(u => normalizeDigits(String(u.phone || '')) === enteredPhone)) {
         setRegError('این شماره موبایل قبلاً ثبت‌نام شده است.');
@@ -125,15 +104,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
         walletBalance: 100000,
         hasUsedFirstOrderGift: false
       };
-
-      try {
-        const storedUsersRaw = localStorage.getItem('registered_users');
-        const storedUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
-        storedUsers.push(newUser);
-        localStorage.setItem('registered_users', JSON.stringify(storedUsers));
-      } catch {
-        // ignore
-      }
 
       // Persist the account in the database so it can log in from any device
       try {
