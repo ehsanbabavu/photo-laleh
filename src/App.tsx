@@ -595,7 +595,7 @@ export default function App() {
   // Handle Login
   const handleLogin = (user: User) => {
     setCurrentUser(user);
-    if (user.role === 'admin' || user.username === 'ehsan') {
+    if (user.role === 'admin') {
       setActiveView('admin');
       setAdminTab('dashboard');
     } else {
@@ -834,7 +834,7 @@ export default function App() {
               user={currentUser}
               onLogout={handleLogout}
               onSwitchToAdmin={
-                currentUser.role === 'admin' || currentUser.username === 'ehsan'
+                currentUser.role === 'admin'
                   ? () => setActiveView('admin')
                   : undefined
               }
