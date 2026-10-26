@@ -67,47 +67,47 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
           <h2 className="text-sm font-black text-slate-900">اتصال به ربات تلگرام</h2>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span className="text-xs font-bold text-slate-900">فعال‌سازی</span>
-          <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div className="space-y-1.5 lg:col-span-2">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+              <span>توکن ربات</span>
+            </label>
             <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-              className="sr-only peer"
+              type="text"
+              value={botToken}
+              onChange={(e) => setBotToken(e.target.value)}
+              dir="ltr"
+              className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono"
             />
-            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600" />
-          </label>
-        </div>
+          </div>
 
-        <div className="space-y-1.5 lg:col-span-2">
-          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <Key className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
-            <span>توکن ربات</span>
-          </label>
-          <input
-            type="text"
-            value={botToken}
-            onChange={(e) => setBotToken(e.target.value)}
-            dir="ltr"
-            className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono"
-          />
-        </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+              <span>شناسه چت</span>
+            </label>
+            <input
+              type="text"
+              value={adminChatId}
+              onChange={(e) => setAdminChatId(e.target.value)}
+              dir="ltr"
+              className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono"
+            />
+          </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
-            <span>شناسه چت</span>
-          </label>
-          <input
-            type="text"
-            value={adminChatId}
-            onChange={(e) => setAdminChatId(e.target.value)}
-            dir="ltr"
-            className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono"
-          />
-        </div>
+          <div className="flex items-center justify-between gap-3 h-full min-h-[46px] px-3.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-xs font-bold text-slate-900">فعال‌سازی ربات</span>
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(e) => setEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600" />
+            </label>
+          </div>
         </div>
 
         {testResult && (
@@ -129,19 +129,19 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
           </div>
         )}
 
-        <div className="flex flex-col lg:flex-row lg:items-center gap-2 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 lg:max-w-md">
           <button
             type="button"
             onClick={handleTest}
             disabled={isTesting}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 disabled:opacity-60 text-xs font-bold transition-colors cursor-pointer w-full lg:w-1/2"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 disabled:opacity-60 text-xs font-bold transition-colors cursor-pointer w-full"
           >
             {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
             <span>تست اتصال</span>
           </button>
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer w-full lg:w-1/2"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer w-full"
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>ذخیره</span>
