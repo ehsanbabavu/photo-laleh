@@ -11,90 +11,43 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   
   // Login fields
-  const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
   // Register fields
   const [regFullName, setRegFullName] = useState('');
-  const [regUsername, setRegUsername] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regError, setRegError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAdminQuickFill = () => {
-    setMode('login');
-    setUsername('ehsan');
-    setPassword('ehsan123');
-    setLoginError('');
-  };
-
-  const handleUserQuickFill = () => {
-    setMode('login');
-    setUsername('sara');
-    setPassword('123456');
-    setLoginError('');
-  };
+  // Persian/Arabic digits are converted to Latin so users can type either form.
+  const normalizeDigits = (value: string) =>
+    value
+      .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+      .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+      .replace(/[\s-()]/g, '');
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
-    const normalizedId = username.trim().toLowerCase().replace(/[\s-]/g, '');
-    if (!normalizedId || !password) {
-      setLoginError('نام کاربری و رمز عبور را وارد کنید.');
+    const enteredPhone = normalizeDigits(phone);
+    if (!enteredPhone || !password) {
+      setLoginError('شماره موبایل و رمز عبور را وارد کنید.');
       return;
     }
 
-    // Check admin credentials
-    if (normalizedId === 'ehsan' && password === 'ehsan123') {
-      const adminUser: User = {
-        id: 'admin-1',
-        name: 'احسان محمدی (مدیر استودیو)',
-        username: 'ehsan',
-        password: 'ehsan123',
-        phone: '09121234567',
-        role: 'admin',
-        createdAt: '۱۴۰۴/۰۱/۰۱',
-        walletBalance: 100000,
-        hasUsedFirstOrderGift: false
-      };
-      onLogin(adminUser);
-      return;
-    }
-
-    // Check demo user
-    if (normalizedId === 'sara' && password === '123456') {
-      const demoUser: User = {
-        id: 'u-sara',
-        name: 'سارا رضایی',
-        username: 'sara',
-        password: '123456',
-        phone: '09123456789',
-        role: 'user',
-        createdAt: '۱۴۰۵/۰۱/۱۰',
-        walletBalance: 100000,
-        hasUsedFirstOrderGift: false
-      };
-      onLogin(demoUser);
-      return;
-    }
-
-    // Check users stored in the database (username or phone number)
     setIsSubmitting(true);
     try {
+      // Users live in the database and are identified by their mobile number.
       const res = await fetch('/api/users');
       if (res.ok) {
         const dbUsers: User[] = await res.json();
-        const found = dbUsers.find(u => {
-          const byUsername = String(u.username || '').trim().toLowerCase().replace(/[\s-]/g, '') === normalizedId;
-          const byPhone = String(u.phone || '').replace(/[\s-]/g, '') === normalizedId;
-          return byUsername || byPhone;
-        });
-
-        if (found && found.password) {
-          if (String(found.password) !== password) {
+        const found = dbUsers.find(u => normalizeDigits(String(u.phone || '')) === enteredPhone);
+        if (found) {
+          if (String(found.password || '') !== password) {
             setLoginError('رمز عبور اشتباه است.');
             return;
           }
@@ -103,21 +56,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
         }
       }
     } catch {
-      // Network/API issue: fall through to the local fallbacks below
+      // Network/API issue: fall through to the local fallback below
     } finally {
       setIsSubmitting(false);
     }
 
-    // Check stored registered users from localStorage
+    // Fallback for accounts created before the database was connected
     try {
       const storedUsersRaw = localStorage.getItem('registered_users');
       if (storedUsersRaw) {
         const storedUsers: User[] = JSON.parse(storedUsersRaw);
-        const found = storedUsers.find(u => {
-          const byUsername = String(u.username || '').trim().toLowerCase().replace(/[\s-]/g, '') === normalizedId;
-          const byPhone = String(u.phone || '').replace(/[\s-]/g, '') === normalizedId;
-          return byUsername || byPhone;
-        });
+        const found = storedUsers.find(u => normalizeDigits(String(u.phone || '')) === enteredPhone);
         if (found && String(found.password || '') === password) {
           onLogin(found);
           return;
@@ -127,56 +76,80 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       // Fallback
     }
 
-    setLoginError('نام کاربری یا رمز عبور اشتباه است. (برای ادمین: ehsan / ehsan123)');
+    setLoginError('شماره موبایل یا رمز عبور اشتباه است.');
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
 
-    if (!regFullName.trim() || !regUsername.trim() || !regPassword.trim()) {
-      setRegError('لطفاً تمام فیلدهای الزامی را تکمیل کنید.');
+    const enteredPhone = normalizeDigits(regPhone);
+    if (!regFullName.trim() || !enteredPhone || !regPassword.trim()) {
+      setRegError('لطفاً نام، شماره موبایل و رمز عبور را تکمیل کنید.');
+      return;
+    }
+    if (!/^09\d{9}$/.test(enteredPhone)) {
+      setRegError('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
       return;
     }
 
-    if (regUsername.trim().toLowerCase() === 'ehsan') {
-      setRegError('این نام کاربری برای مدیریت رزرو شده است.');
-      return;
-    }
-
-    const newUser: User = {
-      id: 'usr-' + Date.now(),
-      name: regFullName.trim(),
-      username: regUsername.trim().toLowerCase(),
-      password: regPassword.trim(),
-      phone: regPhone.trim() || '09120000000',
-      role: 'user',
-      createdAt: 'امروز',
-      walletBalance: 100000,
-      hasUsedFirstOrderGift: false
-    };
-
+    setIsSubmitting(true);
     try {
-      const storedUsersRaw = localStorage.getItem('registered_users');
-      const storedUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
-      storedUsers.push(newUser);
-      localStorage.setItem('registered_users', JSON.stringify(storedUsers));
-    } catch {
-      // ignore
-    }
+      // A mobile number can only be registered once.
+      let existing: User[] = [];
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) existing = await res.json();
+      } catch {
+        // ignore
+      }
+      try {
+        const storedUsersRaw = localStorage.getItem('registered_users');
+        if (storedUsersRaw) existing = [...existing, ...JSON.parse(storedUsersRaw)];
+      } catch {
+        // ignore
+      }
 
-    // Persist the account in the database so it can log in from any device
-    try {
-      await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      });
-    } catch {
-      // ignore
-    }
+      if (existing.some(u => normalizeDigits(String(u.phone || '')) === enteredPhone)) {
+        setRegError('این شماره موبایل قبلاً ثبت‌نام شده است.');
+        return;
+      }
 
-    onLogin(newUser);
+      const newUser: User = {
+        id: 'usr-' + Date.now(),
+        name: regFullName.trim(),
+        phone: enteredPhone,
+        password: regPassword.trim(),
+        role: 'user',
+        createdAt: 'امروز',
+        walletBalance: 100000,
+        hasUsedFirstOrderGift: false
+      };
+
+      try {
+        const storedUsersRaw = localStorage.getItem('registered_users');
+        const storedUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+        storedUsers.push(newUser);
+        localStorage.setItem('registered_users', JSON.stringify(storedUsers));
+      } catch {
+        // ignore
+      }
+
+      // Persist the account in the database so it can log in from any device
+      try {
+        await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUser)
+        });
+      } catch {
+        // ignore
+      }
+
+      onLogin(newUser);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -235,15 +208,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
-                نام کاربری یا شماره موبایل
+                شماره موبایل
               </label>
               <div className="relative">
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="numeric"
                   required
-                  placeholder="مثال: ehsan یا sara"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="09123456789"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                 />
                 <UserIcon className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
@@ -276,27 +250,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            {/* Quick Demo links */}
-            <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-1 text-[11px] sm:text-xs text-slate-500">
-              <span>ورود تستی سریع:</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleAdminQuickFill}
-                  className="text-sky-600 font-bold hover:underline cursor-pointer"
-                >
-                  ادمین (ehsan)
-                </button>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={handleUserQuickFill}
-                  className="text-emerald-600 font-bold hover:underline cursor-pointer"
-                >
-                  مشتری (سارا)
-                </button>
-              </div>
-            </div>
           </form>
         ) : (
           /* REGISTER FORM */
@@ -339,28 +292,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
-                نام کاربری دلخواه (لاتین)
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  placeholder="مثال: pouria99"
-                  value={regUsername}
-                  onChange={(e) => setRegUsername(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
-                />
-                <UserIcon className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
-                شماره تلفن همراه
+                شماره موبایل
               </label>
               <div className="relative">
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  required
                   placeholder="09123456789"
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
