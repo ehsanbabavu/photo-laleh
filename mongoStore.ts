@@ -6,6 +6,7 @@
  * The only thing kept on local disk is the connection config that an admin
  * enters in the panel (or, preferably, the MONGODB_URI environment variable).
  */
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -299,6 +300,54 @@ export async function writeDb(state: any): Promise<void> {
 
   stateCache = state;
   signatures = buildSignatures(state);
+}
+
+// ---------------------------------------------------------------------------
+// Sessions (survive page refresh, stored in MongoDB)
+// ---------------------------------------------------------------------------
+
+const SESSION_COLLECTION = 'sessions';
+let sessionIndexReady = false;
+
+async function sessionsCollection() {
+  const db = await getDb();
+  if (!db) return null;
+  const collection = db.collection(SESSION_COLLECTION);
+  if (!sessionIndexReady) {
+    await collection.createIndex({ token: 1 }, { unique: true }).catch(() => undefined);
+    await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => undefined);
+    sessionIndexReady = true;
+  }
+  return collection;
+}
+
+export async function createSession(userId: string, ttlMs = 30 * 24 * 60 * 60 * 1000): Promise<string | null> {
+  const collection = await sessionsCollection();
+  if (!collection) return null;
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = Date.now();
+  await collection.insertOne({ token, userId, createdAt: now, expiresAt: new Date(now + ttlMs) });
+  return token;
+}
+
+export async function findSession(token: string): Promise<{ userId: string } | null> {
+  if (!token) return null;
+  const collection = await sessionsCollection();
+  if (!collection) return null;
+  const doc: any = await collection.findOne({ token });
+  if (!doc) return null;
+  if (doc.expiresAt && new Date(doc.expiresAt).getTime() < Date.now()) {
+    await collection.deleteOne({ token }).catch(() => undefined);
+    return null;
+  }
+  return { userId: doc.userId };
+}
+
+export async function deleteSession(token: string): Promise<void> {
+  if (!token) return;
+  const collection = await sessionsCollection();
+  if (!collection) return;
+  await collection.deleteOne({ token }).catch(() => undefined);
 }
 
 // ---------------------------------------------------------------------------
