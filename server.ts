@@ -157,6 +157,31 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ success: true, user: { ...safeUser, password: user.password } });
 });
 
+// Send a one-time code with the api.ir SMS service
+async function sendOtpSms(phone: string): Promise<{ ok: boolean; error?: string }> {
+  const db = await readDb();
+  const token = String(db.settings?.smsApiToken || process.env.SMS_API_TOKEN || '').trim();
+  if (!token) return { ok: false, error: 'توکن پیامک در تنظیمات ثبت نشده است' };
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  try {
+    const smsRes = await fetch('https://s.api.ir/api/sw1/SmsOTP', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code, mobile: phone, template: 2 })
+    });
+    const smsData: any = await smsRes.json().catch(() => null);
+    const ok = Boolean(smsRes.ok && smsData && smsData.success !== false);
+    if (!ok) return { ok: false, error: smsData?.message || 'ارسال پیامک ناموفق بود' };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'ارسال پیامک ناموفق بود' };
+  }
+
+  const saved = await saveOtpCode(phone, code, 2 * 60 * 1000);
+  if (!saved) return { ok: false, error: 'ذخیره کد ناموفق بود' };
+  return { ok: true };
+}
+
 // Request an SMS one-time code for registration
 app.post('/api/auth/otp/request', async (req, res) => {
   try {
@@ -170,39 +195,9 @@ app.post('/api/auth/otp/request', async (req, res) => {
       return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
     }
 
-    const token = String(db.settings?.smsApiToken || process.env.SMS_API_TOKEN || '').trim();
-    if (!token) {
-      return res.status(400).json({ success: false, error: 'توکن پیامک در تنظیمات ثبت نشده است' });
-    }
-
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-
-    let smsOk = false;
-    let smsMessage = '';
-    try {
-      const smsRes = await fetch('https://s.api.ir/api/sw1/SmsOTP', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ code, mobile: phone, template: 2 })
-      });
-      const smsData: any = await smsRes.json().catch(() => null);
-      smsOk = Boolean(smsRes.ok && smsData && smsData.success !== false);
-      smsMessage = smsData?.message || '';
-    } catch (err: any) {
-      smsOk = false;
-      smsMessage = err?.message || '';
-    }
-
-    if (!smsOk) {
-      return res.status(400).json({ success: false, error: smsMessage || 'ارسال پیامک ناموفق بود' });
-    }
-
-    const saved = await saveOtpCode(phone, code, 2 * 60 * 1000);
-    if (!saved) {
-      return res.status(500).json({ success: false, error: 'ذخیره کد ناموفق بود' });
+    const sent = await sendOtpSms(phone);
+    if (!sent.ok) {
+      return res.status(400).json({ success: false, error: sent.error });
     }
 
     res.json({ success: true });
@@ -256,6 +251,68 @@ app.post('/api/auth/register', async (req, res) => {
     const token = await createSession(newUser.id);
     if (token) setSessionCookie(res, token);
     res.json({ success: true, user: newUser });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+  }
+});
+
+// Forgot password: send a code to the registered mobile number
+app.post('/api/auth/password/otp', async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    if (!/^09\d{9}$/.test(phone)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    }
+    const db = await readDb();
+    const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'کاربری با این شماره یافت نشد' });
+    }
+    const sent = await sendOtpSms(phone);
+    if (!sent.ok) {
+      return res.status(400).json({ success: false, error: sent.error });
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+  }
+});
+
+// Forgot password: verify the code and set a new password
+app.post('/api/auth/password/reset', async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    const code = String(req.body?.code || '').trim();
+    const password = String(req.body?.password || '');
+
+    if (!/^09\d{9}$/.test(phone)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    }
+    if (!code) {
+      return res.status(400).json({ success: false, error: 'کد تایید را وارد کنید' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, error: 'رمز عبور باید حداقل ۶ نویسه باشد' });
+    }
+
+    const db = await readDb();
+    const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'کاربری با این شماره یافت نشد' });
+    }
+
+    const verification = await verifyOtpCode(phone, code);
+    if (!verification.ok) {
+      return res.status(400).json({ success: false, error: verification.error });
+    }
+
+    db.users = (db.users || []).map((u: any) => (u.id === user.id ? { ...u, password } : u));
+    await writeDb(db);
+
+    const token = await createSession(user.id);
+    if (token) setSessionCookie(res, token);
+    const updated = (db.users || []).find((u: any) => u.id === user.id);
+    res.json({ success: true, user: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
   }
