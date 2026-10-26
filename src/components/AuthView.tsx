@@ -158,7 +158,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       </div>
 
       {/* Main Card */}
-      <div className="w-full max-w-md bg-white/95 border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-7 backdrop-blur-xl shadow-xl shadow-slate-200/60 z-10">
+      <div className={`w-full max-w-md bg-white/95 border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-7 backdrop-blur-xl shadow-xl shadow-slate-200/60 z-10 ${mode === 'register' ? 'lg:max-w-xl' : ''}`}>
         {/* Tab switch */}
         <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl mb-5 border border-slate-200">
           <button
