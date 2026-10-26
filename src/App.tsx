@@ -624,7 +624,8 @@ export default function App() {
             />
 
             {/* Admin Content Area */}
-            <main className="flex-1 lg:pr-72 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-8">
+            <main className="flex-1 min-w-0 lg:mr-72">
+              <div className="w-full max-w-[1500px] 2xl:max-w-[1680px] mx-auto p-3 sm:p-6 lg:p-8 pb-8">
               {adminTab === 'dashboard' && (
                 <AdminDashboard
                   orders={orders}
@@ -718,6 +719,7 @@ export default function App() {
               {adminTab === 'users' && <AdminUsers showToast={showToast} />}
 
               {adminTab === 'backup' && <AdminBackup showToast={showToast} />}
+              </div>
             </main>
           </>
         ) : (
@@ -740,7 +742,8 @@ export default function App() {
             />
 
             {/* User Content Area */}
-            <main className="flex-1 lg:pr-72 p-3 sm:p-6 lg:p-8 max-w-5xl w-full mx-auto pb-20 lg:pb-8">
+            <main className="flex-1 min-w-0 lg:mr-72">
+              <div className="w-full max-w-[1200px] 2xl:max-w-[1320px] mx-auto p-3 sm:p-6 lg:p-8 pb-20 lg:pb-8">
               {userTab === 'dashboard' && (
                 <UserDashboard
                   user={currentUser}
@@ -787,6 +790,7 @@ export default function App() {
                   orders={orders}
                 />
               )}
+              </div>
             </main>
           </>
         )}
