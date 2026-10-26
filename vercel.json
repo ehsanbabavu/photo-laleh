@@ -1,0 +1,21 @@
+{
+  "framework": "vite",
+  "buildCommand": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.bundle.mjs",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...route]?__path=$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
