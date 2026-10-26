@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,6 +14,7 @@ import {
   createSession,
   findSession,
   deleteSession,
+  deleteUserSessions,
   saveOtpCode,
   verifyOtpCode,
   disconnectDb,
@@ -31,15 +33,197 @@ const IS_SERVERLESS = Boolean(process.env.VERCEL);
 
 
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.disable('x-powered-by');
+
+// Only same-origin requests are allowed unless extra origins are configured.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-setup-key');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') return res.status(204).end();
+  }
+  next();
+});
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.telegram.org https://s.api.ir; font-src 'self' data:; frame-ancestors 'none'"
+  );
+  next();
+});
+
+app.use(
+  express.json({
+    limit: '15mb',
+    verify: (req: any, _res, buffer) => {
+      // Keep the raw body for webhook signature verification
+      if (req.originalUrl && req.originalUrl.includes('webhook')) {
+        req.rawBody = buffer.toString('utf8');
+      }
+    }
+  })
+);
+
+// --- Access control: every API route requires a session, sensitive ones an admin ---
+const PUBLIC_API_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/otp/request',
+  '/api/auth/password/otp',
+  '/api/auth/password/reset',
+  '/api/auth/me',
+  '/api/auth/logout',
+  '/api/blupal/webhook',
+  '/api/webhook/blupal',
+  '/api/telegram/webhook'
+]);
+
+const ADMIN_ONLY_PREFIXES = [
+  '/api/users',
+  '/api/settings',
+  '/api/db',
+  '/api/backup',
+  '/api/prompts',
+  '/api/blupal/test',
+  '/api/blupal/webhook-logs',
+  '/api/telegram/test',
+  '/api/telegram/send-order'
+];
+
+app.use('/api', async (req: any, res, next) => {
+  const path = String(req.originalUrl || req.url || '').split('?')[0].replace(/\/+$/, '') || '/api';
+  if (!path.startsWith('/api')) return next();
+  if (PUBLIC_API_PATHS.has(path)) return next();
+
+  try {
+    const session = await currentUserFromRequest(req);
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'برای دسترسی باید وارد حساب شوید' });
+    }
+    req.currentUser = session.user;
+
+    const isAdmin = session.user?.role === 'admin';
+    const adminOnly = ADMIN_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'));
+    const isWriteOnContent =
+      (path.startsWith('/api/print-types') || path.startsWith('/api/announcements') || path.startsWith('/api/tickets')) &&
+      req.method !== 'GET';
+
+    if ((adminOnly || isWriteOnContent) && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+    }
+
+    next();
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'auth error' });
+  }
+});
+
+
+
+// --- Simple in-memory rate limiter (per instance) ---
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function hitRateLimit(key: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+  if (!bucket || bucket.resetAt < now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > limit;
+}
+
+function clientIp(req: any): string {
+  return String(req.headers['x-forwarded-for'] || req.ip || 'unknown').split(',')[0].trim();
+}
+
+// --- Password hashing (scrypt, no external dependency) ---
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `scrypt$${salt}$${derived}`;
+}
+
+function verifyPassword(password: string, stored: string | undefined | null): boolean {
+  if (!stored) return false;
+  if (!stored.startsWith('scrypt$')) return stored === password; // legacy plaintext
+  const [, salt, expected] = stored.split('$');
+  if (!salt || !expected) return false;
+  try {
+    const derived = crypto.scryptSync(password, salt, 64);
+    const expectedBuffer = Buffer.from(expected, 'hex');
+    return derived.length === expectedBuffer.length && crypto.timingSafeEqual(derived, expectedBuffer);
+  } catch {
+    return false;
+  }
+}
+
+function isHashedPassword(value: string | undefined | null): boolean {
+  return Boolean(value && value.startsWith('scrypt$'));
+}
+
+const SECRET_SETTING_KEYS = [
+  'avalaiApiKey',
+  'blupalToken',
+  'blupalWebhookSecret',
+  'telegramToken',
+  'smsApiToken'
+];
+
+function sanitizeSettings(settings: any, admin: boolean) {
+  if (!settings) return {};
+  if (admin) return settings;
+  const copy: any = { ...settings };
+  for (const key of SECRET_SETTING_KEYS) {
+    if (key in copy) delete copy[key];
+  }
+  return copy;
+}
+
+function maskDbUri(uri: string) {
+  if (!uri) return '';
+  return uri.replace(/\/\/([^@/]+)@/, (_match, credentials) => {
+    const user = String(credentials).split(':')[0];
+    return `//${user}:••••@`;
+  });
+}
+
+function sanitizeUser(user: any) {
+  if (!user) return user;
+  const { password, ...rest } = user;
+  return rest;
+}
+
+function sanitizeUsers(users: any[]) {
+  return (users || []).map(sanitizeUser);
+}
 
 // --- REST API ENDPOINTS ---
 
 // Get all DB state
-app.get('/api/db/all', async (_req, res) => {
+app.get('/api/db/all', async (req: any, res) => {
   const db = await readDb();
-  res.json(db);
+  const isAdmin = req.currentUser?.role === 'admin';
+  res.json({
+    ...db,
+    users: isAdmin ? sanitizeUsers(db.users) : [],
+    settings: sanitizeSettings(db.settings, isAdmin)
+  });
 });
 
 // --- Backup & restore ---
@@ -142,19 +326,25 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ success: false, error: 'شماره موبایل و رمز عبور را وارد کنید.' });
   }
 
+  if (hitRateLimit(`login:${clientIp(req)}:${phone}`, 10, 10 * 60 * 1000)) {
+    return res.status(429).json({ success: false, error: 'تلاش‌های ناموفق بیش از حد. چند دقیقه بعد دوباره تلاش کنید.' });
+  }
+
   const db = await readDb();
   const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
-  if (!user) {
+  if (!user || !verifyPassword(password, user.password)) {
     return res.status(401).json({ success: false, error: 'شماره موبایل یا رمز عبور اشتباه است.' });
   }
-  if (String(user.password || '') !== password) {
-    return res.status(401).json({ success: false, error: 'رمز عبور اشتباه است.' });
+
+  // Upgrade legacy plaintext passwords transparently on successful login
+  if (!isHashedPassword(user.password)) {
+    db.users = (db.users || []).map((u: any) => (u.id === user.id ? { ...u, password: hashPassword(password) } : u));
+    await writeDb(db);
   }
 
   const token = await createSession(user.id);
   if (token) setSessionCookie(res, token);
-  const { password: _pw, ...safeUser } = user;
-  res.json({ success: true, user: { ...safeUser, password: user.password } });
+  res.json({ success: true, user: sanitizeUser(user) });
 });
 
 // Send a one-time code with the api.ir SMS service
@@ -195,6 +385,10 @@ app.post('/api/auth/otp/request', async (req, res) => {
       return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
     }
 
+    if (hitRateLimit(`otp:${phone}`, 3, 15 * 60 * 1000) || hitRateLimit(`otp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
+    }
+
     const sent = await sendOtpSms(phone);
     if (!sent.ok) {
       return res.status(400).json({ success: false, error: sent.error });
@@ -229,6 +423,10 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
     }
 
+    if (hitRateLimit(`register:${clientIp(req)}`, 8, 30 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'درخواست‌های ثبت‌نام بیش از حد مجاز است' });
+    }
+
     const verification = await verifyOtpCode(phone, code);
     if (!verification.ok) {
       return res.status(400).json({ success: false, error: verification.error });
@@ -238,7 +436,7 @@ app.post('/api/auth/register', async (req, res) => {
       id: 'usr-' + Date.now(),
       name,
       phone,
-      password,
+      password: hashPassword(password),
       role: 'user',
       createdAt: new Date().toLocaleDateString('fa-IR'),
       walletBalance: 100000,
@@ -250,7 +448,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const token = await createSession(newUser.id);
     if (token) setSessionCookie(res, token);
-    res.json({ success: true, user: newUser });
+    res.json({ success: true, user: sanitizeUser(newUser) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
   }
@@ -268,6 +466,10 @@ app.post('/api/auth/password/otp', async (req, res) => {
     if (!user) {
       return res.status(400).json({ success: false, error: 'کاربری با این شماره یافت نشد' });
     }
+    if (hitRateLimit(`pwotp:${phone}`, 3, 15 * 60 * 1000) || hitRateLimit(`pwotp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
+    }
+
     const sent = await sendOtpSms(phone);
     if (!sent.ok) {
       return res.status(400).json({ success: false, error: sent.error });
@@ -306,13 +508,18 @@ app.post('/api/auth/password/reset', async (req, res) => {
       return res.status(400).json({ success: false, error: verification.error });
     }
 
-    db.users = (db.users || []).map((u: any) => (u.id === user.id ? { ...u, password } : u));
+    db.users = (db.users || []).map((u: any) =>
+      u.id === user.id ? { ...u, password: hashPassword(password) } : u
+    );
     await writeDb(db);
+
+    // Any previously issued session becomes invalid after a password change
+    await deleteUserSessions(user.id);
 
     const token = await createSession(user.id);
     if (token) setSessionCookie(res, token);
     const updated = (db.users || []).find((u: any) => u.id === user.id);
-    res.json({ success: true, user: updated });
+    res.json({ success: true, user: sanitizeUser(updated) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
   }
@@ -322,7 +529,7 @@ app.get('/api/auth/me', async (req, res) => {
   try {
     const session = await currentUserFromRequest(req);
     if (!session) return res.status(401).json({ success: false, error: 'unauthenticated' });
-    res.json({ success: true, user: session.user });
+    res.json({ success: true, user: sanitizeUser(session.user) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'session error' });
   }
@@ -357,12 +564,13 @@ app.get('/api/db/status', async (_req, res) => {
   }
 });
 
-// Current saved connection string
+// Current saved connection string (credentials are masked)
 app.get('/api/db/config', async (_req, res) => {
   const { config, source } = resolveConfig();
   res.json({
     success: true,
-    uri: config.uri || '',
+    uri: '',
+    maskedUri: maskDbUri(config.uri || ''),
     dbName: config.dbName || DEFAULT_DB_NAME,
     source
   });
@@ -371,7 +579,13 @@ app.get('/api/db/config', async (_req, res) => {
 // Test a connection string without saving it
 app.post('/api/db/test', async (req, res) => {
   if (!checkSetupKey(req, res)) return;
-  const { uri, dbName } = req.body || {};
+  const { keepExisting } = req.body || {};
+  let { uri, dbName } = req.body || {};
+  if ((!uri || !String(uri).includes('://')) && keepExisting) {
+    const saved = resolveConfig();
+    uri = saved.config.uri;
+    dbName = saved.config.dbName;
+  }
   if (!uri || !/^mongodb(\+srv)?:\/\//i.test(String(uri).trim())) {
     return res.status(400).json({ success: false, error: 'آدرس دیتابیس باید با mongodb:// یا mongodb+srv:// شروع شود' });
   }
@@ -385,7 +599,13 @@ app.post('/api/db/test', async (req, res) => {
 // Save the connection string and connect to it
 app.post('/api/db/config', async (req, res) => {
   if (!checkSetupKey(req, res)) return;
-  const { uri, dbName } = req.body || {};
+  const { keepExisting } = req.body || {};
+  let { uri, dbName } = req.body || {};
+  if ((!uri || !String(uri).includes('://')) && keepExisting) {
+    const saved = resolveConfig();
+    uri = saved.config.uri;
+    dbName = saved.config.dbName;
+  }
   if (!uri) {
     return res.status(400).json({ success: false, error: 'آدرس اتصال دیتابیس الزامی است' });
   }
@@ -417,9 +637,12 @@ app.post('/api/db/sync', async (req, res) => {
 });
 
 // Orders APIs
-app.get('/api/orders', async (_req, res) => {
+app.get('/api/orders', async (req: any, res) => {
   const db = await readDb();
-  res.json(db.orders || []);
+  const orders = db.orders || [];
+  if (req.currentUser?.role === 'admin') return res.json(orders);
+  const mine = orders.filter((o: any) => o.userId === req.currentUser.id);
+  res.json(mine);
 });
 
 app.post('/api/orders', async (req, res) => {
@@ -460,9 +683,12 @@ app.delete('/api/orders', async (_req, res) => {
 });
 
 // Support Tickets APIs
-app.get('/api/tickets', async (_req, res) => {
+app.get('/api/tickets', async (req: any, res) => {
   const db = await readDb();
-  res.json(db.tickets || []);
+  const tickets = db.tickets || [];
+  if (req.currentUser?.role === 'admin') return res.json(tickets);
+  const mine = tickets.filter((t: any) => t.userId === req.currentUser.id || t.userName === req.currentUser.name);
+  res.json(mine);
 });
 
 app.post('/api/tickets', async (req, res) => {
@@ -546,12 +772,13 @@ app.delete('/api/print-types/:id', async (req, res) => {
 // Users APIs
 app.get('/api/users', async (_req, res) => {
   const db = await readDb();
-  res.json(db.users || []);
+  res.json(sanitizeUsers(db.users || []));
 });
 
 app.post('/api/users', async (req, res) => {
   const db = await readDb();
-  const newUser = req.body;
+  const newUser = { ...req.body };
+  if (newUser.password) newUser.password = hashPassword(String(newUser.password));
   const existingIdx = (db.users || []).findIndex((u: any) => u.id === newUser.id || (newUser.phone && u.phone === newUser.phone));
   if (existingIdx >= 0) {
     db.users[existingIdx] = { ...db.users[existingIdx], ...newUser };
@@ -559,13 +786,15 @@ app.post('/api/users', async (req, res) => {
     db.users.push(newUser);
   }
   await writeDb(db);
-  res.json({ success: true, user: newUser });
+  res.json({ success: true, user: sanitizeUser(newUser) });
 });
 
 app.put('/api/users/:id', async (req, res) => {
   const db = await readDb();
   const userId = req.params.id;
-  db.users = (db.users || []).map((u: any) => (u.id === userId ? { ...u, ...req.body } : u));
+  const patch: any = { ...req.body };
+  if (patch.password) patch.password = hashPassword(String(patch.password));
+  db.users = (db.users || []).map((u: any) => (u.id === userId ? { ...u, ...patch } : u));
   await writeDb(db);
   res.json({ success: true });
 });
@@ -614,9 +843,9 @@ app.delete('/api/announcements/:id', async (req, res) => {
 });
 
 // Settings APIs
-app.get('/api/settings', async (_req, res) => {
+app.get('/api/settings', async (req: any, res) => {
   const db = await readDb();
-  res.json(db.settings || {});
+  res.json(sanitizeSettings(db.settings || {}, req.currentUser?.role === 'admin'));
 });
 
 app.post('/api/settings', async (req, res) => {
@@ -955,7 +1184,24 @@ app.post('/api/blupal/test-connection', async (req, res) => {
 });
 
 // BluPal Incoming Webhook Handler (POST /api/blupal/webhook)
-app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req, res) => {
+app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) => {
+  try {
+    const dbForSecret = await readDb();
+    const webhookSecret = String(dbForSecret.settings?.blupalWebhookSecret || '').trim();
+    if (webhookSecret) {
+      const provided = String(req.headers['x-blupal-signature'] || req.headers['x-webhook-signature'] || '');
+      const raw = String(req.rawBody || '');
+      const expected = crypto.createHmac('sha256', webhookSecret).update(raw).digest('hex');
+      const a = Buffer.from(provided, 'utf8');
+      const b = Buffer.from(expected, 'utf8');
+      if (!provided || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return res.status(401).json({ success: false, error: 'invalid signature' });
+      }
+    }
+  } catch {
+    // Never block the gateway because of a verification error
+  }
+
   try {
     const payload = req.body || {};
     const db = await readDb();
