@@ -125,7 +125,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
       )}
 
       {/* 2 Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Orders */}
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-sky-300 hover:shadow-md transition-all shadow-xs">
           <div className="flex items-center justify-between mb-2">
