@@ -21,6 +21,7 @@ import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
 import { AdminBluPalSettings } from './components/admin/AdminBluPalSettings';
 import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings';
 import { AdminUsers } from './components/admin/AdminUsers';
+import { AdminBackup } from './components/admin/AdminBackup';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
@@ -641,6 +642,8 @@ export default function App() {
               {adminTab === 'database' && <AdminDatabaseSettings showToast={showToast} />}
 
               {adminTab === 'users' && <AdminUsers showToast={showToast} />}
+
+              {adminTab === 'backup' && <AdminBackup showToast={showToast} />}
             </main>
           </>
         ) : (
