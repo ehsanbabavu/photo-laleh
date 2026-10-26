@@ -20,7 +20,8 @@ import {
   Send,
   Settings,
   ChevronDown,
-  HardDrive
+  HardDrive,
+  MessageSquare
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -127,7 +128,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'database' as AdminTab, label: 'اتصال به دیتابیس MongoDB', icon: Database },
     { id: 'telegram_bot' as AdminTab, label: 'اتصال به ربات تلگرام', icon: Send },
     { id: 'blupal' as AdminTab, label: 'تنظیمات بلوپال', icon: CreditCard },
-    { id: 'backup' as AdminTab, label: 'پشتیبان‌گیری و بازیابی', icon: HardDrive }
+    { id: 'backup' as AdminTab, label: 'پشتیبان‌گیری و بازیابی', icon: HardDrive },
+    { id: 'sms' as AdminTab, label: 'تنظیمات پیامک', icon: MessageSquare }
   ];
 
   const isSettingsActive = settingsItems.some((item) => item.id === adminTab);
