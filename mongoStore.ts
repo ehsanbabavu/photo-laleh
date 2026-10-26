@@ -399,6 +399,74 @@ export async function verifyOtpCode(phone: string, code: string): Promise<{ ok: 
 }
 
 // ---------------------------------------------------------------------------
+// Distributed rate limiting (MongoDB backed, works across serverless instances)
+// ---------------------------------------------------------------------------
+
+export async function bumpRateLimit(key: string, windowMs: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error('db unavailable');
+  const collection = db.collection('rate_limits');
+  await collection.createIndex({ resetAt: 1 }, { expireAfterSeconds: 0 }).catch(() => undefined);
+
+  const now = Date.now();
+  const fresh = await collection.findOneAndUpdate(
+    { _id: key as any, resetAt: { $gt: new Date(now) } },
+    { $inc: { count: 1 } },
+    { returnDocument: 'after' }
+  );
+  if ((fresh as any)?.count) return Number((fresh as any).count);
+
+  await collection.updateOne(
+    { _id: key as any },
+    { $set: { count: 1, resetAt: new Date(now + windowMs) } },
+    { upsert: true }
+  );
+  return 1;
+}
+
+// ---------------------------------------------------------------------------
+// Audit log for admin actions
+// ---------------------------------------------------------------------------
+
+export async function recordAudit(entry: Record<string, any>): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    const collection = db.collection('audit_logs');
+    await collection.createIndex({ createdAt: -1 }).catch(() => undefined);
+    await collection.insertOne({ ...entry, createdAt: new Date() });
+  } catch {
+    /* auditing must never break a request */
+  }
+}
+
+export async function listAudit(limit = 100): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .collection('audit_logs')
+    .find({}, { projection: { _id: 0 } })
+    .sort({ createdAt: -1 })
+    .limit(Math.min(Math.max(limit, 1), 300))
+    .toArray();
+}
+
+export async function listUserSessions(userId: string): Promise<any[]> {
+  const collection = await sessionsCollection();
+  if (!collection) return [];
+  return collection
+    .find({ userId }, { projection: { _id: 0, token: 0 } })
+    .sort({ createdAt: -1 })
+    .toArray();
+}
+
+export async function revokeSession(userId: string, createdAt: string): Promise<void> {
+  const collection = await sessionsCollection();
+  if (!collection) return;
+  await collection.deleteOne({ userId, createdAt: new Date(createdAt) }).catch(() => undefined);
+}
+
+// ---------------------------------------------------------------------------
 // Admin helpers
 // ---------------------------------------------------------------------------
 
