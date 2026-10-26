@@ -224,10 +224,6 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
     const nextTickets = tickets.map((t) => (t.id === updatedTicket.id ? updatedTicket : t));
     onUpdateTickets(nextTickets);
     setReplyText('');
-
-    try {
-      localStorage.setItem('studio_tickets_list', JSON.stringify(nextTickets));
-    } catch {}
   };
 
   // Change Ticket Status
@@ -243,9 +239,6 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
         : t
     );
     onUpdateTickets(nextTickets);
-    try {
-      localStorage.setItem('studio_tickets_list', JSON.stringify(nextTickets));
-    } catch {}
   };
 
   // Change Ticket Priority
@@ -254,9 +247,6 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
       t.id === ticketId ? { ...t, priority: newPriority } : t
     );
     onUpdateTickets(nextTickets);
-    try {
-      localStorage.setItem('studio_tickets_list', JSON.stringify(nextTickets));
-    } catch {}
   };
 
   // Delete Ticket
@@ -267,9 +257,6 @@ export const AdminTickets: React.FC<AdminTicketsProps> = ({
     if (selectedTicketId === ticketId) {
       setSelectedTicketId(null);
     }
-    try {
-      localStorage.setItem('studio_tickets_list', JSON.stringify(nextTickets));
-    } catch {}
   };
 
   return (
