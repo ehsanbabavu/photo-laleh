@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   BotMessageSquare,
@@ -14,7 +14,9 @@ import {
   Send,
   CreditCard,
   Database,
-  Users
+  Users,
+  Settings,
+  ChevronDown
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
@@ -103,41 +105,39 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       badgeStyle: 'pulsing_red'
     },
     {
-      id: 'blupal' as AdminTab,
-      label: 'تنظیمات بلوپال',
-      icon: CreditCard,
-      badge: null,
-      badgeStyle: null
-    },
-    {
-      id: 'chatgpt' as AdminTab,
-      label: 'اتصال به هوش مصنوعی',
-      icon: BotMessageSquare,
-      badge: null,
-      badgeStyle: null
-    },
-    {
-      id: 'telegram_bot' as AdminTab,
-      label: 'اتصال به ربات تلگرام',
-      icon: Send,
-      badge: null,
-      badgeStyle: null
-    },
-    {
       id: 'users' as AdminTab,
       label: 'مدیریت کاربران',
       icon: Users,
       badge: null,
       badgeStyle: null
     },
+  ];
+
+  const settingsItems = [
+    {
+      id: 'chatgpt' as AdminTab,
+      label: 'اتصال به هوش مصنوعی',
+      icon: BotMessageSquare
+    },
     {
       id: 'database' as AdminTab,
       label: 'اتصال به دیتابیس MongoDB',
-      icon: Database,
-      badge: null,
-      badgeStyle: null
+      icon: Database
+    },
+    {
+      id: 'telegram_bot' as AdminTab,
+      label: 'اتصال به ربات تلگرام',
+      icon: Send
+    },
+    {
+      id: 'blupal' as AdminTab,
+      label: 'تنظیمات بلوپال',
+      icon: CreditCard
     }
   ];
+
+  const isSettingsActive = settingsItems.some((item) => item.id === currentTab);
+  const [settingsOpen, setSettingsOpen] = useState(isSettingsActive);
 
   return (
     <aside className="hidden lg:flex fixed top-[56px] sm:top-[72px] right-0 h-[calc(100vh-56px)] sm:h-[calc(100vh-72px)] w-72 bg-white border-l border-slate-200 z-30 flex-col justify-between shadow-xs overflow-y-auto">
@@ -207,6 +207,49 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               </button>
             );
           })}
+
+          {/* Settings group */}
+          <div className="pt-1">
+            <button
+              onClick={() => setSettingsOpen((v) => !v)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer min-h-[38px] ${
+                isSettingsActive
+                  ? 'bg-gradient-to-r from-sky-50 to-emerald-50 text-sky-800 border border-sky-200 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Settings className={`w-4 h-4 flex-shrink-0 ${isSettingsActive ? 'text-sky-600' : 'text-slate-500'}`} />
+                <span className="text-xs">تنظیمات</span>
+              </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {settingsOpen && (
+              <div className="mt-0.5 space-y-0.5 pr-3">
+                {settingsItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onSelectTab(item.id)}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer min-h-[32px] border-r-2 ${
+                        isActive
+                          ? 'text-sky-800 bg-sky-50 border-sky-500'
+                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border-transparent rtl:border-r-2'
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
       </div>
 
