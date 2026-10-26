@@ -21,6 +21,42 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [regPassword, setRegPassword] = useState('');
   const [regError, setRegError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+
+  const sendOtpCode = async () => {
+    setRegError('');
+    const enteredPhone = normalizeDigits(regPhone);
+    if (!regFullName.trim() || !enteredPhone || !regPassword.trim()) {
+      setRegError('لطفاً نام، شماره موبایل و رمز عبور را تکمیل کنید.');
+      return false;
+    }
+    if (!/^09\d{9}$/.test(enteredPhone)) {
+      setRegError('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
+      return false;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/auth/otp/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: enteredPhone })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        setRegError(data?.error || 'ارسال کد تایید ناموفق بود.');
+        return false;
+      }
+      setOtpStep(true);
+      setOtpCode('');
+      return true;
+    } catch {
+      setRegError('ارسال کد تایید ناموفق بود.');
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Persian/Arabic digits are converted to Latin so users can type either form.
   const normalizeDigits = (value: string) =>
@@ -68,68 +104,37 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     e.preventDefault();
     setRegError('');
 
-    const enteredPhone = normalizeDigits(regPhone);
-    if (!regFullName.trim() || !enteredPhone || !regPassword.trim()) {
-      setRegError('لطفاً نام، شماره موبایل و رمز عبور را تکمیل کنید.');
+    if (!otpStep) {
+      await sendOtpCode();
       return;
     }
-    if (!/^09\d{9}$/.test(enteredPhone)) {
-      setRegError('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
+
+    const enteredPhone = normalizeDigits(regPhone);
+    if (!otpCode.trim()) {
+      setRegError('کد تایید را وارد کنید.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // A mobile number can only be registered once.
-      let existing: User[] = [];
-      try {
-        const res = await fetch('/api/users');
-        if (res.ok) existing = await res.json();
-      } catch {
-        // ignore
-      }
-
-      if (existing.some(u => normalizeDigits(String(u.phone || '')) === enteredPhone)) {
-        setRegError('این شماره موبایل قبلاً ثبت‌نام شده است.');
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: regFullName.trim(),
+          phone: enteredPhone,
+          password: regPassword.trim(),
+          code: normalizeDigits(otpCode.trim())
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        setRegError(data?.error || 'کد تایید صحیح نیست.');
         return;
       }
-
-      const newUser: User = {
-        id: 'usr-' + Date.now(),
-        name: regFullName.trim(),
-        phone: enteredPhone,
-        password: regPassword.trim(),
-        role: 'user',
-        createdAt: 'امروز',
-        walletBalance: 100000,
-        hasUsedFirstOrderGift: false
-      };
-
-      // Persist the account in the database so it can log in from any device
-      let created: User = newUser;
-      try {
-        const createRes = await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newUser)
-        });
-        if (!createRes.ok) {
-          setRegError('ثبت‌نام ناموفق بود.');
-          return;
-        }
-        const loginRes = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: enteredPhone, password: newUser.password })
-        });
-        const loginData = await loginRes.json().catch(() => null);
-        if (loginData?.user) created = loginData.user as User;
-      } catch {
-        setRegError('ثبت‌نام ناموفق بود.');
-        return;
-      }
-
-      onLogin(created);
+      onLogin(data.user as User);
+    } catch {
+      setRegError('ثبت‌نام ناموفق بود.');
     } finally {
       setIsSubmitting(false);
     }
@@ -256,6 +261,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
               </div>
             )}
 
+            {!otpStep && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
                 نام و نام خانوادگی
@@ -272,6 +279,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 <UserIcon className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
             </div>
+
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
@@ -290,7 +298,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
             </div>
+            </div>
+            )}
 
+            {!otpStep && (
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
                 رمز عبور
@@ -301,21 +312,76 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                   required
                   placeholder="حداقل ۶ نویسه"
                   value={regPassword}
+                  minLength={6}
                   onChange={(e) => setRegPassword(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
             </div>
+            )}
+
+            {otpStep && (
+              <>
+                <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-800">
+                  کد تایید به {normalizeDigits(regPhone)} ارسال شد
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                    کد تایید
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      required
+                      maxLength={6}
+                      placeholder="------"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9۰-۹]/g, ''))}
+                      dir="ltr"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-sm tracking-[0.4em] text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all font-mono"
+                    />
+                    <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
+                  </div>
+                </div>
+              </>
+            )}
 
             <button
               type="submit"
               disabled={isSubmitting}
               className="w-full mt-3 bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-98 text-white font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm transition-all duration-200 shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
             >
-              <span>ثبت‌نام و ورود مستقیم به پنل کاربری</span>
+              <span>
+                {isSubmitting
+                  ? 'در حال پردازش...'
+                  : otpStep
+                    ? 'تایید کد و ثبت‌نام'
+                    : 'ارسال کد تایید'}
+              </span>
               <ArrowLeft className="w-4 h-4" />
             </button>
+
+            {otpStep && (
+              <div className="flex items-center justify-between text-[11px] pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setOtpStep(false); setOtpCode(''); setRegError(''); }}
+                  className="text-slate-500 font-bold hover:underline cursor-pointer"
+                >
+                  تغییر شماره
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => sendOtpCode()}
+                  className="text-sky-600 font-bold hover:underline cursor-pointer disabled:opacity-60"
+                >
+                  ارسال مجدد کد
+                </button>
+              </div>
+            )}
           </form>
         )}
       </div>
