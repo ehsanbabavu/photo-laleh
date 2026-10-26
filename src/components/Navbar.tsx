@@ -84,16 +84,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       badgeStyle: null
     },
     {
-      id: 'print_types' as AdminTab,
-      label: 'مدیریت انواع چاپ',
-      icon: Palette,
-      badge: null,
-      badgeStyle: null
-    },
-    {
-      id: 'prompts_manager' as AdminTab,
-      label: 'مدیریت پرامپت‌های چاپ',
-      icon: Sparkles,
+      id: '__print_group__' as any,
+      label: '',
+      icon: Printer,
       badge: null,
       badgeStyle: null
     },
@@ -119,6 +112,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       badgeStyle: null
     },
   ];
+
+  const printItems = [
+    { id: 'print_types' as AdminTab, label: 'مدیریت انواع چاپ', icon: Palette },
+    { id: 'prompts_manager' as AdminTab, label: 'مدیریت پرامپت‌های چاپ', icon: Sparkles }
+  ];
+
+  const isPrintActive = printItems.some((item) => item.id === adminTab);
+  const [printOpen, setPrintOpen] = useState(isPrintActive);
 
   const settingsItems = [
     { id: 'chatgpt' as AdminTab, label: 'اتصال به هوش مصنوعی', icon: BotMessageSquare },
@@ -263,6 +264,50 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Menu Items */}
             <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
               {menuItems.map((item) => {
+                if ((item as any).id === '__print_group__') {
+                  return (
+                    <div key="print-group" className="pt-0.5">
+                      <button
+                        onClick={() => setPrintOpen((v) => !v)}
+                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer min-h-[44px] ${
+                          isPrintActive
+                            ? 'bg-gradient-to-r from-sky-50 to-emerald-50 text-sky-800 border border-sky-200 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Printer className={`w-4 h-4 ${isPrintActive ? 'text-sky-600' : 'text-slate-500'}`} />
+                          <span>مدیریت چاپ</span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${printOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {printOpen && (
+                        <div className="mt-0.5 space-y-0.5 pr-3">
+                          {printItems.map((sub) => {
+                            const SubIcon = sub.icon;
+                            const active = adminTab === sub.id;
+                            return (
+                              <button
+                                key={sub.id}
+                                onClick={() => handleAdminTabSelect(sub.id)}
+                                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer min-h-[36px] border-r-2 ${
+                                  active
+                                    ? 'text-sky-800 bg-sky-50 border-sky-500'
+                                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                                }`}
+                              >
+                                <SubIcon className={`w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-sky-600' : 'text-slate-400'}`} />
+                                <span className="truncate">{sub.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 const Icon = item.icon;
                 const isActive = adminTab === item.id;
 
