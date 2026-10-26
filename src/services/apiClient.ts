@@ -120,15 +120,53 @@ export const apiClient = {
     }
   },
 
-  async saveUsers(users: User[]) {
+  async deleteTicket(ticketId: string) {
     try {
-      await fetch('/api/db/sync', {
+      await fetch(`/api/tickets/${ticketId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('API deleteTicket error:', err);
+    }
+  },
+
+  async getUsers(): Promise<User[] | null> {
+    try {
+      const res = await fetch('/api/users');
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async createUser(user: User) {
+    try {
+      await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ users })
+        body: JSON.stringify(user)
       });
     } catch (err) {
-      console.warn('API saveUsers error:', err);
+      console.warn('API createUser error:', err);
+    }
+  },
+
+  async updateUser(userId: string, patch: Partial<User>) {
+    try {
+      await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch)
+      });
+    } catch (err) {
+      console.warn('API updateUser error:', err);
+    }
+  },
+
+  async deleteUser(userId: string) {
+    try {
+      await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('API deleteUser error:', err);
     }
   },
 
