@@ -9,6 +9,7 @@ const DEFAULT_DB_NAME = 'laleh_studio';
 
 export const AdminDatabaseSettings: React.FC<AdminDatabaseSettingsProps> = ({ showToast }) => {
   const [uri, setUri] = useState('');
+  const [savedMask, setSavedMask] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +21,10 @@ export const AdminDatabaseSettings: React.FC<AdminDatabaseSettingsProps> = ({ sh
       try {
         const res = await fetch('/api/db/config');
         const data = await res.json();
-        if (active && data?.uri) setUri(data.uri);
+        if (active && data?.maskedUri) {
+          setSavedMask(data.maskedUri);
+          setUri(data.maskedUri);
+        }
       } catch {
         // ignore
       }
@@ -39,10 +43,11 @@ export const AdminDatabaseSettings: React.FC<AdminDatabaseSettingsProps> = ({ sh
     }
     setIsTesting(true);
     try {
+      const unchanged = savedMask !== '' && uri.trim() === savedMask;
       const res = await fetch('/api/db/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri: uri.trim(), dbName: DEFAULT_DB_NAME })
+        body: JSON.stringify({ uri: unchanged ? '' : uri.trim(), keepExisting: unchanged, dbName: DEFAULT_DB_NAME })
       });
       const data = await res.json();
       if (!res.ok || data.success === false) setError(data?.error || 'اتصال برقرار نشد.');
@@ -63,10 +68,11 @@ export const AdminDatabaseSettings: React.FC<AdminDatabaseSettingsProps> = ({ sh
     }
     setIsSaving(true);
     try {
+      const unchanged = savedMask !== '' && uri.trim() === savedMask;
       const res = await fetch('/api/db/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri: uri.trim(), dbName: DEFAULT_DB_NAME })
+        body: JSON.stringify({ uri: unchanged ? '' : uri.trim(), keepExisting: unchanged, dbName: DEFAULT_DB_NAME })
       });
       const data = await res.json();
       if (!res.ok || data.success === false) {
