@@ -17,7 +17,8 @@ import {
   Users,
   Settings,
   ChevronDown,
-  HardDrive
+  HardDrive,
+  MessageSquare
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
@@ -34,7 +35,8 @@ export type AdminTab =
   | 'telegram_bot'
   | 'database'
   | 'users'
-  | 'backup';
+  | 'backup'
+  | 'sms';
 
 interface AdminSidebarProps {
   currentTab: AdminTab;
@@ -142,6 +144,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'backup' as AdminTab,
       label: 'پشتیبان‌گیری و بازیابی',
       icon: HardDrive
+    },
+    {
+      id: 'sms' as AdminTab,
+      label: 'تنظیمات پیامک',
+      icon: MessageSquare
     }
   ];
 
