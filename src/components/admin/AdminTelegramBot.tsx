@@ -129,7 +129,7 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 lg:max-w-md">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100 mt-1 pt-4">
           <button
             type="button"
             onClick={handleTest}
