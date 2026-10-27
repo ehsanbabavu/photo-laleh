@@ -283,7 +283,26 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
               </div>
             </div>
 
-            <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
+            <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-500 font-bold">چند عکس</span>
+                <button
+                  type="button"
+                  onClick={() => onUpdatePrintType({ ...item, allowMultiplePhotos: !item.allowMultiplePhotos })}
+                  className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    item.allowMultiplePhotos ? 'bg-sky-500' : 'bg-slate-300'
+                  }`}
+                  title={item.allowMultiplePhotos ? 'انتخاب چند عکس فعال است' : 'فقط یک عکس'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      item.allowMultiplePhotos ? '-translate-x-4.5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
               <span className="text-[11px] text-slate-400 font-mono">شناسه: {item.id}</span>
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] sm:text-[11px] font-bold ${item.isEnabled !== false ? 'text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md' : 'text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md'}`}>
@@ -303,6 +322,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                     }`}
                   />
                 </button>
+              </div>
               </div>
             </div>
           </div>
