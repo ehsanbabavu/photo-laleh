@@ -102,7 +102,6 @@ export default function App() {
       blupalAccountHolder: 'آتلیه تخصصی لاله',
       blupalIban: 'IR720560086190004528719301',
       blupalEnabled: true,
-      blupalSandboxMode: true,
       blupalAutoPollInterval: 3
     });
 
@@ -273,7 +272,6 @@ export default function App() {
               blupalAccountHolder: data.settings.blupalAccountHolder || 'آتلیه تخصصی لاله',
               blupalIban: data.settings.blupalIban || 'IR720560086190004528719301',
               blupalEnabled: data.settings.blupalEnabled ?? true,
-              blupalSandboxMode: data.settings.blupalSandboxMode ?? true,
               blupalAutoPollInterval: data.settings.blupalAutoPollInterval || 3
             };
             setBlupalSettings(nextBluPal);
