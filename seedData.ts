@@ -27,6 +27,7 @@ export const INITIAL_DB = {
   printTypes: [
     {
       id: 'personnel',
+      dimensionIds: ['personnel_6x3x4', 'personnel_12x3x4'],
       title: 'عکس پرسنلی',
       subtitle: 'سازمانی، گذرنامه، گواهینامه و مدارک اداری',
       description: 'چاپ باکیفیت و استاندارد با زمینه سفید یا آبی، تنظیم خودکار زاویه چهره، روتوش ملایم جای لک و ارائه در پک‌های ۶ و ۱۲ تایی.',
@@ -42,6 +43,7 @@ export const INITIAL_DB = {
     },
     {
       id: 'commercial',
+      dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
       title: 'عکس تبلیغاتی و تجاری',
       subtitle: 'معرفی محصول، برندینگ شخصی، تبلیغات و کاتالوگ',
       description: 'عکاسی و پردازش حرفه‌ای هوش مصنوعی جهت معرفی محصولات، مدلینگ، خدمات و پوسترهای تبلیغاتی با نورپردازی صنعتی.',
@@ -57,6 +59,7 @@ export const INITIAL_DB = {
     },
     {
       id: 'bw_to_color',
+      dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
       title: 'تبدیل سیاه سفید به رنگی',
       subtitle: 'زنده‌سازی خاطرات قدیمی و تصاویر نوستالژیک',
       description: 'بازسازی دیجیتال و رنگ‌آمیزی هوشمندانه عکس‌های قدیمی با حفظ بافت اصیل چهره، بازیابی نور طبیعی و حذف لکه‌ها و پارگی‌ها.',
@@ -72,6 +75,7 @@ export const INITIAL_DB = {
     },
     {
       id: 'memorial',
+      dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
       title: 'عکس برای مراسم ختم',
       subtitle: 'طراحی فاخر یادبود، اعلامیه و قاب رومیزی مجلس',
       description: 'آماده‌سازی تصویر با شأن و وقار، اضافه کردن نوار مشکی مات یا حاشیه اسلیمی، روتوش آرامش‌بخش چهره و چاپ فوری با قاب یا شاسی.',
@@ -87,6 +91,7 @@ export const INITIAL_DB = {
     },
     {
       id: 'wedding',
+      dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
       title: 'عکس برای نامزدی یا عروسی',
       subtitle: 'ثبت شکوه زیباترین روز زندگی با کیفیت استودیویی',
       description: 'ترمیم نورپردازی، اصلاح حرفه‌ای پوست و لباس عروس و داماد، اعمال جلوه رمانتیک و گرم و چاپ روی شاسی‌های لوکس و بوم نقاشی.',
@@ -99,6 +104,80 @@ export const INITIAL_DB = {
         'چاپ روی کاغذ متالیک کریستالی یا بوم کنواس',
         'شاسی ضخیم ۱۶ میلی‌متری با نوار لبه اختصاصی'
       ]
+    }
+  ],
+  dimensions: [
+    {
+      id: 'personnel_6x3x4',
+      title: '۹ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
+      dimensionsCm: '9x (3×4 cm) + 1x تبلیغاتی',
+      aspectRatio: '3:4',
+      basePrice: 0,
+      description: 'شامل ۹ قطعه عکس استاندارد ۳×۴ به همراه یک قطعه عکس هدیه تبلیغاتی استودیو',
+      popular: true
+    },
+    {
+      id: 'personnel_12x3x4',
+      title: '۱۸ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
+      dimensionsCm: '18x (3×4 cm) + 1x تبلیغاتی',
+      aspectRatio: '3:4',
+      basePrice: 40000,
+      description: 'شامل ۱۸ قطعه عکس استاندارد ۳×۴ به همراه یک قطعه عکس هدیه تبلیغاتی استودیو',
+      popular: false
+    },
+    {
+      id: 'size_10x15',
+      title: 'سایز کارت‌پستالی ۱۰×۱۵',
+      dimensionsCm: '10 x 15 cm',
+      aspectRatio: '2:3',
+      basePrice: 45000,
+      description: 'مناسب آلبوم خاطرات و قاب‌های کوچک رومیزی',
+      popular: false
+    },
+    {
+      id: 'size_13x18',
+      title: 'سایز محبوب رومیزی ۱۳×۱۸',
+      dimensionsCm: '13 x 18 cm',
+      aspectRatio: '5:7',
+      basePrice: 75000,
+      description: 'استانداردترین اندازه برای میز کار و استند خانگی',
+      popular: true
+    },
+    {
+      id: 'size_16x21',
+      title: 'سایز قاب ۱۶×۲۱',
+      dimensionsCm: '16 x 21 cm',
+      aspectRatio: '3:4',
+      basePrice: 110000,
+      description: 'سایز متعادل برای شاسی دیواری و کادویی',
+      popular: false
+    },
+    {
+      id: 'size_20x30',
+      title: 'سایز بزرگ A4 (۲۰×۳۰)',
+      dimensionsCm: '20 x 30 cm',
+      aspectRatio: '2:3',
+      basePrice: 165000,
+      description: 'وضوح فوق‌العاده برای تابلوهای خانگی و مراسم',
+      popular: true
+    },
+    {
+      id: 'size_30x40',
+      title: 'سایز استودیویی A3 (۳۰×۴۰)',
+      dimensionsCm: '30 x 40 cm',
+      aspectRatio: '3:4',
+      basePrice: 240000,
+      description: 'ایده‌آل برای عکس‌های خانوادگی و نامزدی',
+      popular: false
+    },
+    {
+      id: 'size_50x70',
+      title: 'سایز فاخر دیواری ۵۰×۷۰',
+      dimensionsCm: '50 x 70 cm',
+      aspectRatio: '5:7',
+      basePrice: 420000,
+      description: 'مناسب سالن پذیرایی، آتلیه و قاب‌بندی بزرگ',
+      popular: false
     }
   ],
   prompts: {
