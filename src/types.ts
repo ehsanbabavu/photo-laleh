@@ -103,6 +103,7 @@ export interface OrderDraft {
   paymentMethod: 'online' | 'card_to_card' | 'wallet';
   paymentReference?: string;
   paymentInvoiceId?: string;
+  paymentInvoice?: BluPalInvoice | null; // reusable pending invoice while resuming the wizard
   paymentAmountRial?: number; // exact Rial amount issued/paid by BluPal
   paymentAmountToman?: number;
   invoiceDetails?: OrderInvoiceDetails;
