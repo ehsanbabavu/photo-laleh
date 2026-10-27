@@ -130,9 +130,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     const walletCredit = draft.walletCreditUsed || 0;
     const total = Math.max(0, subtotal + shipping - draft.discountAmount - walletCredit);
 
-    // Deduct wallet credit from user's wallet balance and set hasUsedFirstOrderGift
-    if (walletCredit > 0 && user) {
-      const remainingBalance = Math.max(0, (user.walletBalance ?? 100000) - walletCredit);
+    // Amount actually issued/paid through BluPal, if any (exact, includes tracking digits)
+    const paidRial = draft.paymentAmountRial || Math.round(total * 10);
+    const paidToman = draft.paymentAmountToman || Math.round(paidRial / 10);
+
+    // Deduct wallet credit from the user's real wallet balance and mark the gift as used
+    if (walletCredit > 0 && user && typeof user.walletBalance === 'number') {
+      const remainingBalance = Math.max(0, user.walletBalance - walletCredit);
       const updatedUser: User = {
         ...user,
         walletBalance: remainingBalance,
@@ -155,9 +159,12 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       status: 'ai_processing',
       aiStatus: 'processing',
       aiPromptUsed: promptToUse,
-      totalPrice: total,
+      // Order total follows the issued invoice amount, not a second local re-calculation
+      totalPrice: paidToman,
+      paymentAmountToman: paidToman,
+      paymentAmountRial: paidRial,
       walletCreditUsed: walletCredit,
-      paymentStatus: 'paid'
+      paymentStatus: draft.paymentReference ? 'paid' : 'pending'
     };
 
     onOrderCompleted(newOrder);
