@@ -1085,7 +1085,6 @@ app.post('/api/settings', async (req, res) => {
 //   Auth     : header  X-API-Key: <key>   (or ?api_key=...)
 //   Create   : POST /v1/invoices/create          body { amount: <Rial>, card_number? }
 //   Status   : GET  /v1/invoices/{invoice_id}    (invoice_id is an integer)
-//   Sandbox  : POST /v1/sandbox/invoices/{invoice_id}/simulate   body { scenario }
 //
 //   amount  : Rial, integer, min 100,000 and max 500,000,000
 //   response: { success, invoice_id, amount, final_amount, status,
@@ -1141,7 +1140,7 @@ const BLUPAL_ERROR_MESSAGES: Record<string, string> = {
   invalid_invoice_id: 'شناسه فاکتور ارسالی برای بلوپال نامعتبر است (invalid_invoice_id).',
   not_found: 'فاکتور در سامانه بلوپال یافت نشد (not_found).',
   mode_mismatch:
-    'کلید API با محیط فاکتور هم‌خوانی ندارد (mode_mismatch): کلید live برای فاکتور sandbox یا برعکس استفاده شده است.',
+    'کلید API با محیط فاکتور هم‌خوانی ندارد (mode_mismatch). لطفاً کلید اصلی حساب را در تنظیمات بلوپال بررسی کنید.',
   invalid_scenario: 'سناریوی شبیه‌سازی نامعتبر است (invalid_scenario).',
   invalid_state: 'فاکتور برای شبیه‌سازی آماده نیست (invalid_state).'
 };
@@ -1267,6 +1266,26 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
     const token = String(settings.blupalToken || '').trim();
     const configuredCard = digitsOnly(settings.blupalCardNumber);
 
+    // Sandbox / demo invoicing has been removed: only real (live) invoices are issued.
+    if (!isFree) {
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          error: 'gateway_not_configured',
+          message:
+            'درگاه پرداخت بلوپال پیکربندی نشده است. لطفاً کلید API واقعی را در تنظیمات بلوپال ثبت کنید.'
+        });
+      }
+      if (/^blu_test/i.test(token)) {
+        return res.status(400).json({
+          success: false,
+          error: 'sandbox_not_supported',
+          message:
+            'حالت آزمایشی (Sandbox) غیرفعال شده است. برای صدور فاکتور واقعی، کلید اصلی بلوپال (blu_live_...) را در تنظیمات ثبت کنید.'
+        });
+      }
+    }
+
     // --- 2) Ask BluPal for a real invoice ---
     let remote: {
       invoiceId: string;
@@ -1275,12 +1294,11 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
       status: 'pending' | 'paid' | 'expired' | 'failed';
       paymentLink: string;
       cardNumber: string;
-      mode: 'sandbox' | 'live';
       expiresAt: any;
     } | null = null;
     let remoteError = '';
 
-    if (!isFree && token) {
+    if (!isFree) {
       try {
         const createUrl = getBluPalCreateUrl(settings.blupalBaseUrl, settings.blupalCustomEndpoint);
         const { response, payload } = await blupalRequest(createUrl, token, {
@@ -1309,7 +1327,6 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
             status: normalizeBluPalStatus(payload?.status),
             paymentLink: String(payload?.payment_link || payload?.payment_url || ''),
             cardNumber: digitsOnly(payload?.card_number),
-            mode: String(payload?.mode || '').toLowerCase() === 'sandbox' ? 'sandbox' : 'live',
             expiresAt: payload?.expires_at
           };
         }
@@ -1318,9 +1335,9 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
       }
     }
 
-    // A token is configured but the gateway refused / was unreachable → never invent an
-    // "official" invoice (a fake id / fake card would make the transfer unmatched).
-    if (!isFree && token && !remote) {
+    // The gateway refused / was unreachable → never invent an invoice
+    // (a fake id / fake card would make the transfer unmatched).
+    if (!isFree && !remote) {
       return res.status(502).json({
         success: false,
         error: 'invoice_not_created',
@@ -1331,17 +1348,16 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
       });
     }
 
-    // --- 3) Persist the invoice (real BluPal invoice or local demo when no token) ---
-    const mode = remote ? remote.mode : 'local';
+    // --- 3) Persist the real BluPal invoice ---
     const payableRial = remote ? remote.finalAmountRial : requestedRial;
-    const expiresInMs = mode === 'sandbox' ? 30 * 60 * 1000 : 15 * 60 * 1000;
+    const expiresInMs = 15 * 60 * 1000;
 
     const newInvoice: any = {
       invoiceId: remote ? remote.invoiceId : localInvoiceId,
       localInvoiceId,
       remoteInvoiceId: remote ? remote.invoiceId : '',
       provider: 'blupal',
-      mode,
+      mode: 'live',
       isRemote: Boolean(remote),
       amount: requestedToman,
       requestedAmountRial: requestedRial,
@@ -1364,10 +1380,7 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
       paymentUrl: remote?.paymentLink || '',
       createdAt: nowFa(),
       expiresAt: remote ? bluPalExpiryToTimestamp(remote.expiresAt, expiresInMs) : Date.now() + expiresInMs,
-      invoiceDetails: invoiceDetails || null,
-      warning: remote
-        ? undefined
-        : 'حالت نمایشی: کلید API بلوپال تنظیم نشده است و این فاکتور محلی است.'
+      invoiceDetails: invoiceDetails || null
     };
 
     db.invoices = [newInvoice, ...(db.invoices || []).slice(0, 99)];
@@ -1378,8 +1391,7 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
       invoice: newInvoice,
       amountRial: newInvoice.amountRial,
       finalAmountRial: newInvoice.finalAmountRial,
-      paymentUrl: newInvoice.paymentUrl,
-      mode
+      paymentUrl: newInvoice.paymentUrl
     });
   } catch (err: any) {
     console.error('Error creating BluPal invoice:', err);
@@ -1473,94 +1485,6 @@ app.get('/api/blupal/status/:invoiceId', async (req, res) => {
   }
 });
 
-// Sandbox: simulate a successful payment on the BluPal sandbox invoice
-app.post('/api/blupal/simulate-pay/:invoiceId', async (req, res) => {
-  try {
-    const db = await readDb();
-    const settings = db.settings || {};
-    const invoiceId = String(req.params.invoiceId || '').trim();
-    const scenario = String(req.body?.scenario || 'success').trim() || 'success';
-
-    const invoice = (db.invoices || []).find(
-      (inv: any) =>
-        String(inv.invoiceId || '').trim() === invoiceId || String(inv.localInvoiceId || '').trim() === invoiceId
-    );
-
-    if (!invoice) {
-      return res.status(404).json({ success: false, error: 'not_found', message: 'فاکتور یافت نشد.' });
-    }
-
-    const token = String(settings.blupalToken || '').trim();
-    const remoteId = String(invoice.remoteInvoiceId || invoice.invoiceId || '');
-
-    // Local demo invoice (no API key configured): settle locally, never claim BluPal did.
-    if (invoice.mode === 'local' || invoice.isRemote === false) {
-      invoice.status = 'paid';
-      invoice.referenceCode = 'DEMO-' + Math.floor(100000000 + Math.random() * 900000000);
-      invoice.paidAt = nowFa();
-      await writeDb(db);
-      return res.json({
-        success: true,
-        status: 'paid',
-        referenceCode: invoice.referenceCode,
-        demo: true,
-        invoice
-      });
-    }
-
-    if (!token) {
-      return res.status(400).json({
-        success: false,
-        error: 'unauthorized',
-        message: 'برای شبیه‌سازی پرداخت، ابتدا کلید API بلوپال (کلید تست blu_test_...) را در تنظیمات ثبت کنید.'
-      });
-    }
-
-    if (!/^\d+$/.test(remoteId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'invalid_invoice_id',
-        message: BLUPAL_ERROR_MESSAGES.invalid_invoice_id
-      });
-    }
-
-    const apiBase = getBluPalApiBase(settings.blupalBaseUrl);
-    const { response, payload } = await blupalRequest(
-      `${apiBase}/v1/sandbox/invoices/${remoteId}/simulate`,
-      token,
-      { method: 'POST', body: JSON.stringify({ scenario }) }
-    );
-
-    if (!response.ok || payload?.success === false) {
-      return res.status(response.status || 400).json({
-        success: false,
-        error: payload?.error || 'simulate_failed',
-        message: blupalErrorMessage(payload, response.status)
-      });
-    }
-
-    const status = normalizeBluPalStatus(payload?.status);
-    invoice.status = status;
-
-    if (status === 'paid') {
-      invoice.referenceCode = String(
-        payload?.transaction_id || 'BLU-' + Math.floor(100000000 + Math.random() * 900000000)
-      );
-      invoice.paidAt = nowFa();
-    }
-
-    await writeDb(db);
-    res.json({
-      success: true,
-      status,
-      referenceCode: invoice.referenceCode,
-      transactionId: payload?.transaction_id,
-      invoice
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: 'internal_error', message: err.message });
-  }
-});
 
 // Test Connection with BluPal (real invoice creation on the documented endpoint)
 app.post('/api/blupal/test-connection', async (req, res) => {
@@ -1759,56 +1683,6 @@ app.get('/api/blupal/webhook-logs', async (_req, res) => {
   res.json(db.webhookLogs || []);
 });
 
-// Test/Simulate incoming Webhook trigger from admin
-app.post('/api/blupal/test-webhook', async (req, res) => {
-  try {
-    const db = await readDb();
-    const { invoiceId, status = 'paid' } = req.body;
-    const targetInvoice = (db.invoices || [])[0];
-    const invId = invoiceId || targetInvoice?.invoiceId || ('BLU-DEMO-' + Date.now().toString(36).toUpperCase());
-
-    const timeFa = new Date().toLocaleString('fa-IR', {
-      timeZone: 'Asia/Tehran',
-      hour: '2-digit',
-      minute: '2-digit',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-
-    const refCode = 'BLU-TEST-' + Math.floor(10000000 + Math.random() * 90000000);
-
-    // Update invoice
-    db.invoices = (db.invoices || []).map((inv: any) => {
-      if (inv.invoiceId === invId) {
-        return { ...inv, status: 'paid', referenceCode: refCode, paidAt: timeFa };
-      }
-      return inv;
-    });
-
-    const logEntry = {
-      id: 'wh-test-' + Date.now(),
-      receivedAt: timeFa,
-      invoiceId: invId,
-      status: 'paid',
-      referenceCode: refCode,
-      amount: targetInvoice ? targetInvoice.amount : 125000,
-      rawPayload: { invoice_id: invId, status: 'paid', reference_id: refCode, simulated: true },
-      isMatched: true
-    };
-
-    db.webhookLogs = [logEntry, ...(db.webhookLogs || []).slice(0, 19)];
-    await writeDb(db);
-
-    res.json({
-      success: true,
-      message: `تست وب‌هوک با موفقیت انجام شد و وضعیت فاکتور ${invId} به پرداخت شده تغییر یافت ✅`,
-      log: logEntry
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // Unified Telegram Callback Query Handler
 async function handleTelegramCallbackQuery(cb: any, token: string) {
