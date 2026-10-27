@@ -2,7 +2,7 @@
  * API Client for interacting with real internal database server (/api/*)
  */
 
-import { Order, SupportTicket, Announcement, PrintTypeOption, User } from '../types';
+import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -105,6 +105,18 @@ export const apiClient = {
       });
     } catch (err) {
       console.warn('API savePrintTypes error:', err);
+    }
+  },
+
+  async saveDimensions(dimensions: PrintDimension[]) {
+    try {
+      await fetch('/api/db/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dimensions })
+      });
+    } catch (err) {
+      console.warn('API saveDimensions error:', err);
     }
   },
 
