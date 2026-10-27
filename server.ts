@@ -261,6 +261,46 @@ app.get('/api/db/all', async (req: any, res) => {
   });
 });
 
+// --- Photo uploads (Vercel Blob, direct from the browser) ---
+app.post('/api/uploads/blob', async (req: any, res) => {
+  try {
+    const { handleUpload } = await import('@vercel/blob/client');
+    const body = req.body;
+
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async () => ({
+        allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+        maximumSizeInBytes: 15 * 1024 * 1024,
+        addRandomSuffix: true,
+        tokenPayload: JSON.stringify({ userId: req.currentUser?.id || '' })
+      }),
+      onUploadCompleted: async () => {
+        /* nothing to do: the URL is saved with the order */
+      }
+    });
+
+    res.json(jsonResponse);
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'آپلود ناموفق بود' });
+  }
+});
+
+app.delete('/api/uploads/blob', async (req: any, res) => {
+  try {
+    const { del } = await import('@vercel/blob');
+    const url = String(req.query?.url || '');
+    if (!url || !url.startsWith('https://')) {
+      return res.status(400).json({ success: false, error: 'آدرس نامعتبر است' });
+    }
+    await del(url);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'حذف ناموفق بود' });
+  }
+});
+
 // --- Backup & restore ---
 app.get('/api/backup', async (_req, res) => {
   const state = await readDb();
