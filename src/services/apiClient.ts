@@ -231,26 +231,6 @@ export const apiClient = {
     }
   },
 
-  async simulateBluPalPayment(invoiceId: string, scenario: 'success' | 'expire' | 'cancel' | 'wrong_amount' = 'success') {
-    try {
-      const res = await fetch(`/api/blupal/simulate-pay/${invoiceId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scenario })
-      });
-      let payload: any = null;
-      try {
-        payload = await res.json();
-      } catch {
-        payload = null;
-      }
-      if (!res.ok) return payload || { success: false, message: `خطا در شبیه‌سازی پرداخت (${res.status})` };
-      return payload;
-    } catch {
-      return { success: false, message: 'خطا در ارتباط با سرور' };
-    }
-  },
-
   async testBluPalConnection(token: string, baseUrl?: string, customEndpoint?: string) {
     try {
       const res = await fetch('/api/blupal/test-connection', {
@@ -275,17 +255,4 @@ export const apiClient = {
     }
   },
 
-  async testBluPalWebhook(invoiceId?: string) {
-    try {
-      const res = await fetch('/api/blupal/test-webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceId })
-      });
-      if (!res.ok) return { success: false, message: 'خطا در ارسال تست وب‌هوک' };
-      return await res.json();
-    } catch (err: any) {
-      return { success: false, message: err.message || 'خطا در شبکه' };
-    }
-  }
 };
