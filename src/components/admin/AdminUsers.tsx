@@ -256,13 +256,15 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                           <Pencil className="w-3 h-3" />
                           ویرایش
                         </button>
-                        <button
-                          onClick={() => setDeletingId(user.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          حذف
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={() => setDeletingId(user.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            حذف
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -323,13 +325,20 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                     <Pencil className="w-3.5 h-3.5" />
                     ویرایش
                   </button>
-                  <button
-                    onClick={() => setDeletingId(user.id)}
-                    className="inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    حذف
-                  </button>
+                  {!isAdmin ? (
+                    <button
+                      onClick={() => setDeletingId(user.id)}
+                      className="inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      حذف
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 cursor-not-allowed">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      ادمین
+                    </span>
+                  )}
                 </div>
               </div>
             );
