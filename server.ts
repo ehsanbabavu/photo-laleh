@@ -608,6 +608,11 @@ app.post('/api/auth/login/otp', async (req, res) => {
   res.json({ success: true, user: sanitizeUser(user) });
 });
 
+// Keeps an active session alive (called while the user is interacting)
+app.get('/api/auth/heartbeat', async (_req, res) => {
+  res.json({ success: true, at: Date.now() });
+});
+
 // Active sessions of the current account
 app.get('/api/auth/sessions', async (req: any, res) => {
   const sessions = await listUserSessions(req.currentUser.id);
@@ -1728,7 +1733,7 @@ async function startServer() {
     // On Vercel the static files are served by the CDN instead.
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('*', async (_req, res) => {
+    app.use(async (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
