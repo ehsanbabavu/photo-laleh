@@ -26,6 +26,8 @@ export interface PrintTypeOption {
   isEnabled?: boolean;
   allowMultiplePhotos?: boolean;
   cardBgImage?: string;
+  /** Sizes (PrintDimension ids) offered for this print type — managed in «مدیریت سایز» */
+  dimensionIds?: string[];
 }
 
 export interface PrintDimension {
