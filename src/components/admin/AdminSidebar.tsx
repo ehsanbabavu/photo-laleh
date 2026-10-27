@@ -20,7 +20,8 @@ import {
   HardDrive,
   MessageSquare,
   ShieldCheck,
-  Activity
+  Activity,
+  Maximize2
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
@@ -28,6 +29,7 @@ import { TulipIcon } from '../TulipIcon';
 export type AdminTab =
   | 'dashboard'
   | 'print_types'
+  | 'print_sizes'
   | 'announcements'
   | 'prompts_manager'
   | 'orders'
@@ -117,6 +119,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const printItems = [
     { id: 'print_types' as AdminTab, label: 'مدیریت انواع چاپ', icon: Palette },
+    { id: 'print_sizes' as AdminTab, label: 'مدیریت سایز', icon: Maximize2 },
     { id: 'prompts_manager' as AdminTab, label: 'مدیریت پرامپت‌های چاپ', icon: Sparkles }
   ];
 
