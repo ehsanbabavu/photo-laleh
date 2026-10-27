@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Eye
 } from 'lucide-react';
-import { OrderDraft } from '../../../types';
+import { OrderDraft, PrintTypeOption } from '../../../types';
 import { PRINT_TYPES } from '../../../data/mockData';
 
 interface StepUploadPhotoProps {
@@ -17,55 +17,77 @@ interface StepUploadPhotoProps {
   onUpdateDraft: (updated: Partial<OrderDraft>) => void;
   onNext: () => void;
   onBack: () => void;
+  printTypes?: PrintTypeOption[];
 }
 
 export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
   draft,
   onUpdateDraft,
   onNext,
-  onBack
+  onBack,
+  printTypes = PRINT_TYPES
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const currentPrintType = PRINT_TYPES.find((t) => t.id === draft.printType) || PRINT_TYPES[0];
+  const activeTypes = printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
+  const currentPrintType = activeTypes.find((t) => t.id === draft.printType) || activeTypes[0];
+  const allowMultiple = Boolean(currentPrintType?.allowMultiplePhotos);
+  const images = (draft.uploadedImages && draft.uploadedImages.length > 0)
+    ? draft.uploadedImages
+    : draft.uploadedImage
+      ? [draft.uploadedImage]
+      : [];
 
-  const handleFileProcess = (file: File) => {
+  const applyImages = (nextImages: string[], name?: string) => {
+    onUpdateDraft({
+      uploadedImages: nextImages,
+      uploadedImage: nextImages[0] || '',
+      originalImageName: name || draft.originalImageName || ''
+    });
+  };
+
+  const handleFilesProcess = async (fileList: FileList | null) => {
     setErrorMessage(null);
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
+    const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
+    if (files.length === 0) {
       setErrorMessage('لطفاً فقط فایل تصویری (JPG, PNG, WebP) انتخاب کنید.');
       return;
     }
-
-    // Validate file size (max 25MB)
-    if (file.size > 25 * 1024 * 1024) {
-      setErrorMessage('حجم فایل نباید بیشتر از ۲۵ مگابایت باشد.');
+    const tooLarge = files.find((file) => file.size > 25 * 1024 * 1024);
+    if (tooLarge) {
+      setErrorMessage('حجم هر فایل نباید بیشتر از ۲۵ مگابایت باشد.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      onUpdateDraft({
-        uploadedImage: result,
-        originalImageName: file.name
-      });
-    };
-    reader.onerror = () => {
+    const selected = allowMultiple ? files : files.slice(0, 1);
+    const baseImages = allowMultiple ? images : [];
+
+    try {
+      const loaded = await Promise.all(
+        selected.map(
+          (file) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(String(e.target?.result || ''));
+              reader.onerror = () => reject(new Error('read error'));
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+      const merged = [...baseImages, ...loaded];
+      if (merged.length > 8) {
+        setErrorMessage('حداکثر ۸ عکس قابل انتخاب است.');
+      }
+      applyImages(merged.slice(0, 8), selected[0]?.name);
+    } catch {
       setErrorMessage('خطا در خواندن فایل. لطفاً مجدداً امتحان کنید.');
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFileProcess(file);
-    }
-    // Reset file input value so re-uploading the same file works
+    handleFilesProcess(e.target.files);
     if (e.target) {
       e.target.value = '';
     }
@@ -84,22 +106,21 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      handleFileProcess(file);
-    }
+    handleFilesProcess(e.dataTransfer.files);
   };
 
-  const handleDeletePhoto = () => {
-    onUpdateDraft({
-      uploadedImage: '',
-      originalImageName: ''
-    });
+  const handleDeletePhoto = (index?: number) => {
+    if (typeof index === 'number') {
+      const next = images.filter((_img, idx) => idx !== index);
+      applyImages(next);
+    } else {
+      onUpdateDraft({ uploadedImage: '', uploadedImages: [], originalImageName: '' });
+    }
     setErrorMessage(null);
   };
 
   const handleProceed = () => {
-    if (!draft.uploadedImage) {
+    if (images.length === 0) {
       setErrorMessage('لطفاً ابتدا یک عکس آپلود کنید.');
       return;
     }
@@ -114,7 +135,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
         ref={fileInputRef}
         onChange={handleFileInputChange}
         accept="image/jpeg,image/png,image/webp,image/jpg"
-        multiple={false}
+        multiple={allowMultiple}
         className="hidden"
       />
 
@@ -148,7 +169,9 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
               عکس مورد نظر برای چاپ ({currentPrintType.title}) را اینجا رها کنید
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed font-medium">
-              یا برای انتخاب فایل از گالری، حافظه دستگاه یا دوربین کلیک کنید. (فقط ۱ عکس، فرمت‌های JPG, PNG)
+              {allowMultiple
+                ? 'یا برای انتخاب فایل از گالری کلیک کنید. (امکان انتخاب چند عکس)'
+                : 'یا برای انتخاب فایل از گالری، حافظه دستگاه یا دوربین کلیک کنید. (فقط ۱ عکس، فرمت‌های JPG, PNG)'}
             </p>
 
             <button
@@ -162,6 +185,55 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
               <Upload className="w-4 h-4" />
               <span>انتخاب و آپلود فایل عکس</span>
             </button>
+          </div>
+        ) : allowMultiple ? (
+          /* STATE 2 (multi): GRID OF SELECTED PHOTOS */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700">
+                {images.length} عکس انتخاب شده
+              </span>
+              {images.length < 8 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  افزودن عکس
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {images.map((image, index) => (
+                <div key={index} className="relative aspect-square bg-slate-100 rounded-xl overflow-hidden border border-slate-200 group">
+                  <img src={image} alt={`عکس ${index + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePhoto(index)}
+                    className="absolute top-2 left-2 z-10 bg-red-600/90 hover:bg-red-600 text-white p-1.5 rounded-lg shadow-md cursor-pointer"
+                    title="حذف این عکس"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                    {(index + 1).toLocaleString('fa-IR')}
+                  </span>
+                </div>
+              ))}
+
+              {images.length < 8 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square rounded-xl border-2 border-dashed border-slate-300 hover:border-sky-400 hover:bg-slate-50 flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span className="text-[10px] font-bold">افزودن</span>
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           /* STATE 2: PHOTO PREVIEW WITH ACTION BUTTONS DIRECTLY ON TOP */
@@ -235,7 +307,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
         <button
           type="button"
           onClick={handleProceed}
-          disabled={!draft.uploadedImage}
+          disabled={images.length === 0}
           className="flex-1 sm:flex-none sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span>مرحله بعد</span>
