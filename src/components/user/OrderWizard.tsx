@@ -210,6 +210,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(3)}
             onBack={() => setCurrentStep(1)}
+            printTypes={printTypes}
           />
         )}
 
