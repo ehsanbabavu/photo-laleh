@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Copy,
   Check,
-  Zap,
   Clock,
   AlertTriangle
 } from 'lucide-react';
@@ -219,28 +218,6 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
     return () => clearInterval(interval);
   }, [invoice, isPaid, isPolling, blupalSettings]);
 
-  // 4. Sandbox Test Pay button (real BluPal sandbox simulation)
-  const handleSimulateSandboxPayment = async () => {
-    if (!invoice?.invoiceId) return;
-    setIsCreatingInvoice(true);
-    setInvoiceError('');
-    const res = await apiClient.simulateBluPalPayment(invoice.invoiceId);
-    setIsCreatingInvoice(false);
-
-    if (res && res.success && res.status === 'paid') {
-      handlePaymentSuccess(
-        res.referenceCode || ('BLU-REF-' + Math.floor(100000000 + Math.random() * 900000000)),
-        res.invoice?.finalAmountRial || payableRial
-      );
-      return;
-    }
-
-    setInvoiceError(
-      res?.message ||
-        'شبیه‌سازی پرداخت انجام نشد. برای محیط آزمایشی باید کلید تست (blu_test_...) ثبت شده باشد.'
-    );
-  };
-
   const formatCountdown = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
@@ -395,28 +372,6 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
                   </span>
                 </div>
 
-                {/* Sandbox Quick Test Button */}
-                {invoice?.mode !== 'live' && (invoice?.isRemote || invoice?.mode === 'local') && (
-                  <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 via-emerald-50 to-sky-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
-                        <Zap className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-800">
-                        حالت آزمایشی (Sandbox Test Mode)
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleSimulateSandboxPayment}
-                      className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>تست واریز موفق</span>
-                    </button>
-                  </div>
-                )}
               </>
             )}
           </div>
