@@ -42,6 +42,32 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
+  // Print types come from the database; fall back to a direct fetch when the
+  // parent has not loaded them yet so toggles (e.g. multi photo) are respected.
+  const [resolvedPrintTypes, setResolvedPrintTypes] = useState<PrintTypeOption[]>(
+    printTypes && printTypes.length > 0 ? printTypes : []
+  );
+  React.useEffect(() => {
+    if (printTypes && printTypes.length > 0) {
+      setResolvedPrintTypes(printTypes);
+      return;
+    }
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/print-types');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active && Array.isArray(data) && data.length > 0) setResolvedPrintTypes(data);
+      } catch {
+        // keep the fallback
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [printTypes]);
+
   // Initial order draft state (no photo by default)
   const [draft, setDraft] = useState<OrderDraft>({
     printType: 'personnel',
@@ -92,7 +118,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
 
-    const activeTypes = printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
+    const activeTypes = resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES;
     const printTypeObj = activeTypes.find((t) => t.id === draft.printType) || activeTypes[0];
     const dimensionObj = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
     const materialObj = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
@@ -200,7 +226,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             draft={draft}
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(2)}
-            printTypes={printTypes}
+            printTypes={resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES}
           />
         )}
 
@@ -210,7 +236,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(3)}
             onBack={() => setCurrentStep(1)}
-            printTypes={printTypes}
+            printTypes={resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES}
           />
         )}
 
