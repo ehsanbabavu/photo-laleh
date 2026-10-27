@@ -22,7 +22,6 @@ import {
   ChevronDown,
   HardDrive,
   MessageSquare,
-  ShieldCheck,
   Activity
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
