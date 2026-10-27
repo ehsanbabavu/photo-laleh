@@ -196,33 +196,58 @@ export const apiClient = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (!res.ok) throw new Error('Failed to create invoice');
-      return await res.json();
-    } catch (err) {
+      // Read the JSON body even for error statuses so the UI can show the
+      // exact BluPal error (amount_too_low, unauthorized, ...).
+      let payload: any = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+      if (payload) return payload;
+      return {
+        success: false,
+        message: res.ok ? 'پاسخ نامعتبر از سرور صدور فاکتور' : `خطای سرور در صدور فاکتور (${res.status})`
+      };
+    } catch (err: any) {
       console.warn('createBluPalInvoice error:', err);
-      return null;
+      return { success: false, message: err?.message || 'خطا در ارتباط با سرور صدور فاکتور' };
     }
   },
 
   async checkBluPalInvoiceStatus(invoiceId: string) {
     try {
       const res = await fetch(`/api/blupal/status/${invoiceId}`);
-      if (!res.ok) return null;
-      return await res.json();
+      let payload: any = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+      if (!res.ok) return payload || null;
+      return payload;
     } catch {
       return null;
     }
   },
 
-  async simulateBluPalPayment(invoiceId: string) {
+  async simulateBluPalPayment(invoiceId: string, scenario: 'success' | 'expire' | 'cancel' | 'wrong_amount' = 'success') {
     try {
       const res = await fetch(`/api/blupal/simulate-pay/${invoiceId}`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenario })
       });
-      if (!res.ok) return null;
-      return await res.json();
+      let payload: any = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+      if (!res.ok) return payload || { success: false, message: `خطا در شبیه‌سازی پرداخت (${res.status})` };
+      return payload;
     } catch {
-      return null;
+      return { success: false, message: 'خطا در ارتباط با سرور' };
     }
   },
 
