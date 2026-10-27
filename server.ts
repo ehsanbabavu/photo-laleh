@@ -1078,51 +1078,152 @@ app.post('/api/settings', async (req, res) => {
   res.json({ success: true, settings: db.settings });
 });
 
-// Helper function to generate candidate BluPal endpoints
-function getBluPalEndpoints(baseUrl: string, customEndpoint?: string): string[] {
-  const host = (baseUrl || 'https://blupal.top').trim().replace(/\/+$/, '');
-  const bases = Array.from(new Set([
-    host,
-    host.replace('://blupal.top', '://api.blupal.top'),
-    host.replace('://blupal.net', '://api.blupal.net'),
-    host.replace('://blupal.ir', '://api.blupal.ir'),
-    'https://blupal.top',
-    'https://api.blupal.top',
-    'https://blupal.net',
-    'https://api.blupal.net'
-  ]));
+// ---------------------------------------------------------------------------
+// BluPal payment gateway — implemented against https://blupal.top/documentation
+//
+//   Base URL : https://blupal.top/api
+//   Auth     : header  X-API-Key: <key>   (or ?api_key=...)
+//   Create   : POST /v1/invoices/create          body { amount: <Rial>, card_number? }
+//   Status   : GET  /v1/invoices/{invoice_id}    (invoice_id is an integer)
+//   Sandbox  : POST /v1/sandbox/invoices/{invoice_id}/simulate   body { scenario }
+//
+//   amount  : Rial, integer, min 100,000 and max 500,000,000
+//   response: { success, invoice_id, amount, final_amount, status,
+//               payment_link, card_number, mode, expires_at }
+//
+//   IMPORTANT: final_amount = amount + a random 0..999 Rial tracking suffix.
+//   The exact amount the customer must transfer is final_amount (in Rial),
+//   so it is stored and displayed untouched. Rounding it to Tomans destroys
+//   the tracking suffix and the payment can never be matched again.
+// ---------------------------------------------------------------------------
+const BLUPAL_DEFAULT_BASE_URL = 'https://blupal.top';
+const BLUPAL_MIN_AMOUNT_RIAL = 100000; // 10,000 Toman
+const BLUPAL_MAX_AMOUNT_RIAL = 500000000; // 50,000,000 Toman
+const BLUPAL_CREATE_PATH = '/api/v1/invoices/create';
 
-  const customEp = (customEndpoint || '').trim();
-  const paths = [
-    ...(customEp ? [customEp.startsWith('/') ? customEp : '/' + customEp] : []),
-    '/api/v1/invoices/create',
-    '/api/v1/invoices',
-    '/api/v1/invoice/create',
-    '/api/v1/invoice',
-    '/api/v1/create-invoice',
-    '/api/v1/create',
-    '/api/v1/factor',
-    '/api/v1/factors',
-    '/api/v1/pay',
-    '/api/v1/payment',
-    '/api/invoice/create',
-    '/api/invoices',
-    '/api/invoice',
-    '/api/create-invoice',
-    '/api/factor',
-    '/api/pay'
-  ];
+function formatRialFa(value: number): string {
+  return `${new Intl.NumberFormat('fa-IR').format(Math.round(value))} ریال`;
+}
 
-  const result: string[] = [];
-  for (const base of bases) {
-    for (const path of paths) {
-      const fullUrl = `${base}${path}`;
-      if (!result.includes(fullUrl)) {
-        result.push(fullUrl);
-      }
+/** Accepts "blupal.top", "https://blupal.top" or "https://blupal.top/api" and returns the API base. */
+function getBluPalApiBase(baseUrl?: string): string {
+  let host = String(baseUrl || BLUPAL_DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
+  if (!host) host = BLUPAL_DEFAULT_BASE_URL;
+  if (!/^https?:\/\//i.test(host)) host = `https://${host}`;
+  return /\/api$/i.test(host) ? host : `${host}/api`;
+}
+
+/** Full URL of POST /v1/invoices/create. A custom endpoint overrides the documented path. */
+function getBluPalCreateUrl(baseUrl?: string, customEndpoint?: string): string {
+  const apiBase = getBluPalApiBase(baseUrl);
+  const custom = String(customEndpoint || '').trim();
+  if (!custom || custom === BLUPAL_CREATE_PATH || custom === '/v1/invoices/create') {
+    return `${apiBase}/v1/invoices/create`;
+  }
+  if (/^https?:\/\//i.test(custom)) return custom.replace(/\/+$/, '');
+  const path = custom.startsWith('/') ? custom : `/${custom}`;
+  if (path === '/api' || path.startsWith('/api/')) {
+    return `${apiBase.replace(/\/api$/i, '')}${path}`;
+  }
+  return `${apiBase}${path}`;
+}
+
+const BLUPAL_ERROR_MESSAGES: Record<string, string> = {
+  unauthorized: 'کلید API بلوپال نامعتبر است یا ارسال نشده است (unauthorized).',
+  amount_required: 'مبلغ فاکتور برای بلوپال ارسال نشده است (amount_required).',
+  amount_too_low: `مبلغ فاکتور کمتر از حداقل مجاز بلوپال یعنی ${formatRialFa(
+    BLUPAL_MIN_AMOUNT_RIAL
+  )} است (amount_too_low).`,
+  amount_too_high: `مبلغ فاکتور بیشتر از حداکثر مجاز بلوپال یعنی ${formatRialFa(
+    BLUPAL_MAX_AMOUNT_RIAL
+  )} است (amount_too_high).`,
+  no_active_card: 'هیچ کارت فعالی برای این حساب در بلوپال ثبت نشده است (no_active_card).',
+  invalid_invoice_id: 'شناسه فاکتور ارسالی برای بلوپال نامعتبر است (invalid_invoice_id).',
+  not_found: 'فاکتور در سامانه بلوپال یافت نشد (not_found).',
+  mode_mismatch:
+    'کلید API با محیط فاکتور هم‌خوانی ندارد (mode_mismatch): کلید live برای فاکتور sandbox یا برعکس استفاده شده است.',
+  invalid_scenario: 'سناریوی شبیه‌سازی نامعتبر است (invalid_scenario).',
+  invalid_state: 'فاکتور برای شبیه‌سازی آماده نیست (invalid_state).'
+};
+
+function blupalErrorMessage(payload: any, httpStatus: number): string {
+  const code = String(payload?.error || '').trim().toLowerCase();
+  if (code && BLUPAL_ERROR_MESSAGES[code]) return BLUPAL_ERROR_MESSAGES[code];
+  const rawMessage = payload?.message ?? payload?.detail ?? payload?.errors;
+  if (rawMessage) {
+    return typeof rawMessage === 'object' ? JSON.stringify(rawMessage) : String(rawMessage);
+  }
+  if (httpStatus === 401) return BLUPAL_ERROR_MESSAGES.unauthorized;
+  return `پاسخ نامعتبر از سرور بلوپال (کد HTTP ${httpStatus}).`;
+}
+
+/** Single low-level call to BluPal: JSON in, JSON out, never throws on a non-2xx status. */
+async function blupalRequest(
+  url: string,
+  token: string,
+  init: RequestInit = {}
+): Promise<{ response: any; payload: any; ok: boolean }> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-API-Key': token,
+      ...((init.headers as Record<string, string>) || {})
+    }
+  });
+
+  const text = await response.text();
+  let payload: any = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { message: text.slice(0, 300) };
     }
   }
-  return result;
+
+  const ok = response.ok && payload?.success !== false;
+  return { response, payload, ok };
+}
+
+/** BluPal statuses: PENDING | PAID | EXPIRED | CANCELED */
+function normalizeBluPalStatus(value: any): 'pending' | 'paid' | 'expired' | 'failed' {
+  const status = String(value || '').toUpperCase();
+  if (status === 'PAID' || status === 'COMPLETED' || status === 'SUCCESSFUL' || status === 'SUCCESS') {
+    return 'paid';
+  }
+  if (status === 'EXPIRED') return 'expired';
+  if (status === 'CANCELED' || status === 'CANCELLED' || status === 'FAILED') return 'failed';
+  return 'pending';
+}
+
+/** BluPal returns an ISO timestamp with offset (e.g. 2026-07-14T12:30:00+03:30). */
+function bluPalExpiryToTimestamp(expiresAt: any, fallbackMs: number): number {
+  if (expiresAt !== null && expiresAt !== undefined && expiresAt !== '') {
+    const asNumber = Number(expiresAt);
+    if (Number.isFinite(asNumber) && asNumber > 0) {
+      return asNumber > 1e12 ? asNumber : asNumber * 1000;
+    }
+    const parsed = Date.parse(String(expiresAt));
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return Date.now() + fallbackMs;
+}
+
+function nowFa(): string {
+  return new Date().toLocaleString('fa-IR', {
+    timeZone: 'Asia/Tehran',
+    hour: '2-digit',
+    minute: '2-digit',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+}
+
+function digitsOnly(value: any): string {
+  return String(value || '').replace(/\D/g, '');
 }
 
 // Create Invoice
@@ -1130,105 +1231,159 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
   try {
     const db = await readDb();
     const settings = db.settings || {};
-    const { amount, orderId, customerName, customerPhone, description, invoiceDetails } = req.body;
+    const body = req.body || {};
+    const { orderId, customerName, customerPhone, description, invoiceDetails } = body;
 
-    const numAmount = typeof amount === 'number' ? amount : (Number(amount) || 0);
-    if (numAmount < 0) {
-      return res.status(400).json({ success: false, error: 'Invalid amount' });
+    // --- 1) Validate the requested amount (Toman in, Rial out) ---
+    const requestedToman = Number(body.amount);
+    if (!Number.isFinite(requestedToman) || requestedToman < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_amount',
+        message: 'مبلغ ارسالی برای صدور فاکتور نامعتبر است.'
+      });
     }
 
-    const invoiceId = 'BLU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000);
-    // Amount in Rials (Minimum 100,000 Rials as required by BluPal API doc)
-    const amountRial = Math.max(100000, numAmount * 10);
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins
-    const isFree = numAmount === 0;
+    const requestedRial = Math.round(requestedToman * 10);
+    const isFree = requestedRial === 0;
 
-    let externalPaymentUrl = '';
-    let remoteCardNumber = '';
-    let remoteInvoiceId = '';
-    let remoteFinalAmount = 0;
+    if (!isFree && (requestedRial < BLUPAL_MIN_AMOUNT_RIAL || requestedRial > BLUPAL_MAX_AMOUNT_RIAL)) {
+      const tooLow = requestedRial < BLUPAL_MIN_AMOUNT_RIAL;
+      return res.status(400).json({
+        success: false,
+        error: tooLow ? 'amount_too_low' : 'amount_too_high',
+        message: tooLow
+          ? `مبلغ این سفارش (${formatRialFa(requestedRial)}) کمتر از حداقل مجاز درگاه بلوپال (${formatRialFa(
+              BLUPAL_MIN_AMOUNT_RIAL
+            )}) است، بنابراین فاکتور آنلاین صادر نمی‌شود. لطفاً مبلغ سفارش را افزایش دهید یا پرداخت را حضوری انجام دهید.`
+          : `مبلغ این سفارش (${formatRialFa(requestedRial)}) بیشتر از حداکثر مجاز درگاه بلوپال (${formatRialFa(
+              BLUPAL_MAX_AMOUNT_RIAL
+            )}) است.`
+      });
+    }
 
-    // If real token is configured and sandbox is disabled, call BluPal API (only if amount > 0)
-    if (numAmount > 0 && settings.blupalToken && !settings.blupalSandboxMode) {
+    const localInvoiceId =
+      'BLU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000);
+    const token = String(settings.blupalToken || '').trim();
+    const configuredCard = digitsOnly(settings.blupalCardNumber);
+
+    // --- 2) Ask BluPal for a real invoice ---
+    let remote: {
+      invoiceId: string;
+      amountRial: number;
+      finalAmountRial: number;
+      status: 'pending' | 'paid' | 'expired' | 'failed';
+      paymentLink: string;
+      cardNumber: string;
+      mode: 'sandbox' | 'live';
+      expiresAt: any;
+    } | null = null;
+    let remoteError = '';
+
+    if (!isFree && token) {
       try {
-        const baseUrl = (settings.blupalBaseUrl || 'https://blupal.top').replace(/\/+$/, '');
+        const createUrl = getBluPalCreateUrl(settings.blupalBaseUrl, settings.blupalCustomEndpoint);
+        const { response, payload } = await blupalRequest(createUrl, token, {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: requestedRial,
+            ...(configuredCard ? { card_number: configuredCard } : {})
+          })
+        });
 
-        const requestBody = {
-          amount: amountRial,
-          card_number: settings.blupalCardNumber || undefined
-        };
+        const remoteInvoiceId = payload?.invoice_id ?? payload?.id;
 
-        const endpoints = getBluPalEndpoints(baseUrl, settings.blupalCustomEndpoint);
+        if (!response.ok || payload?.success === false) {
+          remoteError = blupalErrorMessage(payload, response.status);
+        } else if (remoteInvoiceId === undefined || remoteInvoiceId === null || remoteInvoiceId === '') {
+          remoteError = 'پاسخ بلوپال فاقد شناسه فاکتور (invoice_id) بود.';
+        } else {
+          // `final_amount` carries the unique tracking suffix — keep it exactly as returned.
+          const amountRial = Number(payload?.amount) || requestedRial;
+          const finalAmountRial = Number(payload?.final_amount) || amountRial;
 
-        for (const endpoint of endpoints) {
-          try {
-            const blupalRes = await fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-API-Key': settings.blupalToken,
-                'Authorization': `Bearer ${settings.blupalToken}`
-              },
-              body: JSON.stringify(requestBody)
-            });
-
-            if (blupalRes.ok) {
-              const resData: any = await blupalRes.json();
-              const obj = resData.data || resData.result || resData.invoice || resData;
-
-              if (obj && (obj.success || resData.success || obj.payment_link || obj.invoice_id)) {
-                externalPaymentUrl = obj.payment_link || obj.payment_url || obj.url || obj.link || externalPaymentUrl;
-                remoteCardNumber = obj.card_number || obj.cardNumber || remoteCardNumber;
-                remoteInvoiceId = String(obj.invoice_id || obj.id || '');
-                if (obj.final_amount) {
-                  const rawFinal = Number(obj.final_amount) || 0;
-                  remoteFinalAmount = rawFinal > 10000 ? Math.round(rawFinal / 10) : rawFinal;
-                }
-                if (externalPaymentUrl || remoteInvoiceId) break; // Successfully retrieved invoice details!
-              }
-            }
-          } catch (endpointErr) {
-            // Try next endpoint fallback
-          }
+          remote = {
+            invoiceId: String(remoteInvoiceId),
+            amountRial,
+            finalAmountRial,
+            status: normalizeBluPalStatus(payload?.status),
+            paymentLink: String(payload?.payment_link || payload?.payment_url || ''),
+            cardNumber: digitsOnly(payload?.card_number),
+            mode: String(payload?.mode || '').toLowerCase() === 'sandbox' ? 'sandbox' : 'live',
+            expiresAt: payload?.expires_at
+          };
         }
-      } catch (e) {
-        console.warn('BluPal real API call failed, falling back to local invoice:', e);
+      } catch (err: any) {
+        remoteError = `ارتباط با سرور بلوپال برقرار نشد: ${err?.message || 'خطای شبکه'}`;
       }
     }
 
-    const payableToman = remoteFinalAmount || numAmount;
+    // A token is configured but the gateway refused / was unreachable → never invent an
+    // "official" invoice (a fake id / fake card would make the transfer unmatched).
+    if (!isFree && token && !remote) {
+      return res.status(502).json({
+        success: false,
+        error: 'invoice_not_created',
+        message: remoteError || 'صدور فاکتور در بلوپال انجام نشد.',
+        amount: requestedToman,
+        amountRial: requestedRial,
+        invoiceDetails: invoiceDetails || null
+      });
+    }
 
-    const newInvoice = {
-      invoiceId: remoteInvoiceId || invoiceId,
-      localInvoiceId: invoiceId,
-      amount: numAmount,
-      finalAmount: payableToman,
-      amountRial: payableToman * 10,
+    // --- 3) Persist the invoice (real BluPal invoice or local demo when no token) ---
+    const mode = remote ? remote.mode : 'local';
+    const payableRial = remote ? remote.finalAmountRial : requestedRial;
+    const expiresInMs = mode === 'sandbox' ? 30 * 60 * 1000 : 15 * 60 * 1000;
+
+    const newInvoice: any = {
+      invoiceId: remote ? remote.invoiceId : localInvoiceId,
+      localInvoiceId,
+      remoteInvoiceId: remote ? remote.invoiceId : '',
+      provider: 'blupal',
+      mode,
+      isRemote: Boolean(remote),
+      amount: requestedToman,
+      requestedAmountRial: requestedRial,
+      amountRial: payableRial,
+      finalAmount: Math.round(payableRial / 10),
+      finalAmountRial: payableRial,
       orderId: orderId || '',
       customerName: customerName || '',
       customerPhone: customerPhone || '',
       description: description || 'پرداخت سفارش آتلیه دیجیتال لاله',
-      status: isFree ? 'paid' : 'pending',
-      referenceCode: isFree ? ('GIFT-FREE-' + Math.floor(10000000 + Math.random() * 90000000)) : undefined,
-      paidAt: isFree ? new Date().toLocaleDateString('fa-IR') : undefined,
-      cardNumber: remoteCardNumber || settings.blupalCardNumber || '6219 8619 4528 7193',
+      status: isFree ? 'paid' : remote ? remote.status : 'pending',
+      referenceCode: isFree ? 'GIFT-FREE-' + Math.floor(10000000 + Math.random() * 90000000) : undefined,
+      paidAt: isFree ? nowFa() : undefined,
+      cardNumber: remote?.cardNumber || configuredCard,
       accountHolder: settings.blupalAccountHolder || 'آتلیه تخصصی لاله',
-      iban: settings.blupalIban || 'IR720560086190004528719301',
-      qrData: `blupal://pay?invoice=${remoteInvoiceId || invoiceId}&amount=${payableToman}&to=${encodeURIComponent(settings.blupalAccountHolder || 'آتلیه لاله')}`,
-      paymentUrl: externalPaymentUrl || `https://blupal.top/pay/${remoteInvoiceId || invoiceId}`,
-      createdAt: new Date().toLocaleDateString('fa-IR'),
-      expiresAt,
-      invoiceDetails: invoiceDetails || null
+      iban: settings.blupalIban || '',
+      qrData: `blupal://pay?invoice=${remote ? remote.invoiceId : localInvoiceId}&amount=${payableRial}&to=${encodeURIComponent(
+        settings.blupalAccountHolder || 'آتلیه لاله'
+      )}`,
+      paymentUrl: remote?.paymentLink || '',
+      createdAt: nowFa(),
+      expiresAt: remote ? bluPalExpiryToTimestamp(remote.expiresAt, expiresInMs) : Date.now() + expiresInMs,
+      invoiceDetails: invoiceDetails || null,
+      warning: remote
+        ? undefined
+        : 'حالت نمایشی: کلید API بلوپال تنظیم نشده است و این فاکتور محلی است.'
     };
 
     db.invoices = [newInvoice, ...(db.invoices || []).slice(0, 99)];
     await writeDb(db);
 
-    res.json({ success: true, invoice: newInvoice });
+    res.json({
+      success: true,
+      invoice: newInvoice,
+      amountRial: newInvoice.amountRial,
+      finalAmountRial: newInvoice.finalAmountRial,
+      paymentUrl: newInvoice.paymentUrl,
+      mode
+    });
   } catch (err: any) {
     console.error('Error creating BluPal invoice:', err);
-    res.status(500).json({ success: false, error: err.message || 'Internal error' });
+    res.status(500).json({ success: false, error: 'internal_error', message: err.message || 'Internal error' });
   }
 });
 
@@ -1237,90 +1392,180 @@ app.get('/api/blupal/status/:invoiceId', async (req, res) => {
   try {
     const db = await readDb();
     const reqId = String(req.params.invoiceId || '').trim();
-    const invoice = (db.invoices || []).find((inv: any) =>
-      String(inv.invoiceId || '').trim() === reqId ||
-      String(inv.localInvoiceId || '').trim() === reqId ||
-      String(inv.orderId || '').trim() === reqId
+    const invoice = (db.invoices || []).find(
+      (inv: any) =>
+        String(inv.invoiceId || '').trim() === reqId ||
+        String(inv.localInvoiceId || '').trim() === reqId ||
+        String(inv.orderId || '').trim() === reqId
     );
 
     if (!invoice) {
-      return res.status(404).json({ success: false, error: 'Invoice not found' });
+      return res.status(404).json({ success: false, error: 'not_found', message: 'فاکتور یافت نشد.' });
     }
 
-    // Check expiration
-    if (invoice.status === 'pending' && Date.now() > invoice.expiresAt) {
+    const settings = db.settings || {};
+    const token = String(settings.blupalToken || '').trim();
+    let gateError = '';
+
+    // --- Ask the gateway while the invoice is payable (and once more after payment
+    //     to capture the payer details BluPal only exposes on PAID invoices) ---
+    const shouldAskGateway =
+      (invoice.status === 'pending' || (invoice.status === 'paid' && !invoice.payerName)) &&
+      token &&
+      invoice.isRemote !== false &&
+      /^\d+$/.test(String(invoice.remoteInvoiceId || invoice.invoiceId || ''));
+
+    if (shouldAskGateway) {
+      try {
+        const apiBase = getBluPalApiBase(settings.blupalBaseUrl);
+        const remoteId = String(invoice.remoteInvoiceId || invoice.invoiceId);
+        const { response, payload } = await blupalRequest(`${apiBase}/v1/invoices/${remoteId}`, token);
+
+        if (response.ok && payload?.success !== false) {
+          const status = normalizeBluPalStatus(payload?.status);
+          const wasPaid = invoice.status === 'paid';
+          if (!wasPaid) invoice.status = status;
+
+          const finalAmountRial = Number(payload?.final_amount);
+          if (Number.isFinite(finalAmountRial) && finalAmountRial > 0) {
+            invoice.finalAmountRial = finalAmountRial;
+            invoice.amountRial = finalAmountRial;
+            invoice.finalAmount = Math.round(finalAmountRial / 10);
+          }
+
+          if (status === 'paid') {
+            invoice.referenceCode = String(
+              payload?.transaction_id ||
+                invoice.referenceCode ||
+                'BLU-' + Math.floor(10000000 + Math.random() * 90000000)
+            );
+            invoice.paidAt = invoice.paidAt || nowFa();
+            invoice.payerName = payload?.payer_name || invoice.payerName;
+            invoice.payerCard = payload?.payer_card || invoice.payerCard;
+            invoice.payerBankName = payload?.payer_bank_name || invoice.payerBankName;
+          }
+        } else if (response.status !== 404) {
+          gateError = blupalErrorMessage(payload, response.status);
+        }
+
+        await writeDb(db);
+      } catch (e: any) {
+        gateError = gateError || `استعلام وضعیت از بلوپال انجام نشد: ${e?.message || 'خطای شبکه'}`;
+      }
+    }
+
+    // --- Local expiry only when the gateway says nothing different ---
+    if (invoice.status === 'pending' && invoice.expiresAt && Date.now() > Number(invoice.expiresAt)) {
       invoice.status = 'expired';
       await writeDb(db);
     }
 
-    // If real token and not paid yet, check with BluPal API
-    const settings = db.settings || {};
-    if (invoice.status === 'pending' && settings.blupalToken && !settings.blupalSandboxMode) {
-      try {
-        const baseUrl = (settings.blupalBaseUrl || 'https://blupal.top').replace(/\/+$/, '');
-        const targetRemoteId = invoice.invoiceId || reqId;
-
-        const blupalRes = await fetch(`${baseUrl}/api/v1/invoices/${targetRemoteId}`, {
-          headers: {
-            'Accept': 'application/json',
-            'X-API-Key': settings.blupalToken,
-            'Authorization': `Bearer ${settings.blupalToken}`
-          }
-        });
-
-        if (blupalRes.ok) {
-          const data: any = await blupalRes.json();
-          const statusStr = String(data.status || data.event || '').toUpperCase();
-          if (
-            statusStr === 'PAID' ||
-            statusStr === 'COMPLETED' ||
-            statusStr === 'PAYMENT.COMPLETED' ||
-            (data.success && statusStr === 'PAID')
-          ) {
-            invoice.status = 'paid';
-            invoice.referenceCode = String(data.transaction_id || data.reference_id || ('BLU-' + Math.floor(10000000 + Math.random() * 90000000)));
-            invoice.paidAt = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-            await writeDb(db);
-          }
-        }
-      } catch (e) {
-        // Ignore remote check failure
-      }
-    }
-
-    res.json({ success: true, status: invoice.status, invoice });
+    res.json({
+      success: true,
+      status: invoice.status,
+      invoice,
+      amountRial: invoice.amountRial,
+      finalAmountRial: invoice.finalAmountRial ?? invoice.amountRial,
+      warning: gateError || undefined
+    });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: 'internal_error', message: err.message });
   }
 });
 
-// Simulate / Trigger instant payment (Sandbox / Demo mode)
+// Sandbox: simulate a successful payment on the BluPal sandbox invoice
 app.post('/api/blupal/simulate-pay/:invoiceId', async (req, res) => {
   try {
     const db = await readDb();
-    const invoiceId = req.params.invoiceId;
-    const invoice = (db.invoices || []).find((inv: any) => inv.invoiceId === invoiceId);
+    const settings = db.settings || {};
+    const invoiceId = String(req.params.invoiceId || '').trim();
+    const scenario = String(req.body?.scenario || 'success').trim() || 'success';
+
+    const invoice = (db.invoices || []).find(
+      (inv: any) =>
+        String(inv.invoiceId || '').trim() === invoiceId || String(inv.localInvoiceId || '').trim() === invoiceId
+    );
 
     if (!invoice) {
-      return res.status(404).json({ success: false, error: 'Invoice not found' });
+      return res.status(404).json({ success: false, error: 'not_found', message: 'فاکتور یافت نشد.' });
     }
 
-    invoice.status = 'paid';
-    invoice.referenceCode = 'BLU-' + Math.floor(100000000 + Math.random() * 900000000);
-    invoice.paidAt = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-    await writeDb(db);
+    const token = String(settings.blupalToken || '').trim();
+    const remoteId = String(invoice.remoteInvoiceId || invoice.invoiceId || '');
 
-    res.json({ success: true, status: 'paid', referenceCode: invoice.referenceCode, invoice });
+    // Local demo invoice (no API key configured): settle locally, never claim BluPal did.
+    if (invoice.mode === 'local' || invoice.isRemote === false) {
+      invoice.status = 'paid';
+      invoice.referenceCode = 'DEMO-' + Math.floor(100000000 + Math.random() * 900000000);
+      invoice.paidAt = nowFa();
+      await writeDb(db);
+      return res.json({
+        success: true,
+        status: 'paid',
+        referenceCode: invoice.referenceCode,
+        demo: true,
+        invoice
+      });
+    }
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'unauthorized',
+        message: 'برای شبیه‌سازی پرداخت، ابتدا کلید API بلوپال (کلید تست blu_test_...) را در تنظیمات ثبت کنید.'
+      });
+    }
+
+    if (!/^\d+$/.test(remoteId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_invoice_id',
+        message: BLUPAL_ERROR_MESSAGES.invalid_invoice_id
+      });
+    }
+
+    const apiBase = getBluPalApiBase(settings.blupalBaseUrl);
+    const { response, payload } = await blupalRequest(
+      `${apiBase}/v1/sandbox/invoices/${remoteId}/simulate`,
+      token,
+      { method: 'POST', body: JSON.stringify({ scenario }) }
+    );
+
+    if (!response.ok || payload?.success === false) {
+      return res.status(response.status || 400).json({
+        success: false,
+        error: payload?.error || 'simulate_failed',
+        message: blupalErrorMessage(payload, response.status)
+      });
+    }
+
+    const status = normalizeBluPalStatus(payload?.status);
+    invoice.status = status;
+
+    if (status === 'paid') {
+      invoice.referenceCode = String(
+        payload?.transaction_id || 'BLU-' + Math.floor(100000000 + Math.random() * 900000000)
+      );
+      invoice.paidAt = nowFa();
+    }
+
+    await writeDb(db);
+    res.json({
+      success: true,
+      status,
+      referenceCode: invoice.referenceCode,
+      transactionId: payload?.transaction_id,
+      invoice
+    });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: 'internal_error', message: err.message });
   }
 });
 
-// Test Connection with BluPal (Performs real invoice creation test and reports exact result or error)
+// Test Connection with BluPal (real invoice creation on the documented endpoint)
 app.post('/api/blupal/test-connection', async (req, res) => {
   try {
-    const { token, baseUrl, customEndpoint } = req.body;
-    const url = (baseUrl || 'https://blupal.top').replace(/\/+$/, '');
+    const { token, baseUrl, customEndpoint } = req.body || {};
 
     if (!token) {
       return res.json({
@@ -1329,74 +1574,41 @@ app.post('/api/blupal/test-connection', async (req, res) => {
       });
     }
 
-    const testOrderId = 'BLU-TEST-' + Date.now().toString(36).toUpperCase();
+    const createUrl = getBluPalCreateUrl(baseUrl, customEndpoint);
 
-    // 100,000 Rials = 10,000 Tomans (Minimum allowed amount by BluPal API doc!)
-    const requestBody = {
-      amount: 100000
-    };
+    // 100,000 Rial = the documented minimum amount for a test invoice
+    const { response, payload, ok } = await blupalRequest(createUrl, String(token).trim(), {
+      method: 'POST',
+      body: JSON.stringify({ amount: BLUPAL_MIN_AMOUNT_RIAL })
+    });
 
-    const endpoints = getBluPalEndpoints(url, customEndpoint);
+    const obj = payload?.data || payload?.result || payload || {};
+    const invoiceId = String(obj?.invoice_id ?? obj?.id ?? '');
+    const invoiceUrl = obj?.payment_link || obj?.payment_url || obj?.url || obj?.link || '';
+    const mode = String(obj?.mode || '').toLowerCase();
 
-    let lastError = '';
-    let lastStatus = 0;
-    let rawResponse: any = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        const blupalRes = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-API-Key': token,
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(requestBody)
-        });
-
-        lastStatus = blupalRes.status;
-        const contentType = blupalRes.headers.get('content-type') || '';
-
-        if (contentType.includes('application/json')) {
-          rawResponse = await blupalRes.json();
-        } else {
-          const rawText = await blupalRes.text();
-          rawResponse = { text: rawText };
-        }
-
-        const obj = rawResponse?.data || rawResponse?.result || rawResponse?.invoice || rawResponse;
-        const invoiceUrl = obj?.payment_link || obj?.payment_url || obj?.url || obj?.link || obj?.redirect_url;
-        const invoiceId = String(obj?.invoice_id || obj?.id || testOrderId);
-
-        if (blupalRes.ok && (rawResponse?.success || obj?.payment_link || obj?.invoice_id)) {
-          return res.json({
-            success: true,
-            message: `فاکتور واقعی با موفقیت در وب‌سرویس بلوپال ایجاد شد! ✅ (شناسه فاکتور: ${invoiceId})`,
-            invoiceUrl: invoiceUrl || '',
-            invoiceId,
-            details: rawResponse
-          });
-        } else {
-          const msg =
-            rawResponse?.message ||
-            rawResponse?.error ||
-            rawResponse?.errors ||
-            rawResponse?.detail ||
-            (typeof rawResponse?.text === 'string' ? rawResponse.text.slice(0, 150) : null) ||
-            `HTTP Error ${blupalRes.status}`;
-          lastError = typeof msg === 'object' ? JSON.stringify(msg) : String(msg);
-        }
-      } catch (endpointErr: any) {
-        lastError = endpointErr.message || 'خطا در شبکه';
-      }
+    if (ok && invoiceId) {
+      return res.json({
+        success: true,
+        message: `فاکتور واقعی با موفقیت در وب‌سرویس بلوپال ایجاد شد ✅ (شناسه فاکتور: ${invoiceId}${
+          mode ? ` — محیط: ${mode}` : ''
+        })`,
+        invoiceUrl,
+        invoiceId,
+        finalAmountRial: Number(obj?.final_amount) || BLUPAL_MIN_AMOUNT_RIAL,
+        endpoint: createUrl,
+        details: payload
+      });
     }
 
-    // If all endpoints failed, report detailed error to admin
     return res.json({
       success: false,
-      message: `خطا در صدور فاکتور توسط سرور بلوپال (کد ${lastStatus || 'شبکه'}): ${lastError}`,
-      details: rawResponse
+      message: `خطا در صدور فاکتور توسط سرور بلوپال (کد ${response.status}): ${blupalErrorMessage(
+        payload,
+        response.status
+      )}`,
+      endpoint: createUrl,
+      details: payload
     });
   } catch (err: any) {
     res.status(500).json({
@@ -1433,13 +1645,14 @@ app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) =
     const strInvoiceId = String(rawInvoiceId || '').trim();
 
     const rawStatus = String(payload.status || payload.event || '').toUpperCase();
+    // Only an explicit payment.completed / PAID event may settle an invoice.
+    // A bare `success: true` is NOT proof of payment per the BluPal docs.
     const isPaid =
       rawStatus === 'PAID' ||
       rawStatus === 'COMPLETED' ||
       rawStatus === 'SUCCESSFUL' ||
       rawStatus === 'PAYMENT.COMPLETED' ||
-      payload.event === 'payment.completed' ||
-      payload.success === true;
+      String(payload.event || '').toLowerCase() === 'payment.completed';
 
     const referenceCode = String(
       payload.transaction_id ||
@@ -1448,7 +1661,8 @@ app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) =
       payload.referenceCode ||
       ('BLU-WH-' + Math.floor(10000000 + Math.random() * 90000000))
     );
-    const amount = payload.amount || payload.amount_rial || payload.final_amount;
+    const amount = payload.final_amount || payload.amount || payload.amount_rial;
+    const finalAmountRial = Number(payload.final_amount) || 0;
 
     const timeFa = new Date().toLocaleString('fa-IR', {
       timeZone: 'Asia/Tehran',
@@ -1466,16 +1680,28 @@ app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) =
       const isMatch =
         (strInvoiceId && String(inv.invoiceId || '').trim() === strInvoiceId) ||
         (strInvoiceId && String(inv.localInvoiceId || '').trim() === strInvoiceId) ||
-        (strInvoiceId && String(inv.orderId || '').trim() === strInvoiceId) ||
-        (!strInvoiceId && inv.status === 'pending');
+        (strInvoiceId && String(inv.orderId || '').trim() === strInvoiceId);
 
       if (isMatch) {
         invoiceFound = true;
+        // Idempotent: an already-paid invoice keeps its original reference/time.
+        const alreadyPaid = inv.status === 'paid';
         return {
           ...inv,
           status: isPaid ? 'paid' : inv.status,
-          referenceCode,
-          paidAt: isPaid ? timeFa : inv.paidAt
+          // Webhook `final_amount` is the exact Rial amount that was matched.
+          ...(finalAmountRial > 0
+            ? {
+                amountRial: finalAmountRial,
+                finalAmountRial,
+                finalAmount: Math.round(finalAmountRial / 10)
+              }
+            : {}),
+          referenceCode: alreadyPaid ? inv.referenceCode || referenceCode : referenceCode,
+          paidAt: isPaid ? inv.paidAt || timeFa : inv.paidAt,
+          payerName: payload.payer_name || inv.payerName,
+          payerCard: payload.payer_card || inv.payerCard,
+          payerBankName: payload.payer_bank_name || inv.payerBankName
         };
       }
       return inv;
