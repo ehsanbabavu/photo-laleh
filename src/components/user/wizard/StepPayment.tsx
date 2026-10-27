@@ -9,7 +9,7 @@ import {
   Clock,
   AlertTriangle
 } from 'lucide-react';
-import { OrderDraft, PrintTypeOption, User, BluPalSettings, BluPalInvoice } from '../../../types';
+import { OrderDraft, PrintDimension, PrintTypeOption, User, BluPalSettings, BluPalInvoice } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../../../data/mockData';
 import { formatPrice, formatRialDirect } from '../../../utils/formatters';
 import { apiClient } from '../../../services/apiClient';
@@ -21,6 +21,7 @@ interface StepPaymentProps {
   onNext: () => void;
   onBack: () => void;
   printTypes?: PrintTypeOption[];
+  dimensions?: PrintDimension[];
   user?: User;
   blupalSettings?: BluPalSettings;
 }
@@ -31,6 +32,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   onNext,
   onBack,
   printTypes,
+  dimensions,
   user,
   blupalSettings
 }) => {
@@ -50,7 +52,10 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
     printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
 
   const printType = activePrintTypes.find((t) => t.id === draft.printType) || activePrintTypes[0];
-  const dimension = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
+  const activeDimensions: PrintDimension[] =
+    dimensions && dimensions.length > 0 ? dimensions : PRINT_DIMENSIONS;
+  const dimension =
+    activeDimensions.find((d) => d.id === draft.dimensionId) || activeDimensions[0];
 
   const unitBase = printType.basePrice + dimension.basePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
