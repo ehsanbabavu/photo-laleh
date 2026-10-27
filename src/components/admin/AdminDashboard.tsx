@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   TrendingUp,
   Package,
@@ -7,7 +7,9 @@ import {
   ChevronLeft,
   Sparkles,
   ArrowUpRight,
-  LifeBuoy
+  LifeBuoy,
+  HardDrive,
+  Loader2
 } from 'lucide-react';
 import { Order, SupportTicket } from '../../types';
 import { AdminTab } from './AdminSidebar';
@@ -22,7 +24,66 @@ interface AdminDashboardProps {
   onNavigateTab: (tab: AdminTab) => void;
 }
 
+interface StorageUsage {
+  usedBytes: number;
+  remainingBytes: number;
+  limitBytes: number;
+  count: number;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes < 0) return '۰';
+  const units = ['بایت', 'کیلوبایت', 'مگابایت', 'گیگابایت'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  // Show 1024 MB as 1 GB for readability
+  if (unit < units.length - 1 && value >= 1023.5) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toLocaleString('fa-IR', { maximumFractionDigits: 1 })} ${units[unit]}`;
+}
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInfo, tickets = [], onNavigateTab }) => {
+  const [storage, setStorage] = useState<StorageUsage | null>(null);
+  const [storageLoading, setStorageLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/storage/usage');
+        const data = await res.json();
+        if (active && data?.success) {
+          setStorage({
+            usedBytes: Number(data.usedBytes) || 0,
+            remainingBytes: Number(data.remainingBytes) || 0,
+            limitBytes: Number(data.limitBytes) || 0,
+            count: Number(data.count) || 0
+          });
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (active) setStorageLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const usedPercent = storage && storage.limitBytes > 0
+    ? Math.min((storage.usedBytes / storage.limitBytes) * 100, 100)
+    : 0;
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  const dash = (usedPercent / 100) * circumference;
+
   const totalRevenue = orders.reduce((sum, o) => sum + (o.paymentStatus === 'paid' ? o.totalPrice : 0), 0);
   const pendingPrintCount = orders.filter((o) => o.status === 'printing' || o.status === 'ai_processing').length;
   const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
@@ -157,6 +218,66 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
           <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 sm:mt-2 font-medium">
             تسویه شاپرک
           </div>
+        </div>
+
+        {/* Blob storage usage */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-violet-300 hover:shadow-md transition-all shadow-xs sm:col-span-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">فضای آپلود عکس‌ها</span>
+            <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-100">
+              <HardDrive className="w-4 h-4" />
+            </div>
+          </div>
+
+          {storageLoading ? (
+            <div className="flex items-center justify-center py-6 text-slate-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+          ) : !storage ? (
+            <p className="text-[11px] text-slate-400 py-4">در دسترس نیست</p>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="relative w-24 h-24 flex-shrink-0">
+                <svg viewBox="0 0 100 100" className="w-24 h-24 -rotate-90">
+                  <circle cx="50" cy="50" r={radius} fill="none" stroke="#ede9fe" strokeWidth="10" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r={radius}
+                    fill="none"
+                    stroke={usedPercent > 85 ? '#e11d48' : usedPercent > 60 ? '#f59e0b' : '#7c3aed'}
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    strokeDasharray={`${dash} ${circumference}`}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-sm font-black text-slate-900 font-mono">
+                    {usedPercent.toLocaleString('fa-IR', { maximumFractionDigits: 1 })}٪
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">استفاده‌شده</span>
+                  <span className="font-bold text-slate-900 font-mono">{formatBytes(storage.usedBytes)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">باقی‌مانده</span>
+                  <span className="font-bold text-emerald-600 font-mono">{formatBytes(storage.remainingBytes)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">کل فضا</span>
+                  <span className="font-bold text-slate-700 font-mono">{formatBytes(storage.limitBytes)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">تعداد فایل</span>
+                  <span className="font-bold text-slate-700 font-mono">{storage.count.toLocaleString('fa-IR')}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
