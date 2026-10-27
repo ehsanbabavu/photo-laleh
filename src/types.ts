@@ -184,7 +184,6 @@ export interface BluPalSettings {
   blupalAccountHolder: string;
   blupalIban: string;
   blupalEnabled: boolean;
-  blupalSandboxMode: boolean;
   blupalAutoPollInterval: number;
   blupalWebhookSecret?: string;
   blupalCustomWebhookUrl?: string;
@@ -196,7 +195,7 @@ export interface BluPalInvoice {
   localInvoiceId?: string;
   remoteInvoiceId?: string;
   provider?: string;
-  mode?: 'sandbox' | 'live' | 'local';
+  mode?: 'live';
   isRemote?: boolean;
   amount: number; // requested amount in Tomans
   requestedAmountRial?: number;
