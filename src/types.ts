@@ -61,6 +61,7 @@ export interface OrderInvoiceDetails {
   discountCode?: string;
   walletCreditUsed: number;
   finalTotal: number;
+  finalTotalRial?: number;
   customerFullName: string;
   customerPhone: string;
   customerAddress: string;
@@ -101,6 +102,9 @@ export interface OrderDraft {
   totalPrice?: number;
   paymentMethod: 'online' | 'card_to_card' | 'wallet';
   paymentReference?: string;
+  paymentInvoiceId?: string;
+  paymentAmountRial?: number; // exact Rial amount issued/paid by BluPal
+  paymentAmountToman?: number;
   invoiceDetails?: OrderInvoiceDetails;
 }
 
@@ -189,9 +193,16 @@ export interface BluPalSettings {
 
 export interface BluPalInvoice {
   invoiceId: string;
-  amount: number; // in Tomans
-  finalAmount?: number; // exact payable amount returned by BluPal (with tracking digit)
-  amountRial: number;
+  localInvoiceId?: string;
+  remoteInvoiceId?: string;
+  provider?: string;
+  mode?: 'sandbox' | 'live' | 'local';
+  isRemote?: boolean;
+  amount: number; // requested amount in Tomans
+  requestedAmountRial?: number;
+  finalAmount?: number; // payable amount in Tomans (rounded, display only)
+  finalAmountRial?: number; // exact payable amount in Rial (incl. tracking digits)
+  amountRial: number; // exact payable amount in Rial
   orderId?: string;
   customerName?: string;
   customerPhone?: string;
@@ -206,4 +217,8 @@ export interface BluPalInvoice {
   createdAt: string;
   expiresAt: number; // timestamp in ms
   invoiceDetails?: OrderInvoiceDetails;
+  warning?: string;
+  payerName?: string;
+  payerCard?: string;
+  payerBankName?: string;
 }
