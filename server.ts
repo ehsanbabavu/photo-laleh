@@ -906,6 +906,13 @@ app.put('/api/users/:id', async (req, res) => {
 app.delete('/api/users/:id', async (req, res) => {
   const db = await readDb();
   const userId = req.params.id;
+  const target = (db.users || []).find((u: any) => u.id === userId);
+  if (!target) {
+    return res.status(404).json({ success: false, error: 'کاربر یافت نشد' });
+  }
+  if (target.role === 'admin') {
+    return res.status(400).json({ success: false, error: 'حذف کاربر ادمین مجاز نیست' });
+  }
   db.users = (db.users || []).filter((u: any) => u.id !== userId);
   await writeDb(db);
   res.json({ success: true });
