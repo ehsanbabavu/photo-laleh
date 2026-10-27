@@ -322,14 +322,34 @@ async function sessionsCollection() {
   return collection;
 }
 
-export async function createSession(userId: string, ttlMs = 30 * 24 * 60 * 60 * 1000): Promise<string | null> {
+export async function createSession(
+  userId: string,
+  ttlMs = 30 * 24 * 60 * 60 * 1000,
+  meta?: { userAgent?: string; ip?: string }
+): Promise<string | null> {
   const collection = await sessionsCollection();
   if (!collection) return null;
   const token = crypto.randomBytes(32).toString('hex');
   const now = Date.now();
+  const userAgent = String(meta?.userAgent || '').slice(0, 300);
+  const ip = String(meta?.ip || '').slice(0, 60);
+  const deviceId = crypto
+    .createHash('sha256')
+    .update(`${userAgent}|${ip}`)
+    .digest('hex')
+    .slice(0, 16);
+
+  // One active session per device: logging in again replaces the previous one.
+  // Sessions created before device tracking existed are dropped as well.
+  await collection.deleteMany({ userId, deviceId }).catch(() => undefined);
+  await collection.deleteMany({ userId, deviceId: { $exists: false } }).catch(() => undefined);
+
   await collection.insertOne({
     token,
     userId,
+    deviceId,
+    userAgent,
+    ip,
     createdAt: now,
     lastSeenAt: now,
     expiresAt: new Date(now + ttlMs)
@@ -470,8 +490,14 @@ export async function listUserSessions(userId: string): Promise<any[]> {
   if (!collection) return [];
   return collection
     .find({ userId }, { projection: { _id: 0, token: 0 } })
-    .sort({ createdAt: -1 })
+    .sort({ lastSeenAt: -1 })
     .toArray();
+}
+
+export async function deleteSessionsByDevice(userId: string, deviceId: string): Promise<void> {
+  const collection = await sessionsCollection();
+  if (!collection) return;
+  await collection.deleteMany({ userId, deviceId }).catch(() => undefined);
 }
 
 export async function revokeSession(userId: string, createdAt: string): Promise<void> {
