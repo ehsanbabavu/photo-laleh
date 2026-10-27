@@ -264,7 +264,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
               {/* Top-Left Button: Delete Photo (روی پیش‌نمایش بالا چپ) */}
               <button
                 type="button"
-                onClick={handleDeletePhoto}
+                onClick={() => handleDeletePhoto()}
                 className="absolute top-3 left-3 z-20 bg-red-600/90 hover:bg-red-600 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-lg backdrop-blur-md transition-all cursor-pointer flex items-center gap-1.5 border border-white/20"
                 title="حذف عکس و آپلود مجدد"
               >
