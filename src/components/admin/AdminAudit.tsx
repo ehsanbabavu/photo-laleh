@@ -11,6 +11,7 @@ interface AuditEntry {
   method: string;
   path: string;
   status: number;
+  ip?: string;
   createdAt: string;
 }
 
@@ -55,6 +56,7 @@ export const AdminAudit: React.FC<AdminAuditProps> = () => {
                   <th className="py-2 font-bold">عملیات</th>
                   <th className="py-2 font-bold">مسیر</th>
                   <th className="py-2 font-bold">وضعیت</th>
+                  <th className="py-2 font-bold">IP</th>
                   <th className="py-2 font-bold">زمان</th>
                 </tr>
               </thead>
@@ -67,6 +69,7 @@ export const AdminAudit: React.FC<AdminAuditProps> = () => {
                     <td className={`py-2 font-mono ${entry.status < 400 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {entry.status}
                     </td>
+                    <td className="py-2 font-mono text-slate-500" dir="ltr">{entry.ip || '—'}</td>
                     <td className="py-2 text-slate-500">
                       {new Date(entry.createdAt).toLocaleString('fa-IR')}
                     </td>
