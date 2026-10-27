@@ -14,11 +14,12 @@ import {
   Upload,
   Image as ImageIcon
 } from 'lucide-react';
-import { PrintTypeOption } from '../../types';
+import { PrintDimension, PrintTypeOption } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
 interface PrintTypeManagerProps {
   printTypes: PrintTypeOption[];
+  dimensions?: PrintDimension[];
   onAddPrintType: (item: PrintTypeOption) => void;
   onUpdatePrintType: (item: PrintTypeOption) => void;
   onDeletePrintType: (id: string) => void;
@@ -27,6 +28,7 @@ interface PrintTypeManagerProps {
 
 export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
   printTypes,
+  dimensions = [],
   onAddPrintType,
   onUpdatePrintType,
   onDeletePrintType,
@@ -42,6 +44,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
   const [description, setDescription] = useState('');
   const [features, setFeatures] = useState<string[]>(['']);
   const [cardBgImage, setCardBgImage] = useState<string | null>(null);
+  const [dimensionIds, setDimensionIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Delete confirmation modal state
@@ -54,6 +57,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     setDescription('');
     setFeatures(['کیفیت استاندارد چاپ آتلیه', 'امکان تحویل فوری و بسته‌بندی ویژه']);
     setCardBgImage(null);
+    setDimensionIds(dimensions.length > 0 ? dimensions.map((d) => d.id) : []);
     setFormError(null);
     setEditingItem(null);
     setModalMode('create');
@@ -67,6 +71,11 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     setDescription(item.description);
     setFeatures(item.features && item.features.length > 0 ? [...item.features] : ['']);
     setCardBgImage(item.cardBgImage || null);
+    setDimensionIds(
+      Array.isArray(item.dimensionIds)
+        ? [...item.dimensionIds]
+        : dimensions.map((d) => d.id)
+    );
     setFormError(null);
     setModalMode('edit');
   };
@@ -139,7 +148,8 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         features: cleanFeatures,
         sampleImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
         tag: 'خدمت تخصصی',
-        cardBgImage: cardBgImage || undefined
+        cardBgImage: cardBgImage || undefined,
+        dimensionIds
       };
       onAddPrintType(newItem);
     } else if (modalMode === 'edit' && editingItem) {
@@ -150,7 +160,8 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         basePrice: Number(basePrice),
         description: description.trim(),
         features: cleanFeatures,
-        cardBgImage: cardBgImage || undefined
+        cardBgImage: cardBgImage || undefined,
+        dimensionIds
       };
       onUpdatePrintType(updatedItem);
     }
@@ -257,6 +268,35 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                 <span className="font-black text-slate-900 font-mono text-xs sm:text-sm bg-gradient-to-l from-sky-700 to-emerald-700 bg-clip-text text-transparent">
                   {formatPrice(item.basePrice)}
                 </span>
+              </div>
+
+              {/* Assigned print sizes (managed in «مدیریت سایز») */}
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 mb-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 font-bold text-[11px]">سایزهای این نوع چاپ:</span>
+                  <span className="text-[10px] font-bold font-mono text-sky-700 bg-white border border-sky-200 rounded-md px-1.5 py-0.5">
+                    {(item.dimensionIds || []).length} سایز
+                  </span>
+                </div>
+                {(item.dimensionIds || []).length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {(item.dimensionIds || []).map((dimId) => {
+                      const dim = dimensions.find((d) => d.id === dimId);
+                      return (
+                        <span
+                          key={dimId}
+                          className="text-[10px] font-bold text-slate-700 bg-white border border-slate-200 rounded-md px-1.5 py-0.5"
+                        >
+                          {dim ? dim.dimensionsCm : 'سایز حذف‌شده'}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700">
+                    هیچ سایزی انتخاب نشده — در این کارت مرحله ابعاد خالی می‌شود
+                  </span>
+                )}
               </div>
 
               {/* Description preview */}
@@ -497,6 +537,82 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                     )}
                   </div>
                 ))}
+              </div>
+
+              {/* Print sizes assigned to this print type */}
+              <div className="p-3 rounded-xl bg-sky-50/60 border border-sky-200 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] font-black text-slate-800 block">سایزهای این نوع چاپ</span>
+                    <span className="text-[10px] text-slate-500">
+                      سایزها در منوی «مدیریت سایز» ساخته و ویرایش می‌شوند.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDimensionIds(dimensions.map((d) => d.id))}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-sky-200 text-sky-700 hover:bg-sky-50 cursor-pointer"
+                    >
+                      انتخاب همه
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDimensionIds([])}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                    >
+                      هیچ‌کدام
+                    </button>
+                  </div>
+                </div>
+
+                {dimensions.length === 0 ? (
+                  <p className="text-[11px] text-amber-700 font-bold">
+                    هنوز سایزی تعریف نشده است؛ ابتدا از منوی «مدیریت سایز» یک سایز بسازید.
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto space-y-1 pr-0.5">
+                    {dimensions.map((dim) => {
+                      const checked = dimensionIds.includes(dim.id);
+                      return (
+                        <label
+                          key={dim.id}
+                          className={`flex items-center justify-between gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                            checked
+                              ? 'bg-white border-sky-300'
+                              : 'bg-white/60 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) =>
+                                setDimensionIds((prev) =>
+                                  e.target.checked
+                                    ? [...prev, dim.id]
+                                    : prev.filter((id) => id !== dim.id)
+                                )
+                              }
+                              className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer flex-shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <span className="text-[11px] font-bold text-slate-800 block truncate">
+                                {dim.title}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-500 block">
+                                {dim.dimensionsCm}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-slate-600 flex-shrink-0">
+                            {dim.basePrice === 0 ? 'رایگان' : `${formatPrice(dim.basePrice)}`}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Submit / Cancel Buttons */}
