@@ -218,7 +218,6 @@ export const INITIAL_DB = {
     blupalAccountHolder: 'آتلیه تخصصی لاله',
     blupalIban: 'IR720560086190004528719301',
     blupalEnabled: true,
-    blupalSandboxMode: true,
     blupalAutoPollInterval: 3,
     blupalCustomEndpoint: '/api/v1/invoices/create'
   },
