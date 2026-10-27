@@ -13,6 +13,7 @@ import { OrderDraft, PrintTypeOption, User, BluPalSettings, BluPalInvoice } from
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../../../data/mockData';
 import { formatPrice, formatRialDirect } from '../../../utils/formatters';
 import { apiClient } from '../../../services/apiClient';
+import { isReusableInvoice } from '../../../utils/orderDraftStorage';
 
 interface StepPaymentProps {
   draft: OrderDraft;
@@ -96,6 +97,15 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
         return;
       }
 
+      // Resume support: reuse the invoice that was already issued for this exact
+      // amount while it is still pending and not expired (no duplicate invoices).
+      if (isReusableInvoice(draft.paymentInvoice, totalAmountToPay)) {
+        setInvoice(draft.paymentInvoice);
+        setInvoiceError('');
+        setIsCreatingInvoice(false);
+        return;
+      }
+
       setIsCreatingInvoice(true);
       setInvoiceError('');
       setInvoice(null);
@@ -120,6 +130,8 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
         if (res && res.success && res.invoice) {
           setInvoice(res.invoice);
           setInvoiceError('');
+          // Remember it so a resume/re-render does not issue a second invoice
+          onUpdateDraft({ paymentInvoice: res.invoice, paymentInvoiceId: res.invoice.invoiceId });
         } else {
           // Never fabricate an invoice: a fake id / amount means an unmatched transfer.
           setInvoiceError(
