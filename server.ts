@@ -15,6 +15,7 @@ import {
   findSession,
   deleteSession,
   deleteUserSessions,
+  deleteSessionsByDevice,
   saveOtpCode,
   verifyOtpCode,
   bumpRateLimit,
@@ -340,6 +341,10 @@ function parseCookies(header: string | undefined): Record<string, string> {
   return out;
 }
 
+function sessionMeta(req: any) {
+  return { userAgent: String(req.headers['user-agent'] || ''), ip: clientIp(req) };
+}
+
 function setSessionCookie(res: any, token: string) {
   const maxAge = 30 * 24 * 60 * 60;
   res.setHeader(
@@ -400,7 +405,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.json({ success: true, requiresOtp: true, phone });
   }
 
-  const token = await createSession(user.id);
+  const token = await createSession(user.id, undefined, sessionMeta(req));
   if (token) setSessionCookie(res, token);
   res.json({ success: true, user: sanitizeUser(user) });
 });
@@ -603,7 +608,7 @@ app.post('/api/auth/login/otp', async (req, res) => {
   const verification = await verifyOtpCode(phone, code);
   if (!verification.ok) return res.status(401).json({ success: false, error: verification.error });
 
-  const token = await createSession(user.id);
+  const token = await createSession(user.id, undefined, sessionMeta(req));
   if (token) setSessionCookie(res, token);
   res.json({ success: true, user: sanitizeUser(user) });
 });
@@ -613,10 +618,36 @@ app.get('/api/auth/heartbeat', async (_req, res) => {
   res.json({ success: true, at: Date.now() });
 });
 
-// Active sessions of the current account
+// Active sessions grouped by device
 app.get('/api/auth/sessions', async (req: any, res) => {
   const sessions = await listUserSessions(req.currentUser.id);
-  res.json(sessions);
+  const devices = new Map<string, any>();
+  for (const session of sessions) {
+    const key = session.deviceId || `${session.userAgent || ''}|${session.ip || ''}` || 'unknown';
+    const current = devices.get(key);
+    const lastSeen = Number(session.lastSeenAt || session.createdAt || 0);
+    if (!current) {
+      devices.set(key, {
+        deviceId: key,
+        userAgent: session.userAgent || '',
+        ip: session.ip || '',
+        firstLogin: session.createdAt,
+        lastSeen,
+        expiresAt: session.expiresAt,
+        sessions: 1
+      });
+    } else {
+      current.sessions += 1;
+      current.lastSeen = Math.max(current.lastSeen, lastSeen);
+      current.firstLogin = Math.min(Number(current.firstLogin || lastSeen), Number(session.createdAt || lastSeen));
+    }
+  }
+  res.json(Array.from(devices.values()).sort((a, b) => b.lastSeen - a.lastSeen));
+});
+
+app.delete('/api/auth/sessions/:deviceId', async (req: any, res) => {
+  await deleteSessionsByDevice(req.currentUser.id, req.params.deviceId);
+  res.json({ success: true });
 });
 
 app.delete('/api/auth/sessions', async (req: any, res) => {
