@@ -26,6 +26,7 @@ import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
 import { AdminAudit } from './components/admin/AdminAudit';
 import { parseRoute, routeToPath } from './utils/router';
+import { SESSION_IDLE_MS, IDLE_CHECK_INTERVAL_MS, HEARTBEAT_INTERVAL_MS, ACTIVITY_EVENTS } from './utils/session';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
@@ -132,6 +133,39 @@ export default function App() {
   };
 
   const [printTypePrompts, setPrintTypePrompts] = useState<Record<string, string>>(DEFAULT_PROMPTS);
+
+  // Sign the user out after 10 minutes without any activity
+  React.useEffect(() => {
+    if (!currentUser) return;
+    let lastActivity = Date.now();
+
+    const markActivity = () => {
+      lastActivity = Date.now();
+    };
+    ACTIVITY_EVENTS.forEach((event) => window.addEventListener(event, markActivity, { passive: true }));
+
+    const idleTimer = window.setInterval(() => {
+      if (Date.now() - lastActivity >= SESSION_IDLE_MS) {
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+        setCurrentUser(null);
+        setActiveView('user');
+        window.history.pushState({}, '', '/');
+        showToast('به دلیل عدم فعالیت، از حساب خارج شدید.');
+      }
+    }, IDLE_CHECK_INTERVAL_MS);
+
+    const heartbeat = window.setInterval(() => {
+      if (Date.now() - lastActivity < HEARTBEAT_INTERVAL_MS) {
+        fetch('/api/auth/heartbeat').catch(() => undefined);
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      ACTIVITY_EVENTS.forEach((event) => window.removeEventListener(event, markActivity));
+      window.clearInterval(idleTimer);
+      window.clearInterval(heartbeat);
+    };
+  }, [currentUser?.id]);
 
   // Keep the address bar in sync with the selected page
   React.useEffect(() => {
