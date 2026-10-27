@@ -24,6 +24,7 @@ export interface PrintTypeOption {
   sampleImage?: string;
   tag?: string;
   isEnabled?: boolean;
+  allowMultiplePhotos?: boolean;
   cardBgImage?: string;
 }
 
@@ -70,6 +71,7 @@ export interface OrderDraft {
   id?: string;
   printType: PrintTypeId;
   uploadedImage: string | null;
+  uploadedImages?: string[];
   originalImageName?: string;
   aiEffects: {
     colorized: boolean;
