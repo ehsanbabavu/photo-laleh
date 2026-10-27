@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { OrderDraft, PrintTypeOption, User } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../../data/mockData';
-import { formatPrice } from '../../../utils/formatters';
+import { formatPrice, formatRialDirect } from '../../../utils/formatters';
 
 interface StepInvoiceProps {
   draft: OrderDraft;
@@ -32,8 +32,8 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   );
   const [addressError, setAddressError] = useState('');
 
-  // 100,000 Tomans wallet gift eligibility for first order
-  const userWallet = user?.walletBalance ?? 100000;
+  // Wallet credit is only usable when the user really owns a positive balance
+  const userWallet = typeof user?.walletBalance === 'number' ? user.walletBalance : 0;
   const isFirstOrderGiftAvailable = userWallet > 0 && !user?.hasUsedFirstOrderGift;
   const [applyWalletGift, setApplyWalletGift] = useState<boolean>(isFirstOrderGiftAvailable);
 
@@ -50,7 +50,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
   const shippingCost = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-  const grossBeforeWallet = subtotal + shippingCost - draft.discountAmount;
+  const grossBeforeWallet = Math.max(0, subtotal + shippingCost - (draft.discountAmount || 0));
   
   // Calculate wallet gift deduction (up to 100,000 Tomans)
   const maxGiftDeductible = Math.min(100000, userWallet, Math.max(0, grossBeforeWallet));
@@ -111,6 +111,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
       discountCode: draft.discountCode || '',
       walletCreditUsed: walletDeduction,
       finalTotal,
+      finalTotalRial: finalTotal * 10,
       customerFullName: customerInfo.fullName || user?.name || 'مشتری آتلیه',
       customerPhone: customerInfo.phoneNumber || user?.phone || '',
       customerAddress: `${customerInfo.province || ''} ${customerInfo.city || ''} ${customerInfo.address || ''}`.trim(),
@@ -315,6 +316,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               <span className="bg-gradient-to-l from-sky-700 to-emerald-700 bg-clip-text text-transparent font-mono text-sm sm:text-base font-black">
                 {formatPrice(finalTotal)}
               </span>
+            </div>
+            <div className="flex justify-between items-center text-[10px] sm:text-[11px] text-slate-500">
+              <span>معادل ریالی مبنای فاکتور:</span>
+              <span className="font-mono font-bold">{formatRialDirect(finalTotal * 10)}</span>
             </div>
           </div>
         </div>
