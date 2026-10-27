@@ -9,7 +9,7 @@ import {
   CheckCircle2,
   History
 } from 'lucide-react';
-import { OrderDraft, Order, User, PrintTypeOption, BluPalSettings } from '../../types';
+import { OrderDraft, Order, User, PrintTypeOption, PrintDimension, BluPalSettings } from '../../types';
 import { StepPrintType } from './wizard/StepPrintType';
 import { StepUploadPhoto } from './wizard/StepUploadPhoto';
 import { StepDimensions } from './wizard/StepDimensions';
@@ -29,6 +29,7 @@ interface OrderWizardProps {
   onOrderCompleted: (newOrder: Order) => void;
   onUserUpdate?: (updatedUser: User) => void;
   printTypes?: PrintTypeOption[];
+  dimensions?: PrintDimension[];
   avalaiApiKey?: string;
   printTypePrompts?: Record<string, string>;
   avalaiBaseUrl?: string;
@@ -41,6 +42,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   onOrderCompleted,
   onUserUpdate,
   printTypes = PRINT_TYPES,
+  dimensions,
   avalaiApiKey = '',
   printTypePrompts = {},
   avalaiBaseUrl = 'https://api.avalai.ir/v1',
@@ -206,7 +208,12 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
     const activeTypes = resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES;
     const printTypeObj = activeTypes.find((t) => t.id === draft.printType) || activeTypes[0];
-    const dimensionObj = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
+    const activeDimensions =
+      dimensions && dimensions.length > 0 ? dimensions : PRINT_DIMENSIONS;
+    const dimensionObj =
+      activeDimensions.find((d) => d.id === draft.dimensionId) ||
+      activeDimensions.find((d) => (printTypeObj.dimensionIds || []).includes(d.id)) ||
+      activeDimensions[0];
     const materialObj = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
     const unitBase = printTypeObj.basePrice + dimensionObj.basePrice;
@@ -378,6 +385,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(4)}
             onBack={() => setCurrentStep(2)}
+            dimensions={dimensions}
+            printTypes={resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES}
           />
         )}
 
@@ -387,7 +396,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(5)}
             onBack={() => setCurrentStep(3)}
-            printTypes={printTypes}
+            printTypes={resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES}
+            dimensions={dimensions}
             user={user}
           />
         )}
@@ -398,7 +408,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onUpdateDraft={handleUpdateDraft}
             onNext={() => setCurrentStep(6)}
             onBack={() => setCurrentStep(4)}
-            printTypes={printTypes}
+            printTypes={resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES}
+            dimensions={dimensions}
             user={user}
             blupalSettings={blupalSettings}
           />
