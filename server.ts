@@ -287,6 +287,42 @@ app.post('/api/uploads/blob', async (req: any, res) => {
   }
 });
 
+// Storage usage of the Vercel Blob store (admin dashboard)
+app.get('/api/storage/usage', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  }
+  try {
+    const { list } = await import('@vercel/blob');
+    let cursor: string | undefined = undefined;
+    let usedBytes = 0;
+    let count = 0;
+    let pages = 0;
+
+    do {
+      const page: any = await list({ cursor, limit: 1000 });
+      for (const blob of page.blobs || []) {
+        usedBytes += Number(blob.size || 0);
+        count += 1;
+      }
+      cursor = page.hasMore ? page.cursor : undefined;
+      pages += 1;
+    } while (cursor && pages < 20);
+
+    const limitBytes = Number(process.env.BLOB_QUOTA_BYTES) || 1024 * 1024 * 1024;
+    res.json({
+      success: true,
+      usedBytes,
+      count,
+      limitBytes,
+      remainingBytes: Math.max(limitBytes - usedBytes, 0),
+      truncated: Boolean(cursor)
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خواندن وضعیت فضا ناموفق بود' });
+  }
+});
+
 app.delete('/api/uploads/blob', async (req: any, res) => {
   try {
     const { del } = await import('@vercel/blob');
