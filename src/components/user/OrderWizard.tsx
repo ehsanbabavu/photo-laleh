@@ -6,7 +6,8 @@ import {
   Receipt,
   CreditCard,
   Eye,
-  CheckCircle2
+  CheckCircle2,
+  History
 } from 'lucide-react';
 import { OrderDraft, Order, User, PrintTypeOption, BluPalSettings } from '../../types';
 import { StepPrintType } from './wizard/StepPrintType';
@@ -16,6 +17,12 @@ import { StepInvoice } from './wizard/StepInvoice';
 import { StepPayment } from './wizard/StepPayment';
 import { StepPreviewConfirm } from './wizard/StepPreviewConfirm';
 import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
+import {
+  clearOrderDraft,
+  loadOrderDraft,
+  saveOrderDraft,
+  SavedOrderDraft
+} from '../../utils/orderDraftStorage';
 
 interface OrderWizardProps {
   user: User;
@@ -40,7 +47,28 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   avalaiModel = 'gpt-image-2.5-sunburst',
   blupalSettings
 }) => {
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  // Restore an unfinished order (wizard state is also saved on every change) so an
+  // accidental navigation away does not throw away the steps already completed.
+  const restoredRef = useRef<SavedOrderDraft | null | undefined>(undefined);
+  if (restoredRef.current === undefined) {
+    restoredRef.current = loadOrderDraft(user.id);
+  }
+  const restored = restoredRef.current;
+
+  const isSubmittingRef = useRef(false);
+
+  // Step 6 (final confirm) is only valid when the payment already succeeded
+  const resumedStep = (() => {
+    const savedStep = Math.min(6, Math.max(1, restored?.step ?? 1));
+    if (savedStep === 6 && !restored?.draft?.paymentReference) return 5;
+    return savedStep;
+  })();
+
+  const [currentStep, setCurrentStep] = useState<number>(resumedStep);
+  const [resumeNotice, setResumeNotice] = useState<null | {
+    step: number;
+    imagesDropped: boolean;
+  }>(restored ? { step: resumedStep, imagesDropped: Boolean(restored.imagesDropped) } : null);
 
   // Print types come from the database; fall back to a direct fetch when the
   // parent has not loaded them yet so toggles (e.g. multi photo) are respected.
@@ -68,8 +96,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     };
   }, [printTypes]);
 
-  // Initial order draft state (no photo by default)
-  const [draft, setDraft] = useState<OrderDraft>({
+  // Initial order draft state (no photo by default, merged with any restored draft)
+  const initialDraft: OrderDraft = {
     printType: 'personnel',
     uploadedImage: '',
     originalImageName: '',
@@ -97,10 +125,70 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     },
     discountAmount: 0,
     paymentMethod: 'online'
+  };
+
+  const [draft, setDraft] = useState<OrderDraft>(() => {
+    if (!restored?.draft) return initialDraft;
+    return {
+      ...initialDraft,
+      ...restored.draft,
+      aiEffects: { ...initialDraft.aiEffects, ...(restored.draft.aiEffects || {}) },
+      customerInfo: { ...initialDraft.customerInfo, ...(restored.draft.customerInfo || {}) }
+    };
   });
 
+  // Keep the unfinished order on the device as the user advances
+  const latestStateRef = useRef({ step: currentStep, draft });
+  latestStateRef.current = { step: currentStep, draft };
+
+  React.useEffect(() => {
+    if (isSubmittingRef.current) return;
+    const timer = setTimeout(() => {
+      saveOrderDraft(user.id, currentStep, draft);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [currentStep, draft, user.id]);
+
+  // The wizard unmounts when the user switches tabs, so flush the last state on exit
+  React.useEffect(() => {
+    return () => {
+      if (isSubmittingRef.current) return;
+      const { step, draft: latestDraft } = latestStateRef.current;
+      saveOrderDraft(user.id, step, latestDraft);
+    };
+  }, [user.id]);
+
   const handleUpdateDraft = (updated: Partial<OrderDraft>) => {
-    setDraft((prev) => ({ ...prev, ...updated }));
+    setDraft((prev) => {
+      const next: OrderDraft = { ...prev, ...updated };
+      // Any price-affecting change invalidates the previously issued (unpaid) invoice
+      const priceFields = [
+        'printType',
+        'dimensionId',
+        'materialId',
+        'quantity',
+        'hasLamination',
+        'designerRetouch',
+        'deliveryMethod',
+        'discountAmount',
+        'discountCode',
+        'walletCreditUsed',
+        'invoiceDetails'
+      ];
+      if (!prev.paymentReference && priceFields.some((field) => field in updated)) {
+        next.paymentInvoice = null;
+        next.paymentInvoiceId = undefined;
+      }
+      return next;
+    });
+  };
+
+  const handleStartNewOrder = () => {
+    clearOrderDraft(user.id);
+    setResumeNotice(null);
+    setDraft(initialDraft);
+    setCurrentStep(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const steps = [
@@ -111,8 +199,6 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     { number: 5, title: 'پرداخت فاکتور', icon: CreditCard, short: 'پرداخت' },
     { number: 6, title: 'پیش‌نمایش و تایید', icon: Eye, short: 'تایید' }
   ];
-
-  const isSubmittingRef = useRef(false);
 
   const handleFinalOrder = () => {
     if (isSubmittingRef.current) return;
@@ -167,11 +253,50 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       paymentStatus: draft.paymentReference ? 'paid' : 'pending'
     };
 
+    clearOrderDraft(user.id);
+    setResumeNotice(null);
     onOrderCompleted(newOrder);
   };
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Resume banner: the unfinished order was restored from this device */}
+      {resumeNotice && (
+        <div className="bg-gradient-to-r from-sky-50 via-emerald-50 to-sky-50 border border-sky-300 rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+              <History className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black text-slate-900">
+                سفارش ناتمام شما بازیابی شد — از مرحله «{steps.find((s) => s.number === resumeNotice.step)?.title}» ادامه دهید.
+              </p>
+              <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                {resumeNotice.imagesDropped
+                  ? 'بازیابی انجام شد، اما عکس قبلی به دلیل حجم زیاد ذخیره نشده بود؛ لطفاً در مرحله آپلود، عکس را دوباره انتخاب کنید.'
+                  : 'همه اطلاعات و مراحل قبلی شما حفظ شده است.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setResumeNotice(null)}
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+            >
+              ادامه سفارش
+            </button>
+            <button
+              type="button"
+              onClick={handleStartNewOrder}
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all cursor-pointer"
+            >
+              شروع سفارش جدید
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Step Stepper Progress Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-xs">
         {/* Stepper circles */}
