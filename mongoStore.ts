@@ -307,6 +307,7 @@ export async function writeDb(state: any): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const SESSION_COLLECTION = 'sessions';
+export const SESSION_IDLE_MS = Number(process.env.SESSION_IDLE_MS) || 10 * 60 * 1000;
 let sessionIndexReady = false;
 
 async function sessionsCollection() {
@@ -326,7 +327,13 @@ export async function createSession(userId: string, ttlMs = 30 * 24 * 60 * 60 * 
   if (!collection) return null;
   const token = crypto.randomBytes(32).toString('hex');
   const now = Date.now();
-  await collection.insertOne({ token, userId, createdAt: now, expiresAt: new Date(now + ttlMs) });
+  await collection.insertOne({
+    token,
+    userId,
+    createdAt: now,
+    lastSeenAt: now,
+    expiresAt: new Date(now + ttlMs)
+  });
   return token;
 }
 
@@ -340,6 +347,13 @@ export async function findSession(token: string): Promise<{ userId: string } | n
     await collection.deleteOne({ token }).catch(() => undefined);
     return null;
   }
+  const now = Date.now();
+  const lastSeen = Number(doc.lastSeenAt || doc.createdAt || 0);
+  if (lastSeen && now - lastSeen > SESSION_IDLE_MS) {
+    await collection.deleteOne({ token }).catch(() => undefined);
+    return null;
+  }
+  await collection.updateOne({ token }, { $set: { lastSeenAt: now } }).catch(() => undefined);
   return { userId: doc.userId };
 }
 
