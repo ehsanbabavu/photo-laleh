@@ -5,7 +5,7 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
-import { OrderDraft, PrintTypeOption, User } from '../../../types';
+import { OrderDraft, PrintDimension, PrintTypeOption, User } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../../data/mockData';
 import { formatPrice, formatRialDirect } from '../../../utils/formatters';
 
@@ -15,6 +15,7 @@ interface StepInvoiceProps {
   onNext: () => void;
   onBack: () => void;
   printTypes?: PrintTypeOption[];
+  dimensions?: PrintDimension[];
   user?: User;
 }
 
@@ -24,6 +25,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   onNext,
   onBack,
   printTypes,
+  dimensions,
   user
 }) => {
   const [voucherInput, setVoucherInput] = useState('');
@@ -42,7 +44,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
     printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
 
   const printType = activePrintTypes.find((t) => t.id === draft.printType) || activePrintTypes[0];
-  const dimension = PRINT_DIMENSIONS.find((d) => d.id === draft.dimensionId) || PRINT_DIMENSIONS[0];
+  const activeDimensions: PrintDimension[] =
+    dimensions && dimensions.length > 0 ? dimensions : PRINT_DIMENSIONS;
+  const dimension =
+    activeDimensions.find((d) => d.id === draft.dimensionId) || activeDimensions[0];
   const material = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
   // Pricing calculations
