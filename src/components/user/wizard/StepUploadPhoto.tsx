@@ -30,6 +30,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const activeTypes = printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES;
   const currentPrintType = activeTypes.find((t) => t.id === draft.printType) || activeTypes[0];
@@ -55,34 +56,39 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
       setErrorMessage('لطفاً فقط فایل تصویری (JPG, PNG, WebP) انتخاب کنید.');
       return;
     }
-    const tooLarge = files.find((file) => file.size > 25 * 1024 * 1024);
+    const tooLarge = files.find((file) => file.size > 15 * 1024 * 1024);
     if (tooLarge) {
-      setErrorMessage('حجم هر فایل نباید بیشتر از ۲۵ مگابایت باشد.');
+      setErrorMessage('حجم هر فایل نباید بیشتر از ۱۵ مگابایت باشد.');
       return;
     }
 
     const selected = allowMultiple ? files : files.slice(0, 1);
     const baseImages = allowMultiple ? images : [];
+    setIsUploading(true);
 
     try {
-      const loaded = await Promise.all(
-        selected.map(
-          (file) =>
-            new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = (e) => resolve(String(e.target?.result || ''));
-              reader.onerror = () => reject(new Error('read error'));
-              reader.readAsDataURL(file);
-            })
-        )
+      const { upload } = await import('@vercel/blob/client');
+      const uploaded = await Promise.all(
+        selected.map(async (file, index) => {
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_') || 'photo.jpg';
+          const result = await upload(`orders/${Date.now()}-${index}-${safeName}`, file, {
+            access: 'public',
+            handleUploadUrl: '/api/uploads/blob',
+            contentType: file.type
+          });
+          return result.url;
+        })
       );
-      const merged = [...baseImages, ...loaded];
+
+      const merged = [...baseImages, ...uploaded];
       if (merged.length > 8) {
         setErrorMessage('حداکثر ۸ عکس قابل انتخاب است.');
       }
       applyImages(merged.slice(0, 8), selected[0]?.name);
-    } catch {
-      setErrorMessage('خطا در خواندن فایل. لطفاً مجدداً امتحان کنید.');
+    } catch (err: any) {
+      setErrorMessage(err?.message ? `آپلود ناموفق بود: ${err.message}` : 'آپلود عکس ناموفق بود. دوباره تلاش کنید.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -110,6 +116,10 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
   };
 
   const handleDeletePhoto = (index?: number) => {
+    const removedUrl = typeof index === 'number' ? images[index] : undefined;
+    if (removedUrl && removedUrl.startsWith('https://')) {
+      fetch(`/api/uploads/blob?url=${encodeURIComponent(removedUrl)}`, { method: 'DELETE' }).catch(() => undefined);
+    }
     if (typeof index === 'number') {
       const next = images.filter((_img, idx) => idx !== index);
       applyImages(next);
@@ -162,7 +172,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-tr from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center mb-4 shadow-inner">
-              <Upload className="w-8 h-8 sm:w-10 sm:h-10 animate-pulse" />
+              {isUploading ? <RefreshCw className="w-8 h-8 sm:w-10 sm:h-10 animate-spin" /> : <Upload className="w-8 h-8 sm:w-10 sm:h-10 animate-pulse" />}
             </div>
 
             <h3 className="text-sm sm:text-base font-black text-slate-900 mb-1">
@@ -183,7 +193,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
               className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-95 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-sky-500/20 cursor-pointer flex items-center gap-2"
             >
               <Upload className="w-4 h-4" />
-              <span>انتخاب و آپلود فایل عکس</span>
+              <span>{isUploading ? 'در حال آپلود...' : 'انتخاب و آپلود فایل عکس'}</span>
             </button>
           </div>
         ) : allowMultiple ? (
