@@ -32,6 +32,7 @@ const ARRAY_COLLECTIONS = [
   'orders',
   'tickets',
   'printTypes',
+  'dimensions',
   'announcements',
   'invoices',
   'webhookLogs'
