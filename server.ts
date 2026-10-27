@@ -361,7 +361,7 @@ app.post('/api/backup/restore', async (req, res) => {
     const payload = req.body || {};
     const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
 
-    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'announcements', 'invoices', 'webhookLogs'];
+    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'announcements', 'invoices', 'webhookLogs'];
     const objectKeys = ['settings', 'prompts'];
     const providedKeys = [...arrayKeys, ...objectKeys].filter((key) => data[key] !== undefined);
     if (providedKeys.length === 0) {
