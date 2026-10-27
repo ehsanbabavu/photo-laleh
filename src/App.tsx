@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, SupportTicket, Announcement, BluPalSettings } from './types';
-import { INITIAL_ORDERS, PRINT_TYPES, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
+import { User, Order, PrintTypeOption, PrintDimension, SupportTicket, Announcement, BluPalSettings } from './types';
+import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
@@ -15,6 +15,7 @@ import { AdminAnnouncements } from './components/admin/AdminAnnouncements';
 import { ChatGPTConnect } from './components/admin/ChatGPTConnect';
 import { AdminOrders } from './components/admin/AdminOrders';
 import { PrintTypeManager } from './components/admin/PrintTypeManager';
+import { AdminSizesManager } from './components/admin/AdminSizesManager';
 import { PromptsManager } from './components/admin/PromptsManager';
 import { AdminTickets } from './components/admin/AdminTickets';
 import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
@@ -68,6 +69,7 @@ export default function App() {
 
   // Dynamic Print Types State (Managed by Admin & Database)
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(PRINT_TYPES);
+  const [dimensions, setDimensions] = useState<PrintDimension[]>(PRINT_DIMENSIONS);
 
   // AvalAI API configuration state
   const [avalaiApiKey, setAvalaiApiKey] = useState<string>('');
@@ -237,6 +239,13 @@ export default function App() {
         }
         if (Array.isArray(data.printTypes)) {
           setPrintTypes(data.printTypes);
+        }
+        if (Array.isArray(data.dimensions) && data.dimensions.length > 0) {
+          setDimensions(data.dimensions);
+        } else {
+          // Existing databases have no size collection yet → seed the defaults once
+          setDimensions(PRINT_DIMENSIONS);
+          apiClient.saveDimensions(PRINT_DIMENSIONS);
         }
         if (data.prompts && Object.keys(data.prompts).length > 0) {
           setPrintTypePrompts(data.prompts);
@@ -466,6 +475,52 @@ export default function App() {
     showToast('کارت‌های نوع چاپ به حالت اولیه بازنشانی شدند.');
   };
 
+  // --- Print sizes (مدیریت سایز) ---
+  const handleAddDimension = (newItem: PrintDimension) => {
+    setDimensions((prev) => {
+      const next = [...prev, newItem];
+      apiClient.saveDimensions(next);
+      return next;
+    });
+    showToast(`سایز «${newItem.title}» با موفقیت افزوده شد.`);
+  };
+
+  const handleUpdateDimension = (updated: PrintDimension) => {
+    setDimensions((prev) => {
+      const next = prev.map((d) => (d.id === updated.id ? updated : d));
+      apiClient.saveDimensions(next);
+      return next;
+    });
+    showToast(`تغییرات سایز «${updated.title}» ذخیره شد.`);
+  };
+
+  const handleDeleteDimension = (id: string) => {
+    const target = dimensions.find((d) => d.id === id);
+    setDimensions((prev) => {
+      const next = prev.filter((d) => d.id !== id);
+      apiClient.saveDimensions(next);
+      return next;
+    });
+    // Detach the deleted size from every print type that offered it
+    setPrintTypes((prev) => {
+      const affected = prev.some((pt) => (pt.dimensionIds || []).includes(id));
+      if (!affected) return prev;
+      const next = prev.map((pt) => ({
+        ...pt,
+        dimensionIds: (pt.dimensionIds || []).filter((dimId) => dimId !== id)
+      }));
+      apiClient.savePrintTypes(next);
+      return next;
+    });
+    if (target) showToast(`سایز «${target.title}» حذف شد.`);
+  };
+
+  const handleResetDimensions = () => {
+    setDimensions(PRINT_DIMENSIONS);
+    apiClient.saveDimensions(PRINT_DIMENSIONS);
+    showToast('سایزها به حالت پیش‌فرض بازنشانی شدند.');
+  };
+
   // Persist Orders when updated
   const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
     setOrders((prev) => {
@@ -680,9 +735,21 @@ export default function App() {
                 />
               )}
 
+              {adminTab === 'print_sizes' && (
+                <AdminSizesManager
+                  dimensions={dimensions}
+                  printTypes={printTypes}
+                  onAddDimension={handleAddDimension}
+                  onUpdateDimension={handleUpdateDimension}
+                  onDeleteDimension={handleDeleteDimension}
+                  onResetDimensions={handleResetDimensions}
+                />
+              )}
+
               {adminTab === 'print_types' && (
                 <PrintTypeManager
                   printTypes={printTypes}
+                  dimensions={dimensions}
                   onAddPrintType={handleAddPrintType}
                   onUpdatePrintType={handleUpdatePrintType}
                   onDeletePrintType={handleDeletePrintType}
@@ -714,6 +781,7 @@ export default function App() {
 
               {adminTab === 'orders' && (
                 <AdminOrders
+                  dimensions={dimensions}
                   orders={orders}
                   queueInfo={queueInfo}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
@@ -803,6 +871,7 @@ export default function App() {
 
               {userTab === 'wizard' && (
                 <OrderWizard
+                  dimensions={dimensions}
                   user={currentUser}
                   onOrderCompleted={handleNewOrder}
                   onUserUpdate={handleUpdateUser}
