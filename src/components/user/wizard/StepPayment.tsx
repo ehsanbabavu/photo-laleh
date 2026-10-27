@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ShieldCheck,
   CheckCircle2,
   RefreshCw,
   Smartphone,
@@ -346,30 +345,6 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
                       {currentAccountHolder}
                     </span>
                   </div>
-                </div>
-
-                {/* Pay online (BluPal payment link) */}
-                {invoice?.paymentUrl && (
-                  <a
-                    href={invoice.paymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all active:scale-98 flex items-center justify-center gap-2"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>پرداخت آنلاین از طریق صفحه امن بلوپال</span>
-                  </a>
-                )}
-
-                {/* Live Polling Status Indicator */}
-                <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium flex items-center gap-2.5">
-                  <div className="relative flex items-center justify-center flex-shrink-0">
-                    <div className="w-3.5 h-3.5 bg-emerald-500 rounded-full animate-ping absolute" />
-                    <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full relative" />
-                  </div>
-                  <span className="leading-relaxed text-[11px] sm:text-xs">
-                    استعلام واریز به صورت آنلاین و خودکار انجام می‌شود؛ پس از واریز، نیازی به آپلود فیش نیست.
-                  </span>
                 </div>
 
               </>
