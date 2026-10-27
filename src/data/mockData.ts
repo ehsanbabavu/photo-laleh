@@ -3,6 +3,7 @@ import { PrintDimension, PaperMaterial, PrintTypeOption, Order, SupportTicket, A
 export const PRINT_TYPES: PrintTypeOption[] = [
   {
     id: 'personnel',
+    dimensionIds: ['personnel_6x3x4', 'personnel_12x3x4'],
     title: 'عکس پرسنلی',
     subtitle: 'سازمانی، گذرنامه، گواهینامه و مدارک اداری',
     description: 'چاپ باکیفیت و استاندارد با زمینه سفید یا آبی، تنظیم خودکار زاویه چهره، روتوش ملایم جای لک و ارائه در پک‌های ۶ و ۱۲ تایی.',
@@ -18,6 +19,7 @@ export const PRINT_TYPES: PrintTypeOption[] = [
   },
   {
     id: 'commercial',
+    dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
     title: 'عکس تبلیغاتی و تجاری',
     subtitle: 'معرفی محصول، برندینگ شخصی، تبلیغات و کاتالوگ',
     description: 'عکاسی و پردازش حرفه‌ای هوش مصنوعی جهت معرفی محصولات، مدلینگ، خدمات و پوسترهای تبلیغاتی با نورپردازی صنعتی.',
@@ -33,6 +35,7 @@ export const PRINT_TYPES: PrintTypeOption[] = [
   },
   {
     id: 'bw_to_color',
+    dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
     title: 'تبدیل سیاه سفید به رنگی',
     subtitle: 'زنده‌سازی خاطرات قدیمی و تصاویر نوستالژیک',
     description: 'بازسازی دیجیتال و رنگ‌آمیزی هوشمندانه عکس‌های قدیمی با حفظ بافت اصیل چهره، بازیابی نور طبیعی و حذف لکه‌ها و پارگی‌ها.',
@@ -48,6 +51,7 @@ export const PRINT_TYPES: PrintTypeOption[] = [
   },
   {
     id: 'memorial',
+    dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
     title: 'عکس برای مراسم ختم',
     subtitle: 'طراحی فاخر یادبود، اعلامیه و قاب رومیزی مجلس',
     description: 'آماده‌سازی تصویر با شأن و وقار، اضافه کردن نوار مشکی مات یا حاشیه اسلیمی، روتوش آرامش‌بخش چهره و چاپ فوری با قاب یا شاسی.',
@@ -63,6 +67,7 @@ export const PRINT_TYPES: PrintTypeOption[] = [
   },
   {
     id: 'wedding',
+    dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
     title: 'عکس برای نامزدی یا عروسی',
     subtitle: 'ثبت شکوه زیباترین روز زندگی با کیفیت استودیویی',
     description: 'ترمیم نورپردازی، اصلاح حرفه‌ای پوست و لباس عروس و داماد، اعمال جلوه رمانتیک و گرم و چاپ روی شاسی‌های لوکس و بوم نقاشی.',
