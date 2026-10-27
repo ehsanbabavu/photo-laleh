@@ -21,6 +21,7 @@ import { formatPrice, getStatusBadge } from '../../utils/formatters';
 import { generateNinePackSheet, downloadImage } from '../../utils/sheetGenerator';
 import { QueueStateInfo } from '../../utils/aiQueueManager';
 import { PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
+import type { PrintDimension } from '../../types';
 
 interface AdminOrdersProps {
   orders: Order[];
@@ -31,6 +32,8 @@ interface AdminOrdersProps {
   onClearAllOrders?: () => void;
   telegramToken?: string;
   telegramChatId?: string;
+  /** Admin-managed print sizes (fallback: built-in defaults) */
+  dimensions?: PrintDimension[];
 }
 
 export const AdminOrders: React.FC<AdminOrdersProps> = ({
@@ -41,8 +44,13 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   onDeleteOrder,
   onClearAllOrders,
   telegramToken,
-  telegramChatId
+  telegramChatId,
+  dimensions
 }) => {
+  const allDimensions: PrintDimension[] =
+    dimensions && dimensions.length > 0 ? dimensions : PRINT_DIMENSIONS;
+  const resolveDimension = (id?: string) =>
+    allDimensions.find((d) => d.id === id) || PRINT_DIMENSIONS.find((d) => d.id === id);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -63,7 +71,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
 
     setIsSendingTelegram(true);
     try {
-      const dimObj = PRINT_DIMENSIONS.find((d) => d.id === selectedOrder.dimensionId);
+      const dimObj = resolveDimension(selectedOrder.dimensionId);
       const materialObj = PAPER_MATERIALS.find((m) => m.id === selectedOrder.materialId);
 
       const res = await fetch('/api/telegram/send-order', {
@@ -813,7 +821,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
 
             {/* Technical & Customer Info */}
             {(() => {
-              const dimObj = PRINT_DIMENSIONS.find((d) => d.id === selectedOrder.dimensionId);
+              const dimObj = resolveDimension(selectedOrder.dimensionId);
               const materialObj = PAPER_MATERIALS.find((m) => m.id === selectedOrder.materialId);
 
               return (
