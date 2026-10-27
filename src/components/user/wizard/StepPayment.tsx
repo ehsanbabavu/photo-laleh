@@ -8,7 +8,8 @@ import {
   Copy,
   Check,
   Zap,
-  Clock
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 import { OrderDraft, PrintTypeOption, User, BluPalSettings, BluPalInvoice } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../../../data/mockData';
@@ -36,12 +37,14 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
 }) => {
   const [invoice, setInvoice] = useState<BluPalInvoice | null>(null);
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [invoiceError, setInvoiceError] = useState('');
   const [isPolling, setIsPolling] = useState(true);
   const [isPaid, setIsPaid] = useState(Boolean(draft.paymentReference));
   const [paymentRef, setPaymentRef] = useState(draft.paymentReference || '');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [countdownSeconds, setCountdownSeconds] = useState(15 * 60);
   const [autoRedirecting, setAutoRedirecting] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Resolve printType from props
   const activePrintTypes: PrintTypeOption[] =
@@ -57,12 +60,15 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const walletCredit = draft.walletCreditUsed || draft.invoiceDetails?.walletCreditUsed || 0;
   const computedTotal = Math.max(0, subtotal + shippingCost - (draft.discountAmount || 0) - walletCredit);
 
-  // Base final total from Step 4
+  // Base final total from Step 4 (the pre-invoice quote, in Toman)
   const baseTotal = draft.invoiceDetails?.finalTotal ?? draft.totalPrice ?? computedTotal;
 
-  // Exact payable amount returned by BluPal API (with unique tracking digit)
-  const payableAmount = invoice?.finalAmount || invoice?.amount || baseTotal;
-  const payableAmountRial = invoice?.amountRial || (payableAmount * 10);
+  // Exact payable amount in Rial. BluPal adds a unique 3-digit tracking suffix to
+  // `final_amount`, so this value must never be rounded/converted back.
+  const payableRial =
+    invoice?.finalAmountRial ??
+    invoice?.amountRial ??
+    Math.round(baseTotal * 10);
 
   // Copy helper
   const handleCopy = (text: string, fieldName: string) => {
@@ -74,11 +80,10 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   // Helper to format card number into 4-digit chunks
   const formatCardNumber = (cardStr: string) => {
     const clean = (cardStr || '').replace(/\D/g, '');
-    if (!clean) return '6219 8619 4528 7193';
-    return clean.match(/.{1,4}/g)?.join(' ') || clean;
+    return clean.match(/.{1,4}/g)?.join(' ') || '';
   };
 
-  // 1. Create Invoice on mount or when total changes
+  // 1. Create the invoice on mount / when the quoted total changes
   useEffect(() => {
     let isMounted = true;
 
@@ -89,11 +94,13 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
       const totalAmountToPay = invDetails ? invDetails.finalTotal : baseTotal;
 
       if (totalAmountToPay === 0) {
-        handlePaymentSuccess('GIFT-FREE-' + Math.floor(10000000 + Math.random() * 90000000));
+        handlePaymentSuccess('GIFT-FREE-' + Math.floor(10000000 + Math.random() * 90000000), 0);
         return;
       }
 
       setIsCreatingInvoice(true);
+      setInvoiceError('');
+      setInvoice(null);
 
       try {
         const itemDesc = invDetails
@@ -103,38 +110,31 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
         const res = await apiClient.createBluPalInvoice({
           amount: totalAmountToPay,
           orderId: draft.id || ('ORD-' + Date.now()),
-          customerName: invDetails?.customerFullName || draft.customerInfo?.fullName || user?.name || 'مشتری آتلیه',
+          customerName:
+            invDetails?.customerFullName || draft.customerInfo?.fullName || user?.name || 'مشتری آتلیه',
           customerPhone: invDetails?.customerPhone || draft.customerInfo?.phoneNumber || user?.phone || '',
           description: itemDesc,
           invoiceDetails: invDetails
         });
 
-        if (isMounted) {
-          if (res && res.success && res.invoice) {
-            setInvoice(res.invoice);
-          } else {
-            setInvoice({
-              invoiceId: 'BLU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000),
-              amount: totalAmountToPay,
-              finalAmount: totalAmountToPay,
-              amountRial: totalAmountToPay * 10,
-              customerName: invDetails?.customerFullName || draft.customerInfo?.fullName || user?.name || 'مشتری آتلیه',
-              customerPhone: invDetails?.customerPhone || draft.customerInfo?.phoneNumber || user?.phone || '',
-              description: itemDesc,
-              status: 'pending',
-              cardNumber: blupalSettings?.blupalCardNumber || '6219 8619 4528 7193',
-              accountHolder: blupalSettings?.blupalAccountHolder || 'آتلیه تخصصی لاله',
-              createdAt: new Date().toLocaleDateString('fa-IR'),
-              expiresAt: Date.now() + 15 * 60 * 1000,
-              invoiceDetails: invDetails
-            });
-          }
-          setIsCreatingInvoice(false);
+        if (!isMounted) return;
+
+        if (res && res.success && res.invoice) {
+          setInvoice(res.invoice);
+          setInvoiceError('');
+        } else {
+          // Never fabricate an invoice: a fake id / amount means an unmatched transfer.
+          setInvoiceError(
+            res?.message ||
+              'صدور فاکتور در درگاه بلوپال انجام نشد. لطفاً چند لحظه بعد دوباره تلاش کنید.'
+          );
         }
-      } catch (err) {
+      } catch (err: any) {
         if (isMounted) {
-          setIsCreatingInvoice(false);
+          setInvoiceError(err?.message || 'خطا در ارتباط با سرور هنگام صدور فاکتور.');
         }
+      } finally {
+        if (isMounted) setIsCreatingInvoice(false);
       }
     }
 
@@ -143,7 +143,14 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [baseTotal, isPaid]);
+  }, [baseTotal, isPaid, retryNonce]);
+
+  // 1.b Keep the countdown in sync with the invoice expiry returned by BluPal
+  useEffect(() => {
+    if (!invoice?.expiresAt) return;
+    const remaining = Math.max(0, Math.floor((Number(invoice.expiresAt) - Date.now()) / 1000));
+    setCountdownSeconds(remaining);
+  }, [invoice?.expiresAt]);
 
   // 2. Countdown timer
   useEffect(() => {
@@ -157,9 +164,11 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   // 3. Background polling
   const hasTriggeredNextRef = useRef(false);
 
-  const handlePaymentSuccess = (referenceId: string) => {
+  const handlePaymentSuccess = (referenceId: string, paidRial?: number) => {
     if (hasTriggeredNextRef.current) return;
     hasTriggeredNextRef.current = true;
+
+    const finalRial = typeof paidRial === 'number' && paidRial > 0 ? paidRial : payableRial;
 
     setIsPaid(true);
     setPaymentRef(referenceId);
@@ -167,7 +176,10 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
 
     onUpdateDraft({
       paymentMethod: 'card_to_card',
-      paymentReference: referenceId
+      paymentReference: referenceId,
+      paymentInvoiceId: invoice?.invoiceId || undefined,
+      paymentAmountRial: finalRial,
+      paymentAmountToman: Math.round(finalRial / 10)
     });
 
     setTimeout(() => {
@@ -185,8 +197,18 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
         const res = await apiClient.checkBluPalInvoiceStatus(targetId);
         if (res && res.success) {
           if (res.status === 'paid' || res.invoice?.status === 'paid') {
-            const refCode = res.invoice?.referenceCode || res.referenceCode || ('BLU-REF-' + Math.floor(10000000 + Math.random() * 90000000));
-            handlePaymentSuccess(refCode);
+            const refCode =
+              res.invoice?.referenceCode ||
+              res.referenceCode ||
+              'BLU-REF-' + Math.floor(10000000 + Math.random() * 90000000);
+            handlePaymentSuccess(refCode, res.finalAmountRial || res.invoice?.finalAmountRial);
+          } else if (res.status === 'expired' || res.status === 'failed') {
+            setInvoiceError(
+              res.status === 'expired'
+                ? 'مهلت پرداخت این فاکتور به پایان رسیده است. لطفاً فاکتور جدید صادر کنید.'
+                : 'این فاکتور لغو شده است. لطفاً فاکتور جدید صادر کنید.'
+            );
+            setIsPolling(false);
           }
         }
       } catch (err) {
@@ -197,19 +219,26 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
     return () => clearInterval(interval);
   }, [invoice, isPaid, isPolling, blupalSettings]);
 
-  // 4. Sandbox Test Pay button
+  // 4. Sandbox Test Pay button (real BluPal sandbox simulation)
   const handleSimulateSandboxPayment = async () => {
+    if (!invoice?.invoiceId) return;
     setIsCreatingInvoice(true);
-    if (invoice?.invoiceId) {
-      const res = await apiClient.simulateBluPalPayment(invoice.invoiceId);
-      setIsCreatingInvoice(false);
-      if (res && res.success) {
-        handlePaymentSuccess(res.referenceCode || ('BLU-REF-' + Math.floor(100000000 + Math.random() * 900000000)));
-        return;
-      }
-    }
+    setInvoiceError('');
+    const res = await apiClient.simulateBluPalPayment(invoice.invoiceId);
     setIsCreatingInvoice(false);
-    handlePaymentSuccess('BLU-REF-' + Math.floor(100000000 + Math.random() * 900000000));
+
+    if (res && res.success && res.status === 'paid') {
+      handlePaymentSuccess(
+        res.referenceCode || ('BLU-REF-' + Math.floor(100000000 + Math.random() * 900000000)),
+        res.invoice?.finalAmountRial || payableRial
+      );
+      return;
+    }
+
+    setInvoiceError(
+      res?.message ||
+        'شبیه‌سازی پرداخت انجام نشد. برای محیط آزمایشی باید کلید تست (blu_test_...) ثبت شده باشد.'
+    );
   };
 
   const formatCountdown = (secs: number) => {
@@ -218,11 +247,11 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const rawCard = invoice?.cardNumber || blupalSettings?.blupalCardNumber || '6219 8619 4528 7193';
+  const rawCard = invoice?.cardNumber || blupalSettings?.blupalCardNumber || '';
   const formattedCardNumber = formatCardNumber(rawCard);
-  const currentAccountHolder = invoice?.accountHolder || blupalSettings?.blupalAccountHolder || 'آتلیه تخصصی لاله';
-  const displayInvoiceId = invoice?.invoiceId || draft.id || 'BLU-PENDING';
-
+  const currentAccountHolder =
+    invoice?.accountHolder || blupalSettings?.blupalAccountHolder || 'آتلیه تخصصی لاله';
+  const displayInvoiceId = invoice?.invoiceId || 'BLU-PENDING';
   return (
     <div className="space-y-4 max-w-2xl mx-auto px-1 sm:px-0">
       {!isPaid ? (
@@ -235,11 +264,13 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
             </div>
 
             {/* Countdown Badge */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/30 border border-white/15 text-xs font-mono font-bold">
-              <Clock className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
-              <span className="text-slate-200 text-[10px] font-sans">مهلت واریز:</span>
-              <span className="text-amber-300">{formatCountdown(countdownSeconds)}</span>
-            </div>
+            {invoice && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/30 border border-white/15 text-xs font-mono font-bold">
+                <Clock className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+                <span className="text-slate-200 text-[10px] font-sans">مهلت واریز:</span>
+                <span className="text-amber-300">{formatCountdown(countdownSeconds)}</span>
+              </div>
+            )}
           </div>
 
           {/* Body Content */}
@@ -247,7 +278,28 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
             {isCreatingInvoice ? (
               <div className="py-10 flex flex-col items-center justify-center text-center space-y-3">
                 <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
-                <p className="text-xs font-bold text-slate-700">در حال دریافت اطلاعات کارت مقصد...</p>
+                <p className="text-xs font-bold text-slate-700">در حال صدور فاکتور در درگاه بلوپال...</p>
+              </div>
+            ) : invoiceError ? (
+              <div className="space-y-3">
+                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 space-y-2">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-xs font-black">فاکتور صادر نشد</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-red-700">{invoiceError}</p>
+                  <p className="text-[11px] leading-relaxed text-slate-600">
+                    مبلغ محاسبه‌شده این سفارش: {formatPrice(baseTotal)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRetryNonce((n) => n + 1)}
+                  className="w-full h-11 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>تلاش مجدد برای صدور فاکتور</span>
+                </button>
               </div>
             ) : (
               <>
@@ -255,39 +307,54 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
                 <div className="p-3.5 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3.5 text-xs">
                   {/* 1. Centered Card Number Box */}
                   <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2 text-center">
-                    <span className="text-[11px] font-bold text-slate-500 block">شماره کارت مقصد (بانک/بلوبانک):</span>
+                    <span className="text-[11px] font-bold text-slate-500 block">
+                      شماره کارت مقصد (بانک/بلوبانک):
+                    </span>
                     <div className="font-mono font-black text-slate-900 text-base sm:text-xl tracking-widest text-center dir-ltr py-1">
-                      {formattedCardNumber}
+                      {formattedCardNumber || '—'}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(rawCard.replace(/\s/g, ''), 'card')}
-                      className="mx-auto px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                      title="کپی شماره کارت"
-                    >
-                      {copiedField === 'card' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-                      <span>{copiedField === 'card' ? 'کپی شد' : 'کپی شماره کارت'}</span>
-                    </button>
+                    {formattedCardNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(rawCard.replace(/\s/g, ''), 'card')}
+                        className="mx-auto px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                        title="کپی شماره کارت"
+                      >
+                        {copiedField === 'card' ? (
+                          <Check className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-emerald-700" />
+                        )}
+                        <span>{copiedField === 'card' ? 'کپی شد' : 'کپی شماره کارت'}</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* 2. Centered Exact Amount Box (Displayed in Rials) */}
                   <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2 text-center">
                     <span className="text-[11px] font-bold text-slate-500 block">مبلغ دقیق واریز (ریال):</span>
                     <div className="font-mono font-black text-emerald-700 text-base sm:text-xl text-center py-1">
-                      {formatRialDirect(payableAmountRial)}
+                      {formatRialDirect(payableRial)}
                     </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      این مبلغ شامل ارقام یکتای شناسایی فاکتور است؛ لطفاً دقیقاً همین عدد را واریز کنید.
+                    </p>
                     <button
                       type="button"
-                      onClick={() => handleCopy(String(payableAmountRial), 'amount')}
+                      onClick={() => handleCopy(String(payableRial), 'amount')}
                       className="mx-auto px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
                       title="کپی مبلغ واریزی (ریال)"
                     >
-                      {copiedField === 'amount' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
+                      {copiedField === 'amount' ? (
+                        <Check className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-emerald-700" />
+                      )}
                       <span>{copiedField === 'amount' ? 'کپی شد' : 'کپی مبلغ به ریال'}</span>
                     </button>
                   </div>
 
-                  {/* 3. Invoice ID Box (Placed Below Amount Box, No Copy Button) */}
+                  {/* 3. Invoice ID Box */}
                   <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-500">شناسه رسمی فاکتور:</span>
                     <span className="font-mono font-bold text-slate-900 text-xs sm:text-sm dir-ltr">
@@ -304,6 +371,19 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
                   </div>
                 </div>
 
+                {/* Pay online (BluPal payment link) */}
+                {invoice?.paymentUrl && (
+                  <a
+                    href={invoice.paymentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all active:scale-98 flex items-center justify-center gap-2"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>پرداخت آنلاین از طریق صفحه امن بلوپال</span>
+                  </a>
+                )}
+
                 {/* Live Polling Status Indicator */}
                 <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium flex items-center gap-2.5">
                   <div className="relative flex items-center justify-center flex-shrink-0">
@@ -316,7 +396,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
                 </div>
 
                 {/* Sandbox Quick Test Button */}
-                {(blupalSettings?.blupalSandboxMode ?? true) && (
+                {invoice?.mode !== 'live' && (invoice?.isRemote || invoice?.mode === 'local') && (
                   <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 via-emerald-50 to-sky-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
@@ -349,7 +429,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
           </div>
           <h3 className="text-lg sm:text-2xl font-black">پرداخت کارت به کارت تایید شد! 🎉</h3>
           <p className="text-xs sm:text-sm text-emerald-100 max-w-md mx-auto">
-            واریز شما تایید گردید. کد پیگیری پرداخت:
+            مبلغ واریزی: {formatRialDirect(payableRial)} — کد پیگیری پرداخت:
           </p>
           <div className="inline-block px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 font-mono font-black text-sm tracking-wider dir-ltr">
             {paymentRef || draft.paymentReference || 'BLU-CONFIRMED'}
