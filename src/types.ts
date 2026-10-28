@@ -145,6 +145,41 @@ export interface Order extends OrderDraft {
   commercialPromptUsed?: string;
   commercialSheet10x15Image?: string;
   sentMessageIds?: number[]; // To track messages for deletion
+  partnerId?: string;
+  partnerName?: string;
+  partnerGuild?: string;
+  partnerChannel?: PartnerChannel;
+  partnerSentAt?: string;
+  partnerInvoiceId?: string;
+}
+
+export type PartnerChannel = 'telegram' | 'eitaa';
+
+export interface PartnerInvoiceItem {
+  title: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+}
+
+/** Internal invoice issued when an order is sent to a colleague for printing. */
+export interface PartnerInvoice {
+  id: string;
+  number: string;
+  orderId: string;
+  orderTrackingCode: string;
+  partnerId: string;
+  partnerName: string;
+  partnerGuild?: string;
+  channel: PartnerChannel;
+  items: PartnerInvoiceItem[];
+  amount: number;
+  status: 'unpaid' | 'paid';
+  createdAt: string;
+  createdAtTs?: number;
+  sentAt?: string;
+  paidAt?: string;
+  paidNote?: string;
 }
 
 export type TicketCategory =
@@ -206,6 +241,7 @@ export interface BluPalSettings {
   blupalWebhookSecret?: string;
   blupalCustomWebhookUrl?: string;
   blupalCustomEndpoint?: string;
+  eitaaToken?: string;
 }
 
 export interface BluPalInvoice {
