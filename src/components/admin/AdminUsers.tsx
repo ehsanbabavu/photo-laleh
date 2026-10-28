@@ -14,7 +14,9 @@ import {
   UserPlus,
   Send,
   MessageCircle,
-  UserCog
+  UserCog,
+  Building2,
+  MapPin
 } from 'lucide-react';
 import { User, UserCategory } from '../../types';
 
@@ -31,6 +33,8 @@ const emptyForm = {
   category: 'customer' as UserCategory,
   telegramId: '',
   eitaaId: '',
+  guildName: '',
+  address: '',
   walletBalance: 0
 };
 
@@ -93,6 +97,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
       category: userCategory(user),
       telegramId: user.telegramId || '',
       eitaaId: user.eitaaId || '',
+      guildName: user.guildName || '',
+      address: user.address || '',
       walletBalance: user.walletBalance || 0
     });
   };
@@ -116,6 +122,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
           category: editing.category,
           telegramId: editing.category === 'colleague' ? editing.telegramId.trim() : '',
           eitaaId: editing.category === 'colleague' ? editing.eitaaId.trim() : '',
+          guildName: editing.category === 'colleague' ? editing.guildName.trim() : '',
+          address: editing.category === 'colleague' ? editing.address.trim() : '',
           walletBalance: Number(editing.walletBalance) || 0
         })
       });
@@ -157,6 +165,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
         category: creating.category,
         telegramId: isColleague ? creating.telegramId.trim() : undefined,
         eitaaId: isColleague ? creating.eitaaId.trim() : undefined,
+        guildName: isColleague ? creating.guildName.trim() : undefined,
+        address: isColleague ? creating.address.trim() : undefined,
         createdAt: new Date().toLocaleDateString('fa-IR'),
         walletBalance: Number(creating.walletBalance) || 0,
         hasUsedFirstOrderGift: false
@@ -337,8 +347,23 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                               {user.eitaaId}
                             </span>
                           ) : null}
-                          {!user.telegramId && !user.eitaaId && (
+                          {!user.telegramId && !user.eitaaId && !user.guildName && !user.address && (
                             <span className="text-[10px] text-slate-400">ثبت نشده</span>
+                          )}
+                          {user.guildName && (
+                            <span className="flex items-center gap-1 text-[10px] text-slate-700 font-bold max-w-[180px] truncate">
+                              <Building2 className="w-3 h-3 flex-shrink-0 text-amber-600" />
+                              <span className="truncate">{user.guildName}</span>
+                            </span>
+                          )}
+                          {user.address && (
+                            <span
+                              className="flex items-start gap-1 text-[10px] text-slate-500 max-w-[180px]"
+                              title={user.address}
+                            >
+                              <MapPin className="w-3 h-3 flex-shrink-0 text-rose-500 mt-0.5" />
+                              <span className="truncate">{user.address}</span>
+                            </span>
                           )}
                         </div>
                       ) : (
@@ -424,6 +449,23 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                         <MessageCircle className="w-3 h-3" />
                         {user.eitaaId}
                       </span>
+                    )}
+                  </div>
+                )}
+
+                {userCategory(user) === 'colleague' && (user.guildName || user.address) && (
+                  <div className="space-y-1 text-[10px]">
+                    {user.guildName && (
+                      <p className="flex items-center gap-1 text-slate-700 font-bold">
+                        <Building2 className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                        <span className="truncate">{user.guildName}</span>
+                      </p>
+                    )}
+                    {user.address && (
+                      <p className="flex items-start gap-1 text-slate-500">
+                        <MapPin className="w-3 h-3 text-rose-500 flex-shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{user.address}</span>
+                      </p>
                     )}
                   </div>
                 )}
@@ -564,6 +606,32 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       dir="ltr"
                       placeholder="eitaa id"
                       className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-sky-600" />
+                      نام صنف
+                    </label>
+                    <input
+                      value={editing.guildName}
+                      onChange={(e) => setEditing({ ...editing, guildName: e.target.value })}
+                      placeholder="مثال: آتلیه عکاسی نگین"
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-emerald-600" />
+                      آدرس
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editing.address}
+                      onChange={(e) => setEditing({ ...editing, address: e.target.value })}
+                      placeholder="استان، شهر، خیابان، پلاک..."
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs focus:outline-none focus:border-teal-500 resize-none"
                     />
                   </div>
                 </div>
@@ -735,6 +803,32 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       dir="ltr"
                       placeholder="eitaa id"
                       className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-sky-600" />
+                      نام صنف
+                    </label>
+                    <input
+                      value={creating.guildName}
+                      onChange={(e) => setCreating({ ...creating, guildName: e.target.value })}
+                      placeholder="مثال: آتلیه عکاسی نگین"
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-emerald-600" />
+                      آدرس
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={creating.address}
+                      onChange={(e) => setCreating({ ...creating, address: e.target.value })}
+                      placeholder="استان، شهر، خیابان، پلاک..."
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs focus:outline-none focus:border-teal-500 resize-none"
                     />
                   </div>
                 </div>
