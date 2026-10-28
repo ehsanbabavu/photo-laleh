@@ -220,6 +220,16 @@ const SECRET_SETTING_KEYS = [
   'smsApiToken'
 ];
 
+/** Removes admin-only fields (internal cost) from print sizes. */
+function sanitizeDimensions(dimensions: any) {
+  if (!Array.isArray(dimensions)) return [];
+  return dimensions.map((dim: any) => {
+    if (!dim || typeof dim !== 'object') return dim;
+    const { costPrice, costNote, ...rest } = dim;
+    return rest;
+  });
+}
+
 function sanitizeSettings(settings: any, admin: boolean) {
   if (!settings) return {};
   if (admin) return settings;
@@ -257,7 +267,9 @@ app.get('/api/db/all', async (req: any, res) => {
   res.json({
     ...db,
     users: isAdmin ? sanitizeUsers(db.users) : [],
-    settings: sanitizeSettings(db.settings, isAdmin)
+    settings: sanitizeSettings(db.settings, isAdmin),
+    // Internal cost figures are admin-only: never ship them to a customer's browser
+    dimensions: isAdmin ? db.dimensions || [] : sanitizeDimensions(db.dimensions)
   });
 });
 
