@@ -8,12 +8,20 @@ import {
   LogOut,
   Shield,
   ChevronLeft,
-  User as UserIcon
+  User as UserIcon,
+  PackageSearch,
+  Wallet
 } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
 
-export type UserTab = 'dashboard' | 'wizard' | 'orders' | 'tickets';
+export type UserTab =
+  | 'dashboard'
+  | 'wizard'
+  | 'orders'
+  | 'tickets'
+  | 'partner_orders'
+  | 'partner_prices';
 
 interface UserSidebarProps {
   currentTab: UserTab;
@@ -70,6 +78,28 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
     }
   ];
 
+  // Colleagues get two extra menus: their assigned print jobs + cost price list
+  const isColleague = user.category === 'colleague';
+  const visibleMenuItems = isColleague
+    ? [
+        ...menuItems.filter((item) => item.id !== 'wizard'),
+        {
+          id: 'partner_orders' as UserTab,
+          label: 'سفارشات من',
+          icon: PackageSearch,
+          badge: userOrdersCount > 0 ? `${userOrdersCount}` : null,
+          badgeColor: 'text-emerald-700 bg-emerald-100 border border-emerald-200'
+        },
+        {
+          id: 'partner_prices' as UserTab,
+          label: 'لیست قیمت‌ها',
+          icon: Wallet,
+          badge: null,
+          badgeColor: ''
+        }
+      ]
+    : menuItems;
+
   return (
     <aside className="hidden lg:flex fixed top-[56px] sm:top-[72px] lg:top-0 right-0 h-[calc(100vh-56px)] sm:h-[calc(100vh-72px)] lg:h-screen w-72 bg-white border-l border-slate-200 z-30 flex-col justify-between shadow-xs">
       <div>
@@ -84,7 +114,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
                 <span className="text-slate-900">آتلیه دیجیتال </span>
                 <span className="text-red-600">لاله</span>
               </h2>
-              <span className="text-[11px] text-sky-600 font-bold">پنل کاربری مشتری</span>
+              <span className="text-[11px] text-sky-600 font-bold">پنل کاربری {user.category === 'colleague' ? 'همکار' : 'مشتری'}</span>
             </div>
           </div>
         </div>
@@ -113,7 +143,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
 
         {/* Nav links */}
         <nav className="px-3 space-y-1">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
 
