@@ -13,6 +13,7 @@ import {
   Wallet
 } from 'lucide-react';
 import { User } from '../../types';
+import { formatPrice } from '../../utils/formatters';
 import { TulipIcon } from '../TulipIcon';
 
 export type UserTab =
@@ -137,7 +138,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
             <div className="mt-2.5 pt-2.5 border-t border-sky-200/60 flex items-center justify-between text-[11px]">
               <span className="text-slate-600 font-medium">کیف پول:</span>
               <span className="font-mono text-emerald-700 font-bold">
-                {(user.walletBalance ?? 0).toLocaleString('fa-IR')} تومان
+                {formatPrice(user.walletBalance ?? 0)}
               </span>
             </div>
           )}
