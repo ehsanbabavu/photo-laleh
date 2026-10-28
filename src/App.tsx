@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, PrintDimension, SupportTicket, Announcement, BluPalSettings } from './types';
+import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, SupportTicket, Announcement, BluPalSettings } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
@@ -16,6 +16,7 @@ import { ChatGPTConnect } from './components/admin/ChatGPTConnect';
 import { AdminOrders } from './components/admin/AdminOrders';
 import { PrintTypeManager } from './components/admin/PrintTypeManager';
 import { AdminSizesManager } from './components/admin/AdminSizesManager';
+import { AdminPartnerInvoices } from './components/admin/AdminPartnerInvoices';
 import { PromptsManager } from './components/admin/PromptsManager';
 import { AdminTickets } from './components/admin/AdminTickets';
 import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
@@ -70,6 +71,7 @@ export default function App() {
   // Dynamic Print Types State (Managed by Admin & Database)
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(PRINT_TYPES);
   const [dimensions, setDimensions] = useState<PrintDimension[]>(PRINT_DIMENSIONS);
+  const [partnerInvoices, setPartnerInvoices] = useState<PartnerInvoice[]>([]);
 
   // AvalAI API configuration state
   const [avalaiApiKey, setAvalaiApiKey] = useState<string>('');
@@ -94,6 +96,7 @@ export default function App() {
   const [telegramChatId, setTelegramChatId] = useState<string>('');
 
   const [telegramEnabled, setTelegramEnabled] = useState<boolean>(false);
+  const [eitaaToken, setEitaaToken] = useState<string>('');
 
   // BluPal Gateway Settings State
   const [blupalSettings, setBlupalSettings] = useState<BluPalSettings>({
@@ -111,6 +114,11 @@ export default function App() {
     setBlupalSettings(newSettings);
     apiClient.saveSettings(newSettings);
     showToast('تنظیمات درگاه بلوپال با موفقیت ذخیره شد.');
+  };
+
+  const handleSaveEitaaToken = (token: string) => {
+    setEitaaToken(token);
+    apiClient.saveSettings({ eitaaToken: token });
   };
 
   const handleSaveTelegramSettings = (token: string, chatId: string, isEnabled: boolean) => {
@@ -240,6 +248,9 @@ export default function App() {
         if (Array.isArray(data.printTypes)) {
           setPrintTypes(data.printTypes);
         }
+        if (Array.isArray(data.partnerInvoices)) {
+          setPartnerInvoices(data.partnerInvoices);
+        }
         if (Array.isArray(data.dimensions) && data.dimensions.length > 0) {
           setDimensions(data.dimensions);
         } else {
@@ -268,6 +279,9 @@ export default function App() {
           }
           if (data.settings.telegramChatId !== undefined) {
             setTelegramChatId(data.settings.telegramChatId);
+          }
+          if (data.settings.eitaaToken !== undefined) {
+            setEitaaToken(data.settings.eitaaToken);
           }
           if (data.settings.telegramEnabled !== undefined) {
             setTelegramEnabled(data.settings.telegramEnabled);
@@ -515,6 +529,38 @@ export default function App() {
     if (target) showToast(`سایز «${target.title}» حذف شد.`);
   };
 
+  // --- Partner (colleague) invoices ---
+  const handleSettlePartnerInvoice = async (
+    invoice: PartnerInvoice,
+    status: 'paid' | 'unpaid',
+    note?: string
+  ) => {
+    try {
+      const res = await fetch(`/api/partner-invoices/${encodeURIComponent(invoice.id)}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, note })
+      });
+      const data: any = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showToast(data?.message || 'ثبت تسویه فاکتور ناموفق بود.');
+        return false;
+      }
+      setPartnerInvoices((prev) =>
+        prev.map((item) => (item.id === invoice.id ? { ...item, ...data.invoice } : item))
+      );
+      showToast(
+        status === 'paid'
+          ? `فاکتور ${invoice.number} تسویه شد.`
+          : `فاکتور ${invoice.number} به حالت تسویه‌نشده برگشت.`
+      );
+      return true;
+    } catch {
+      showToast('خطا در ارتباط با سرور هنگام ثبت تسویه.');
+      return false;
+    }
+  };
+
   const handleResetDimensions = () => {
     setDimensions(PRINT_DIMENSIONS);
     apiClient.saveDimensions(PRINT_DIMENSIONS);
@@ -746,6 +792,14 @@ export default function App() {
                 />
               )}
 
+              {adminTab === 'partner_invoices' && (
+                <AdminPartnerInvoices
+                  invoices={partnerInvoices}
+                  onSettle={handleSettlePartnerInvoice}
+                  showToast={showToast}
+                />
+              )}
+
               {adminTab === 'print_types' && (
                 <PrintTypeManager
                   printTypes={printTypes}
@@ -815,6 +869,8 @@ export default function App() {
                   isEnabled={telegramEnabled}
                   onSave={handleSaveTelegramSettings}
                   showToast={showToast}
+                  eitaaToken={eitaaToken}
+                  onSaveEitaa={handleSaveEitaaToken}
                 />
               )}
 
