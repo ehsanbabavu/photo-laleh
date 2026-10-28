@@ -1,3 +1,6 @@
+/** Customer (self-registered) or colleague (created by an admin only). */
+export type UserCategory = 'customer' | 'colleague';
+
 export interface User {
   id: string;
   name: string;
@@ -6,6 +9,12 @@ export interface User {
   email?: string;
   phone?: string;
   role: 'admin' | 'user';
+  /** `customer` = عادی، `colleague` = همکار (فقط ادمین می‌سازد) */
+  category?: UserCategory;
+  /** Colleague-only: Telegram numeric/username id */
+  telegramId?: string;
+  /** Colleague-only: Eitaa id */
+  eitaaId?: string;
   avatar?: string;
   createdAt: string;
   walletBalance?: number; // In Tomans (تومان)
