@@ -276,19 +276,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 تابلو ۵۰×۷۰.
               </p>
 
-              <div className="mt-7 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="mt-7 flex items-center">
                 <button
                   onClick={onLogin}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-black text-white bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 shadow-xl shadow-sky-600/25 active:scale-[0.98] transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-black text-white bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 shadow-xl shadow-sky-600/25 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   ورود و ثبت نام
-                </button>
-                <button
-                  onClick={() => goTo('#services')}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-sky-300 hover:text-sky-700 shadow-sm transition-all cursor-pointer"
-                >
-                  مشاهده خدمات
-                  <ChevronDown className="w-4 h-4" />
                 </button>
               </div>
 
