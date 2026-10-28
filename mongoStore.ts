@@ -35,6 +35,7 @@ const ARRAY_COLLECTIONS = [
   'dimensions',
   'announcements',
   'invoices',
+  'partnerInvoices',
   'webhookLogs'
 ] as const;
 
