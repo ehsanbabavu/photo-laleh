@@ -1,20 +1,29 @@
 // Utility functions for Persian formatting
+// All money values are grouped in 3-digit chunks and shown in Toman,
+// except the customer payment step which shows the exact Rial amount.
 
-export const formatPrice = (amount: number): string => {
-  return new Intl.NumberFormat('fa-IR').format(amount) + ' تومان';
+const faNumber = new Intl.NumberFormat('fa-IR');
+
+/** Groups any number in 3-digit chunks with Persian digits (e.g. ۱٬۲۵۰٬۰۰۰). */
+export const formatNumber = (num: number | string | null | undefined): string => {
+  const value = Number(num);
+  return faNumber.format(Number.isFinite(value) ? value : 0);
 };
 
-export const formatPriceRial = (amountInToman: number): string => {
-  const amountRial = amountInToman * 10;
-  return new Intl.NumberFormat('fa-IR').format(amountRial) + ' ریال';
+/** Money in Toman with 3-digit grouping: «۱٬۲۵۰٬۰۰۰ تومان». */
+export const formatPrice = (amount: number | string | null | undefined): string => {
+  return `${formatNumber(amount)} تومان`;
 };
 
-export const formatRialDirect = (amountInRial: number): string => {
-  return new Intl.NumberFormat('fa-IR').format(amountInRial) + ' ریال';
+/** Converts a Toman amount to grouped Rial: «۱۲٬۵۰۰٬۰۰۰ ریال». */
+export const formatPriceRial = (amountInToman: number | string | null | undefined): string => {
+  const toman = Number(amountInToman);
+  return formatRialDirect((Number.isFinite(toman) ? toman : 0) * 10);
 };
 
-export const formatNumber = (num: number): string => {
-  return new Intl.NumberFormat('fa-IR').format(num);
+/** Already-Rial amount with 3-digit grouping: «۱۲٬۵۰۰٬۱۲۳ ریال». */
+export const formatRialDirect = (amountInRial: number | string | null | undefined): string => {
+  return `${formatNumber(amountInRial)} ریال`;
 };
 
 export const getStatusBadge = (status: string): { label: string; color: string } => {
