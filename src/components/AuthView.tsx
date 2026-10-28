@@ -5,9 +5,10 @@ import { TulipIcon } from './TulipIcon';
 
 interface AuthViewProps {
   onLogin: (user: User) => void;
+  onBackToHome?: () => void;
 }
 
-export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
+export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
 
   // Forgot password state
@@ -255,6 +256,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       {/* Light blue and green ambient glowing orbs */}
       <div className="absolute top-1/4 -right-20 w-80 h-80 sm:w-96 sm:h-96 bg-sky-400/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -left-20 w-80 h-80 sm:w-96 sm:h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none" />
+
+      {onBackToHome && (
+        <button
+          type="button"
+          onClick={onBackToHome}
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/90 border border-slate-200 text-slate-700 text-[11px] font-bold shadow-sm hover:bg-white hover:text-sky-700 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+          صفحه اصلی
+        </button>
+      )}
 
       {/* Brand Header with Tulip Logo */}
       <div className="text-center mb-6 sm:mb-8 max-w-md w-full z-10 px-2">
