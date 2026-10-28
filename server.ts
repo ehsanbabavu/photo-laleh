@@ -94,6 +94,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/login/otp',
   '/api/auth/me',
   '/api/auth/logout',
+  '/api/public/landing',
   '/api/blupal/webhook',
   '/api/webhook/blupal',
   '/api/telegram/webhook'
@@ -264,6 +265,40 @@ function sanitizeUser(user: any) {
 function sanitizeUsers(users: any[]) {
   return (users || []).map(sanitizeUser);
 }
+
+// --- Public landing page data (no session required) ---
+app.get('/api/public/landing', async (_req, res) => {
+  try {
+    const db = await readDb();
+    const printTypes = (db.printTypes || [])
+      .filter((type: any) => type.isEnabled !== false)
+      .map((type: any) => ({
+        id: type.id,
+        title: type.title,
+        subtitle: type.subtitle,
+        description: type.description,
+        basePrice: type.basePrice,
+        features: (type.features || []).slice(0, 4),
+        tag: type.tag,
+        sampleImage: type.sampleImage,
+        cardBgImage: type.cardBgImage
+      }));
+
+    const dimensions = sanitizeDimensions(db.dimensions || []).map((dim: any) => ({
+      id: dim.id,
+      title: dim.title,
+      dimensionsCm: dim.dimensionsCm,
+      aspectRatio: dim.aspectRatio,
+      basePrice: dim.basePrice,
+      description: dim.description,
+      popular: dim.popular
+    }));
+
+    res.json({ success: true, printTypes, dimensions });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'landing data error' });
+  }
+});
 
 // --- REST API ENDPOINTS ---
 
