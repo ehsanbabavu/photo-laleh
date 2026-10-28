@@ -281,8 +281,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   onClick={onLogin}
                   className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-black text-white bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 shadow-xl shadow-sky-600/25 active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  <Sparkles className="w-4.5 h-4.5" />
-                  ورود و ثبت سفارش
+                  ورود و ثبت نام
                 </button>
                 <button
                   onClick={() => goTo('#services')}
