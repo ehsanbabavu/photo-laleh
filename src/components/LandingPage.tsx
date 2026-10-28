@@ -192,9 +192,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   <span className="text-slate-900">آتلیه دیجیتال </span>
                   <span className="text-red-600">لاله</span>
                 </p>
-                <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
-                  چاپ عکس و روتوش هوش مصنوعی
-                </p>
               </div>
             </div>
 
