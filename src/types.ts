@@ -15,6 +15,10 @@ export interface User {
   telegramId?: string;
   /** Colleague-only: Eitaa id */
   eitaaId?: string;
+  /** Colleague-only: guild / business name (نام صنف) */
+  guildName?: string;
+  /** Colleague-only: address (آدرس) */
+  address?: string;
   avatar?: string;
   createdAt: string;
   walletBalance?: number; // In Tomans (تومان)
