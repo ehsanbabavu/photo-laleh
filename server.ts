@@ -1017,10 +1017,14 @@ app.post('/api/users', async (req, res) => {
   if (category === 'colleague') {
     newUser.telegramId = String(newUser.telegramId || '').trim();
     newUser.eitaaId = String(newUser.eitaaId || '').trim();
+    newUser.guildName = String(newUser.guildName || '').trim();
+    newUser.address = String(newUser.address || '').trim();
   } else {
-    // Keep those ids meaningful for colleagues only
+    // Keep the colleague-only fields meaningful for colleagues only
     delete newUser.telegramId;
     delete newUser.eitaaId;
+    delete newUser.guildName;
+    delete newUser.address;
   }
 
   if (newUser.password) newUser.password = hashPassword(String(newUser.password));
@@ -1050,6 +1054,8 @@ app.put('/api/users/:id', async (req, res) => {
     } else {
       patch.telegramId = '';
       patch.eitaaId = '';
+      patch.guildName = '';
+      patch.address = '';
     }
   }
 
