@@ -15,6 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { Order, User, SupportTicket, PrintTypeOption, Announcement } from '../../types';
+import { formatNumber } from '../../utils/formatters';
 
 interface UserDashboardProps {
   user: User;
@@ -463,7 +464,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
           <div className="flex items-baseline gap-1 mt-1">
             <span className="text-xl sm:text-2xl font-black text-amber-600 font-mono">
-              {(user.walletBalance ?? 100000).toLocaleString('fa-IR')}
+              {formatNumber(user.walletBalance ?? 0)}
             </span>
             <span className="text-[10px] text-slate-400">تومان</span>
           </div>
