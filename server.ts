@@ -107,6 +107,9 @@ const ADMIN_ONLY_PREFIXES = [
   '/api/prompts',
   '/api/blupal/test',
   '/api/blupal/webhook-logs',
+  '/api/partner-invoices',
+  '/api/print',
+  '/api/eitaa',
   '/api/telegram/test',
   '/api/telegram/send-order'
 ];
@@ -215,6 +218,7 @@ function isHashedPassword(value: string | undefined | null): boolean {
 const SECRET_SETTING_KEYS = [
   'avalaiApiKey',
   'blupalToken',
+  'eitaaToken',
   'blupalWebhookSecret',
   'telegramToken',
   'smsApiToken'
@@ -373,7 +377,7 @@ app.post('/api/backup/restore', async (req, res) => {
     const payload = req.body || {};
     const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
 
-    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'announcements', 'invoices', 'webhookLogs'];
+    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'announcements', 'invoices', 'partnerInvoices', 'webhookLogs'];
     const objectKeys = ['settings', 'prompts'];
     const providedKeys = [...arrayKeys, ...objectKeys].filter((key) => data[key] !== undefined);
     if (providedKeys.length === 0) {
@@ -1954,6 +1958,447 @@ app.post('/api/telegram/send-order', async (req, res) => {
   } catch (err: any) {
     console.error('Telegram send order error:', err);
     res.status(500).json({ success: false, error: err.message || 'Server error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Sending a print order to a colleague (partner) + internal partner invoices
+//   Telegram → Bot API  sendDocument / sendMessage
+//   Eitaa    → eitaayar.ir API  {token}/sendFile / {token}/sendMessage
+// Only production details (size, quantity, material) are shared with the
+// colleague — never the customer's identity or the order price.
+// ---------------------------------------------------------------------------
+const EITAA_API_BASE = 'https://eitaayar.ir/api';
+
+function nowFaFull(): string {
+  return new Date().toLocaleString('fa-IR', {
+    timeZone: 'Asia/Tehran',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function parseDataUrl(dataUrl: string): { buffer: Buffer; mime: string } | null {
+  try {
+    const parts = String(dataUrl).split(';base64,');
+    if (parts.length < 2) return null;
+    const mime = parts[0].split(':')[1] || 'image/jpeg';
+    return { buffer: Buffer.from(parts[1], 'base64'), mime };
+  } catch {
+    return null;
+  }
+}
+
+/** Downloads remote images or decodes data URLs into uploadable blobs. */
+async function toUploadableImage(
+  source: string | undefined
+): Promise<{ buffer: Buffer; mime: string } | null> {
+  if (!source) return null;
+  if (source.startsWith('data:')) return parseDataUrl(source);
+  try {
+    const response = await fetch(source);
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      mime: response.headers.get('content-type') || 'image/jpeg'
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The production files that must reach the colleague, in a stable order. */
+function collectOrderPrintImages(order: any): Array<{ key: string; label: string; source: string }> {
+  const images: Array<{ key: string; label: string; source: string }> = [];
+  if (order.printSheetImage) images.push({ key: 'sheet', label: 'شیت چاپ نهایی', source: order.printSheetImage });
+  if (order.commercialSheet10x15Image) {
+    images.push({ key: 'commercial_sheet', label: 'شیت تبلیغاتی ۱۰×۱۵', source: order.commercialSheet10x15Image });
+  }
+  if (order.commercialImage) {
+    images.push({ key: 'commercial', label: 'عکس تبلیغاتی', source: order.commercialImage });
+  }
+  if (order.aiProcessedImage) images.push({ key: 'ai', label: 'عکس رتوش‌شده', source: order.aiProcessedImage });
+  if (order.uploadedImage) images.push({ key: 'original', label: 'عکس اصلی', source: order.uploadedImage });
+  if (Array.isArray(order.uploadedImages)) {
+    order.uploadedImages.forEach((img: string, index: number) => {
+      images.push({ key: `original_${index}`, label: `عکس اصلی ${index + 1}`, source: img });
+    });
+  }
+  return images.filter((image) => Boolean(image.source));
+}
+
+function buildPartnerCaption(order: any, dimension: any, materialName: string, imageLabel?: string): string {
+  const lines = [
+    imageLabel ? `🖼 ${imageLabel}` : '🧾 سفارش چاپ',
+    `📌 کد سفارش: ${order.trackingCode || order.id}`,
+    dimension?.title ? `📐 سایز: ${dimension.title}` : null,
+    dimension?.dimensionsCm ? `📏 ابعاد: ${dimension.dimensionsCm}` : null,
+    `🔢 تعداد: ${order.quantity || 1} سری`,
+    materialName ? `🧻 جنس: ${materialName}` : null,
+    order.customerInfo?.notes ? `📝 توضیح: ${order.customerInfo.notes}` : null,
+    `📅 تاریخ: ${order.date || nowFaFull()}`
+  ].filter(Boolean);
+  return lines.join('\n');
+}
+
+async function sendTelegramDocument(
+  botToken: string,
+  chatId: string,
+  file: { buffer: Buffer; mime: string },
+  filename: string,
+  caption: string
+): Promise<{ ok: boolean; messageId?: number; error?: string }> {
+  try {
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption);
+    form.append('document', new Blob([file.buffer], { type: file.mime }), filename);
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+      method: 'POST',
+      body: form
+    });
+    const result: any = await response.json().catch(() => null);
+    if (result?.ok) return { ok: true, messageId: result.result?.message_id };
+    return { ok: false, error: result?.description || `HTTP ${response.status}` };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'telegram network error' };
+  }
+}
+
+async function sendTelegramMessage(
+  botToken: string,
+  chatId: string,
+  text: string
+): Promise<{ ok: boolean; messageId?: number; error?: string }> {
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text })
+    });
+    const result: any = await response.json().catch(() => null);
+    if (result?.ok) return { ok: true, messageId: result.result?.message_id };
+    return { ok: false, error: result?.description || `HTTP ${response.status}` };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'telegram network error' };
+  }
+}
+
+async function sendEitaaFile(
+  token: string,
+  chatId: string,
+  file: { buffer: Buffer; mime: string },
+  filename: string,
+  caption: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption);
+    form.append('file', new Blob([file.buffer], { type: file.mime }), filename);
+
+    const response = await fetch(`${EITAA_API_BASE}/${token}/sendFile`, {
+      method: 'POST',
+      body: form
+    });
+    const result: any = await response.json().catch(() => null);
+    if (result?.ok) return { ok: true };
+    return { ok: false, error: result?.description || result?.result || `HTTP ${response.status}` };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'eitaa network error' };
+  }
+}
+
+async function sendEitaaMessage(
+  token: string,
+  chatId: string,
+  text: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${EITAA_API_BASE}/${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text })
+    });
+    const result: any = await response.json().catch(() => null);
+    if (result?.ok) return { ok: true };
+    return { ok: false, error: result?.description || result?.result || `HTTP ${response.status}` };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'eitaa network error' };
+  }
+}
+
+// Eitaa (eitaayar.ir) connection test
+app.post('/api/eitaa/test', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim();
+    if (!token) {
+      return res.json({ success: false, error: 'توکن ایتایار را وارد کنید.' });
+    }
+    const response = await fetch(`${EITAA_API_BASE}/${token}/getMe`);
+    const payload: any = await response.json().catch(() => null);
+    if (payload?.ok) {
+      const name = payload?.result?.username || payload?.result?.first_name || 'ربات';
+      return res.json({ success: true, message: `اتصال موفق بود — ${name}`, details: payload });
+    }
+    return res.json({
+      success: false,
+      error: payload?.description || payload?.result || 'توکن نامعتبر است یا دسترسی ندارد.'
+    });
+  } catch (err: any) {
+    res.json({ success: false, error: err?.message || 'خطا در ارتباط با ایتایار' });
+  }
+});
+
+// Send a print order to a colleague and issue the internal partner invoice
+app.post('/api/print/send-to-partner', async (req, res) => {
+  try {
+    const db = await readDb();
+    const settings = db.settings || {};
+    const { orderId, partnerId, channel } = req.body || {};
+
+    const sendChannel = channel === 'eitaa' ? 'eitaa' : channel === 'telegram' ? 'telegram' : null;
+    if (!orderId || !partnerId || !sendChannel) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'سفارش، همکار و روش ارسال (تلگرام یا ایتا) الزامی است.'
+      });
+    }
+
+    const order = (db.orders || []).find((o: any) => o.id === orderId);
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'not_found', message: 'سفارش یافت نشد.' });
+    }
+
+    const partner = (db.users || []).find((u: any) => u.id === partnerId);
+    if (!partner || partner.category !== 'colleague') {
+      return res.status(400).json({ success: false, error: 'invalid_partner', message: 'همکار انتخاب‌شده معتبر نیست.' });
+    }
+
+    const chatId =
+      sendChannel === 'telegram'
+        ? String(partner.telegramId || '').trim()
+        : String(partner.eitaaId || '').trim();
+
+    if (!chatId) {
+      return res.status(400).json({
+        success: false,
+        error: 'missing_partner_id',
+        message:
+          sendChannel === 'telegram'
+            ? 'برای این همکار شناسه تلگرام ثبت نشده است.'
+            : 'برای این همکار شناسه ایتا ثبت نشده است.'
+      });
+    }
+
+    const botToken = String(
+      sendChannel === 'telegram' ? settings.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '' : settings.eitaaToken || process.env.EITAA_TOKEN || ''
+    ).trim();
+
+    if (!botToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'missing_bot_token',
+        message:
+          sendChannel === 'telegram'
+            ? 'توکن ربات تلگرام در تنظیمات ثبت نشده است.'
+            : 'توکن ایتایار در تنظیمات ثبت نشده است.'
+      });
+    }
+
+    // A second (unpaid) invoice for the same order would double-count the debt
+    const existingInvoice = (db.partnerInvoices || []).find(
+      (inv: any) => inv.orderId === order.id && inv.status === 'unpaid'
+    );
+    if (existingInvoice) {
+      return res.status(409).json({
+        success: false,
+        error: 'invoice_exists',
+        message: `برای این سفارش قبلاً فاکتور ${existingInvoice.number} صادر شده و تسویه نشده است.`
+      });
+    }
+
+    const dimensions = db.dimensions || [];
+    const dimension = dimensions.find((d: any) => d.id === order.dimensionId) || null;
+    const materialName =
+      (Array.isArray(db.settings?.paperMaterials) ? db.settings.paperMaterials : []).find(
+        (m: any) => m.id === order.materialId
+      )?.name || order.invoiceDetails?.materialTitle || '';
+
+    const images = collectOrderPrintImages(order);
+    const warnings: string[] = [];
+    let sentCount = 0;
+    const sentMessageIds: number[] = [];
+
+    const summaryCaption = buildPartnerCaption(order, dimension, materialName);
+
+    if (images.length === 0) {
+      const text = `${summaryCaption}\n\n⚠️ تصویری برای این سفارش ثبت نشده است.`;
+      const result =
+        sendChannel === 'telegram'
+          ? await sendTelegramMessage(botToken, chatId, text)
+          : await sendEitaaMessage(botToken, chatId, text);
+      if (!result.ok) {
+        return res.status(502).json({
+          success: false,
+          error: 'send_failed',
+          message: `ارسال به ${sendChannel === 'telegram' ? 'تلگرام' : 'ایتا'} انجام نشد: ${result.error || 'خطای نامشخص'}`
+        });
+      }
+      if (result.messageId) sentMessageIds.push(result.messageId);
+    } else {
+      for (let index = 0; index < images.length; index += 1) {
+        const image = images[index];
+        const upload = await toUploadableImage(image.source);
+        if (!upload) {
+          warnings.push(`تصویر «${image.label}» قابل خواندن نبود.`);
+          continue;
+        }
+
+        const extension = upload.mime.includes('png') ? 'png' : 'jpg';
+        const filename = `${order.trackingCode || order.id}-${index + 1}.${extension}`;
+        const caption = buildPartnerCaption(order, dimension, materialName, image.label);
+
+        const result =
+          sendChannel === 'telegram'
+            ? await sendTelegramDocument(botToken, chatId, upload, filename, caption)
+            : await sendEitaaFile(botToken, chatId, upload, filename, caption);
+
+        if (result.ok) {
+          sentCount += 1;
+          if ((result as any).messageId) sentMessageIds.push((result as any).messageId);
+        } else {
+          warnings.push(`ارسال «${image.label}» ناموفق بود: ${result.error || 'خطای نامشخص'}`);
+        }
+      }
+
+      // Always deliver the production details as text too
+      const summary =
+        sendChannel === 'telegram'
+          ? await sendTelegramMessage(botToken, chatId, summaryCaption)
+          : await sendEitaaMessage(botToken, chatId, summaryCaption);
+      if (!summary.ok) warnings.push(`ارسال متن جزئیات ناموفق بود: ${summary.error || 'خطای نامشخص'}`);
+      if (summary.messageId) sentMessageIds.push(summary.messageId);
+
+      if (sentCount === 0) {
+        return res.status(502).json({
+          success: false,
+          error: 'send_failed',
+          message: warnings.join(' | ') || 'هیچ تصویری برای همکار ارسال نشد.'
+        });
+      }
+    }
+
+    // Internal invoice priced on the size's cost price (admin-only field)
+    const quantity = Math.max(1, Number(order.quantity) || 1);
+    const unitCost = Number(dimension?.costPrice) || 0;
+    const amount = unitCost * quantity;
+    if (unitCost <= 0) {
+      warnings.push('هزینه تمام‌شده این سایز ثبت نشده است؛ مبلغ فاکتور صفر محاسبه شد.');
+    }
+
+    const invoiceId = 'PINV-' + Date.now().toString(36).toUpperCase();
+    const invoiceNumber = 'F-' + String(1000 + (db.partnerInvoices || []).length + 1);
+    const sentAt = nowFaFull();
+
+    const invoice = {
+      id: invoiceId,
+      number: invoiceNumber,
+      orderId: order.id,
+      orderTrackingCode: order.trackingCode || order.id,
+      partnerId: partner.id,
+      partnerName: partner.name || '',
+      partnerGuild: partner.guildName || '',
+      channel: sendChannel,
+      items: [
+        {
+          title: dimension?.title || order.invoiceDetails?.dimensionTitle || 'سایز انتخابی',
+          quantity,
+          unitCost,
+          total: amount
+        }
+      ],
+      amount,
+      status: unitCost > 0 ? 'unpaid' : 'paid',
+      createdAt: sentAt,
+      createdAtTs: Date.now(),
+      sentAt,
+      ...(unitCost > 0 ? {} : { paidAt: sentAt, paidNote: 'مبلغ صفر (هزینه تمام‌شده ثبت نشده بود)' })
+    };
+
+    db.partnerInvoices = [invoice, ...(db.partnerInvoices || [])].slice(0, 500);
+    db.orders = (db.orders || []).map((o: any) =>
+      o.id === order.id
+        ? {
+            ...o,
+            status: 'printing',
+            partnerId: partner.id,
+            partnerName: partner.name || '',
+            partnerGuild: partner.guildName || '',
+            partnerChannel: sendChannel,
+            partnerSentAt: sentAt,
+            partnerInvoiceId: invoiceId,
+            sentMessageIds
+          }
+        : o
+    );
+
+    await writeDb(db);
+
+    const updatedOrder = db.orders.find((o: any) => o.id === order.id);
+    res.json({
+      success: true,
+      message: `سفارش برای ${partner.name} ارسال شد و فاکتور ${invoiceNumber} صادر گردید.`,
+      invoice,
+      order: updatedOrder,
+      sentCount: images.length > 0 ? sentCount : 1,
+      channel: sendChannel,
+      warnings
+    });
+  } catch (err: any) {
+    console.error('Send to partner error:', err);
+    res.status(500).json({ success: false, error: 'internal_error', message: err.message });
+  }
+});
+
+// Partner invoices (issued invoices for colleague print jobs)
+app.get('/api/partner-invoices', async (_req, res) => {
+  const db = await readDb();
+  res.json(db.partnerInvoices || []);
+});
+
+// Settle / unsettle a partner invoice
+app.post('/api/partner-invoices/:id/status', async (req, res) => {
+  try {
+    const db = await readDb();
+    const id = String(req.params.id || '').trim();
+    const status = req.body?.status === 'paid' ? 'paid' : 'unpaid';
+    const note = String(req.body?.note || '').trim();
+
+    const invoice = (db.partnerInvoices || []).find((inv: any) => inv.id === id || inv.number === id);
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'not_found', message: 'فاکتور یافت نشد.' });
+    }
+
+    invoice.status = status;
+    if (status === 'paid') {
+      invoice.paidAt = nowFaFull();
+      invoice.paidNote = note;
+    } else {
+      delete invoice.paidAt;
+      delete invoice.paidNote;
+    }
+
+    await writeDb(db);
+    res.json({ success: true, invoice });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'internal_error', message: err.message });
   }
 });
 
