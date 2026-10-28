@@ -11,9 +11,12 @@ import {
   Wallet,
   CalendarDays,
   Plus,
-  UserPlus
+  UserPlus,
+  Send,
+  MessageCircle,
+  UserCog
 } from 'lucide-react';
-import { User } from '../../types';
+import { User, UserCategory } from '../../types';
 
 interface AdminUsersProps {
   showToast: (msg: string) => void;
@@ -25,6 +28,9 @@ const emptyForm = {
   phone: '',
   password: '',
   role: 'user' as 'admin' | 'user',
+  category: 'customer' as UserCategory,
+  telegramId: '',
+  eitaaId: '',
   walletBalance: 0
 };
 
@@ -36,6 +42,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [creating, setCreating] = useState<typeof emptyForm | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<'all' | UserCategory>('all');
 
   const load = async () => {
     setIsLoading(true);
@@ -54,13 +61,27 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
     load();
   }, []);
 
+  const userCategory = (u: User): UserCategory => (u.category === 'colleague' ? 'colleague' : 'customer');
+
+  const counts = useMemo(() => {
+    const customers = users.filter((u) => userCategory(u) === 'customer').length;
+    return { all: users.length, customer: customers, colleague: users.length - customers };
+  }, [users]);
+
   const filtered = useMemo(() => {
     const q = query.trim().replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
-    if (!q) return users;
-    return users.filter(
-      (u) => (u.name || '').includes(query.trim()) || String(u.phone || '').includes(q)
+    const byCategory = users.filter(
+      (u) => categoryFilter === 'all' || userCategory(u) === categoryFilter
     );
-  }, [users, query]);
+    if (!q) return byCategory;
+    return byCategory.filter(
+      (u) =>
+        (u.name || '').includes(query.trim()) ||
+        String(u.phone || '').includes(q) ||
+        String(u.telegramId || '').includes(q) ||
+        String(u.eitaaId || '').includes(q)
+    );
+  }, [users, query, categoryFilter]);
 
   const openEdit = (user: User) => {
     setEditing({
@@ -69,6 +90,9 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
       phone: user.phone || '',
       password: user.password || '',
       role: (user.role === 'admin' ? 'admin' : 'user') as 'admin' | 'user',
+      category: userCategory(user),
+      telegramId: user.telegramId || '',
+      eitaaId: user.eitaaId || '',
       walletBalance: user.walletBalance || 0
     });
   };
@@ -88,7 +112,10 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
           name: editing.name.trim(),
           phone: editing.phone.trim(),
           password: editing.password,
-          role: editing.role,
+          role: editing.category === 'colleague' ? 'user' : editing.role,
+          category: editing.category,
+          telegramId: editing.category === 'colleague' ? editing.telegramId.trim() : '',
+          eitaaId: editing.category === 'colleague' ? editing.eitaaId.trim() : '',
           walletBalance: Number(editing.walletBalance) || 0
         })
       });
@@ -120,12 +147,16 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
     }
     setIsSaving(true);
     try {
+      const isColleague = creating.category === 'colleague';
       const newUser: User = {
         id: 'usr-' + Date.now(),
         name: creating.name.trim(),
         phone,
         password: creating.password,
-        role: creating.role,
+        role: isColleague ? 'user' : creating.role,
+        category: creating.category,
+        telegramId: isColleague ? creating.telegramId.trim() : undefined,
+        eitaaId: isColleague ? creating.eitaaId.trim() : undefined,
         createdAt: new Date().toLocaleDateString('fa-IR'),
         walletBalance: Number(creating.walletBalance) || 0,
         hasUsedFirstOrderGift: false
@@ -138,7 +169,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
       if (!res.ok) throw new Error('create failed');
       setCreating(null);
       await load();
-      showToast('کاربر اضافه شد.');
+      showToast(isColleague ? 'همکار جدید اضافه شد.' : 'کاربر اضافه شد.');
     } catch {
       showToast('افزودن کاربر ناموفق بود.');
     } finally {
@@ -163,31 +194,74 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Users className="w-4 h-4 text-sky-600 flex-shrink-0" />
-          <h2 className="text-sm font-black text-slate-900">مدیریت کاربران</h2>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-lg bg-slate-100 text-slate-600">
-            {users.length}
-          </span>
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Users className="w-4 h-4 text-sky-600 flex-shrink-0" />
+            <h2 className="text-sm font-black text-slate-900">مدیریت کاربران</h2>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-lg bg-slate-100 text-slate-600">
+              {users.length}
+            </span>
+          </div>
+          <button
+            onClick={() =>
+              setCreating({ ...emptyForm, id: '', role: 'user', category: 'colleague', walletBalance: 0 })
+            }
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-teal-800 bg-teal-50 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer whitespace-nowrap"
+            title="افزودن همکار (فقط شناسه تلگرام و ایتا + اطلاعات پایه)"
+          >
+            <UserCog className="w-4 h-4" />
+            افزودن همکار
+          </button>
+          <button
+            onClick={() =>
+              setCreating({ ...emptyForm, id: '', role: 'user', category: 'customer', walletBalance: 0 })
+            }
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-white bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 transition-colors cursor-pointer whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            افزودن کاربر
+          </button>
         </div>
-        <button
-          onClick={() =>
-            setCreating({ ...emptyForm, id: '', role: 'user', walletBalance: 0 })
-          }
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-white bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 transition-colors cursor-pointer whitespace-nowrap"
-        >
-          <Plus className="w-4 h-4" />
-          افزودن کاربر
-        </button>
-        <div className="relative w-full sm:w-64">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="جستجوی نام یا شماره"
-            className="w-full pl-3 pr-9 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-          />
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { id: 'all' as const, label: 'همه', count: counts.all, icon: Users },
+              { id: 'customer' as const, label: 'مشتریان', count: counts.customer, icon: Users },
+              { id: 'colleague' as const, label: 'همکاران', count: counts.colleague, icon: UserCog }
+            ].map((tab) => {
+              const TabIcon = tab.icon;
+              const active = categoryFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setCategoryFilter(tab.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-card font-bold transition-all cursor-pointer border ${
+                    active
+                      ? 'bg-gradient-to-r from-sky-50 to-emerald-50 text-sky-800 border-sky-300 shadow-xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <TabIcon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                  <span className="font-mono text-[10px] px-1.5 rounded-md bg-white/70 border border-slate-200">
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative w-full sm:w-64 sm:mr-auto">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="جستجوی نام، شماره، تلگرام یا ایتا"
+              className="w-full pl-3 pr-9 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+            />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5" />
+          </div>
         </div>
       </div>
 
@@ -206,6 +280,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                 <th className="px-4 py-3">نام</th>
                 <th className="px-4 py-3">شماره موبایل</th>
                 <th className="px-4 py-3">نقش</th>
+                <th className="px-4 py-3">دسته</th>
+                <th className="px-4 py-3">تلگرام / ایتا</th>
                 <th className="px-4 py-3">کیف پول (تومان)</th>
                 <th className="px-4 py-3">تاریخ عضویت</th>
                 <th className="px-4 py-3 text-center">عملیات</th>
@@ -241,6 +317,41 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                         <span className="inline-flex items-center text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
                           کاربر
                         </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {userCategory(user) === 'colleague' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-lg">
+                          <UserCog className="w-3 h-3" />
+                          همکار
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg">
+                          مشتری
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {userCategory(user) === 'colleague' ? (
+                        <div className="space-y-1">
+                          {user.telegramId ? (
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-sky-700" dir="ltr">
+                              <Send className="w-3 h-3" />
+                              {user.telegramId}
+                            </span>
+                          ) : null}
+                          {user.eitaaId ? (
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-700" dir="ltr">
+                              <MessageCircle className="w-3 h-3" />
+                              {user.eitaaId}
+                            </span>
+                          ) : null}
+                          {!user.telegramId && !user.eitaaId && (
+                            <span className="text-[10px] text-slate-400">ثبت نشده</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-slate-700">
@@ -296,13 +407,35 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       {user.phone}
                     </p>
                   </div>
-                  {isAdmin && (
+                  {isAdmin ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-lg">
                       <ShieldCheck className="w-3 h-3" />
                       ادمین
                     </span>
-                  )}
+                  ) : userCategory(user) === 'colleague' ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-lg">
+                      <UserCog className="w-3 h-3" />
+                      همکار
+                    </span>
+                  ) : null}
                 </div>
+
+                {userCategory(user) === 'colleague' && (user.telegramId || user.eitaaId) && (
+                  <div className="flex items-center gap-2 flex-wrap text-[10px] font-mono">
+                    {user.telegramId && (
+                      <span className="inline-flex items-center gap-1 text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md" dir="ltr">
+                        <Send className="w-3 h-3" />
+                        {user.telegramId}
+                      </span>
+                    )}
+                    {user.eitaaId && (
+                      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md" dir="ltr">
+                        <MessageCircle className="w-3 h-3" />
+                        {user.eitaaId}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex items-center gap-3 text-[11px] text-slate-600">
                   <span className="inline-flex items-center gap-1">
@@ -380,6 +513,72 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                 />
               </div>
               <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">دسته کاربر</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'customer' as const, label: 'مشتری', icon: Users },
+                    { id: 'colleague' as const, label: 'همکار', icon: UserCog }
+                  ].map((opt) => {
+                    const OptIcon = opt.icon;
+                    const active = editing.category === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setEditing({
+                          ...editing,
+                          category: opt.id,
+                          role: opt.id === 'colleague' ? 'user' : editing.role
+                        })}
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                          active
+                            ? 'bg-sky-50 border-sky-300 text-sky-800'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <OptIcon className="w-3.5 h-3.5" />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {editing.category === 'colleague' && (
+                <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-2.5">
+                  <p className="text-[10px] font-bold text-teal-900">
+                    شناسه‌های ارتباطی همکار (فقط برای مدیر نمایش داده می‌شود)
+                  </p>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <Send className="w-3 h-3 text-sky-600" />
+                      شناسه تلگرام
+                    </label>
+                    <input
+                      value={editing.telegramId}
+                      onChange={(e) => setEditing({ ...editing, telegramId: e.target.value })}
+                      dir="ltr"
+                      placeholder="@username یا 123456789"
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3 text-emerald-600" />
+                      شناسه ایتا
+                    </label>
+                    <input
+                      value={editing.eitaaId}
+                      onChange={(e) => setEditing({ ...editing, eitaaId: e.target.value })}
+                      dir="ltr"
+                      placeholder="eitaa id"
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">رمز عبور</label>
                 <input
                   value={editing.password}
@@ -393,14 +592,20 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                   <label className="text-[11px] font-bold text-slate-700 block mb-1">نقش</label>
                   <select
                     value={editing.role}
+                    disabled={editing.category === 'colleague'}
                     onChange={(e) =>
                       setEditing({ ...editing, role: e.target.value as 'admin' | 'user' })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="user">کاربر</option>
                     <option value="admin">ادمین</option>
                   </select>
+                  {editing.category === 'colleague' && (
+                    <p className="text-[10px] text-teal-700 font-bold mt-1">
+                      همکار همیشه نقش «کاربر» دارد.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-1">کیف پول</label>
@@ -442,8 +647,12 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
           <div className="w-full sm:max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
               <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                <UserPlus className="w-4 h-4 text-sky-600" />
-                افزودن کاربر
+                {creating.category === 'colleague' ? (
+                  <UserCog className="w-4 h-4 text-teal-600" />
+                ) : (
+                  <UserPlus className="w-4 h-4 text-sky-600" />
+                )}
+                {creating.category === 'colleague' ? 'افزودن همکار جدید' : 'افزودن کاربر'}
               </h3>
               <button
                 onClick={() => setCreating(null)}
@@ -475,6 +684,72 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                 />
               </div>
               <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">دسته کاربر</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'customer' as const, label: 'مشتری', icon: Users },
+                    { id: 'colleague' as const, label: 'همکار', icon: UserCog }
+                  ].map((opt) => {
+                    const OptIcon = opt.icon;
+                    const active = creating.category === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setCreating({
+                          ...creating,
+                          category: opt.id,
+                          role: opt.id === 'colleague' ? 'user' : creating.role
+                        })}
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                          active
+                            ? 'bg-sky-50 border-sky-300 text-sky-800'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <OptIcon className="w-3.5 h-3.5" />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {creating.category === 'colleague' && (
+                <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-2.5">
+                  <p className="text-[10px] font-bold text-teal-900">
+                    شناسه‌های ارتباطی همکار (فقط برای مدیر نمایش داده می‌شود)
+                  </p>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <Send className="w-3 h-3 text-sky-600" />
+                      شناسه تلگرام
+                    </label>
+                    <input
+                      value={creating.telegramId}
+                      onChange={(e) => setCreating({ ...creating, telegramId: e.target.value })}
+                      dir="ltr"
+                      placeholder="@username یا 123456789"
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3 text-emerald-600" />
+                      شناسه ایتا
+                    </label>
+                    <input
+                      value={creating.eitaaId}
+                      onChange={(e) => setCreating({ ...creating, eitaaId: e.target.value })}
+                      dir="ltr"
+                      placeholder="eitaa id"
+                      className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">رمز عبور</label>
                 <input
                   value={creating.password}
@@ -488,10 +763,11 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                   <label className="text-[11px] font-bold text-slate-700 block mb-1">نقش</label>
                   <select
                     value={creating.role}
+                    disabled={creating.category === 'colleague'}
                     onChange={(e) =>
                       setCreating({ ...creating, role: e.target.value as 'admin' | 'user' })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="user">کاربر</option>
                     <option value="admin">ادمین</option>
