@@ -590,6 +590,8 @@ app.post('/api/auth/register', async (req, res) => {
       phone,
       password: hashPassword(password),
       role: 'user',
+      // Self-registration always creates a customer; colleagues are admin-created only
+      category: 'customer',
       createdAt: new Date().toLocaleDateString('fa-IR'),
       walletBalance: 100000,
       hasUsedFirstOrderGift: false
@@ -1006,6 +1008,21 @@ app.get('/api/users', async (_req, res) => {
 app.post('/api/users', async (req, res) => {
   const db = await readDb();
   const newUser = { ...req.body };
+
+  const category: 'customer' | 'colleague' = newUser.category === 'colleague' ? 'colleague' : 'customer';
+  newUser.category = category;
+  // Colleagues are always regular users (never admins)
+  newUser.role = category === 'colleague' ? 'user' : newUser.role === 'admin' ? 'admin' : 'user';
+
+  if (category === 'colleague') {
+    newUser.telegramId = String(newUser.telegramId || '').trim();
+    newUser.eitaaId = String(newUser.eitaaId || '').trim();
+  } else {
+    // Keep those ids meaningful for colleagues only
+    delete newUser.telegramId;
+    delete newUser.eitaaId;
+  }
+
   if (newUser.password) newUser.password = hashPassword(String(newUser.password));
   const existingIdx = (db.users || []).findIndex((u: any) => u.id === newUser.id || (newUser.phone && u.phone === newUser.phone));
   if (existingIdx >= 0) {
@@ -1021,7 +1038,21 @@ app.put('/api/users/:id', async (req, res) => {
   const db = await readDb();
   const userId = req.params.id;
   const patch: any = { ...req.body };
+
   if (patch.password) patch.password = hashPassword(String(patch.password));
+  else delete patch.password;
+
+  if (patch.category) {
+    patch.category = patch.category === 'colleague' ? 'colleague' : 'customer';
+    if (patch.category === 'colleague') {
+      // Colleagues never keep an admin role
+      patch.role = 'user';
+    } else {
+      patch.telegramId = '';
+      patch.eitaaId = '';
+    }
+  }
+
   db.users = (db.users || []).map((u: any) => (u.id === userId ? { ...u, ...patch } : u));
   await writeDb(db);
   res.json({ success: true });
