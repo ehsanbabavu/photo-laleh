@@ -36,6 +36,8 @@ export interface PrintDimension {
   dimensionsCm: string;
   aspectRatio: string;
   basePrice: number;
+  /** Internal cost of this size — admin only, never exposed to customers */
+  costPrice?: number;
   description: string;
   popular?: boolean;
 }
