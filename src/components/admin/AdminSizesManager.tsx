@@ -9,7 +9,8 @@ import {
   AlertCircle,
   Ruler,
   Layers,
-  Star
+  Star,
+  Lock
 } from 'lucide-react';
 import { PrintDimension, PrintTypeOption } from '../../types';
 import { formatPrice } from '../../utils/formatters';
@@ -28,6 +29,7 @@ const emptyForm = {
   dimensionsCm: '',
   aspectRatio: '',
   basePrice: 0,
+  costPrice: 0,
   description: '',
   popular: false
 };
@@ -63,6 +65,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
       dimensionsCm: item.dimensionsCm,
       aspectRatio: item.aspectRatio || '',
       basePrice: Number(item.basePrice) || 0,
+      costPrice: Number(item.costPrice) || 0,
       description: item.description || '',
       popular: Boolean(item.popular)
     });
@@ -81,6 +84,9 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
     if (!Number.isFinite(Number(form.basePrice)) || Number(form.basePrice) < 0) {
       return setFormError('مبلغ سایز نمی‌تواند منفی باشد.');
     }
+    if (!Number.isFinite(Number(form.costPrice)) || Number(form.costPrice) < 0) {
+      return setFormError('هزینه تمام‌شده نمی‌تواند منفی باشد.');
+    }
 
     const duplicate = dimensions.some(
       (d) => d.id !== editingId && d.title.trim() === title
@@ -93,6 +99,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
       dimensionsCm,
       aspectRatio: form.aspectRatio.trim() || '—',
       basePrice: Math.round(Number(form.basePrice) || 0),
+      costPrice: Math.round(Number(form.costPrice) || 0),
       description: form.description.trim(),
       popular: form.popular
     };
@@ -225,11 +232,38 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     )}
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between text-xs mb-2.5">
-                    <span className="text-slate-600 font-medium">مبلغ این سایز:</span>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between text-xs mb-1.5">
+                    <span className="text-slate-600 font-medium">مبلغ این سایز (مشتری تیتر):</span>
                     <span className="font-black text-slate-900 font-mono text-xs sm:text-sm">
                       {dim.basePrice === 0 ? 'رایگان / هدیه' : formatPrice(dim.basePrice)}
                     </span>
+                  </div>
+
+                  {/* Internal cost — admin only */}
+                  <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200 mb-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-rose-800 font-bold flex items-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        هزینه تمام‌شده (محرمانه)
+                      </span>
+                      <span className="font-black text-rose-900 font-mono text-xs">
+                        {Number(dim.costPrice) > 0 ? formatPrice(Number(dim.costPrice)) : 'ثبت نشده'}
+                      </span>
+                    </div>
+                    {Number(dim.costPrice) > 0 && (
+                      <div className="flex items-center justify-between text-[10px] font-bold">
+                        <span className="text-slate-600">سود ناخالص این سایز:</span>
+                        <span
+                          className={`font-mono ${
+                            dim.basePrice - Number(dim.costPrice) >= 0
+                              ? 'text-emerald-700'
+                              : 'text-red-600'
+                          }`}
+                        >
+                          {formatPrice(dim.basePrice - Number(dim.costPrice))}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {dim.description && (
@@ -357,6 +391,32 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                 <p className="text-[10px] text-slate-500 mt-1">
                   این مبلغ به قیمت پایه نوع چاپ اضافه می‌شود. عدد ۰ یعنی رایگان/هدیه.
                 </p>
+              </div>
+
+              {/* Internal cost — never shown to the customer */}
+              <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200 space-y-1.5">
+                <label className="block text-rose-900 font-black mb-0.5 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5" />
+                  هزینه تمام‌شده (تومان) — فقط مدیر
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  placeholder="93000"
+                  value={form.costPrice}
+                  onChange={(e) => setForm({ ...form, costPrice: Number(e.target.value) })}
+                  className="w-full bg-white border border-rose-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:outline-none focus:border-rose-400 text-left dir-ltr"
+                />
+                <p className="text-[10px] text-rose-800 leading-relaxed">
+                  این مبلغ صرفاً برای بررسی هزینه‌های داخلی است و در هیچ مرحله‌ای (مرحله ابعاد،
+                  پیش‌فاکتور، فاکتور و پنل کاربر) به مشتری نمایش داده نمی‌شود.
+                </p>
+                {form.costPrice > 0 && (
+                  <p className="text-[10px] font-bold text-emerald-700">
+                    سود ناخالص این سایز: {formatPrice(form.basePrice - form.costPrice)}
+                  </p>
+                )}
               </div>
 
               <div>
