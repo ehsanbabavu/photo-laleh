@@ -182,6 +182,23 @@ export interface PartnerInvoice {
   paidNote?: string;
 }
 
+export interface CostChangeRequest {
+  id: string;
+  dimensionId: string;
+  dimensionTitle: string;
+  dimensionsCm: string;
+  oldCost: number;
+  newCost: number;
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: string;
+  requestedAtTs: number;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewNote?: string;
+}
+
 export type TicketCategory =
   | 'order_tracking'
   | 'print_quality'
