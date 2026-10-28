@@ -21,7 +21,8 @@ import { formatPrice, getStatusBadge } from '../../utils/formatters';
 import { generateNinePackSheet, downloadImage } from '../../utils/sheetGenerator';
 import { QueueStateInfo } from '../../utils/aiQueueManager';
 import { PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
-import type { PrintDimension } from '../../types';
+import type { PrintDimension, User } from '../../types';
+import { SendToPartnerModal } from './SendToPartnerModal';
 
 interface AdminOrdersProps {
   orders: Order[];
@@ -58,6 +59,30 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [activeImageTab, setActiveImageTab] = useState<'sheet' | 'ai' | 'commercial' | 'original'>('sheet');
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [sentOrderIds, setSentOrderIds] = useState<Record<string, boolean>>({});
+  const [partners, setPartners] = useState<User[]>([]);
+  const [sendPartnerOrder, setSendPartnerOrder] = useState<Order | null>(null);
+  const [partnerToast, setPartnerToast] = useState<string | null>(null);
+
+  // Colleagues that can receive print jobs (admin-only endpoint)
+  React.useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/users');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!active || !Array.isArray(data)) return;
+        setPartners(
+          data.filter((u: any) => u.category === 'colleague' && u.role !== 'admin')
+        );
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSendToTelegramPrint = async () => {
     if (!selectedOrder) return;
@@ -890,24 +915,24 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 {(() => {
-                  const isSent = selectedOrder && sentOrderIds[selectedOrder.id];
+                  const sentToPartner = Boolean(selectedOrder?.partnerId);
                   return (
                     <button
                       type="button"
-                      onClick={handleSendToTelegramPrint}
-                      disabled={isSendingTelegram}
+                      onClick={() => selectedOrder && setSendPartnerOrder(selectedOrder)}
                       className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5 ${
-                        isSent
+                        sentToPartner
                           ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                           : 'bg-sky-600 hover:bg-sky-700 text-white'
                       }`}
+                      title={sentToPartner ? 'ارسال مجدد / انتخاب همکار دیگر' : 'ارسال برای چاپ به همکار'}
                     >
-                      {isSendingTelegram ? (
-                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                      <span>{isSent ? 'ارسال شد ✅' : 'ارسال به چاپ عکس'}</span>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>
+                        {sentToPartner
+                          ? `ارسال‌شده به ${selectedOrder?.partnerName || 'همکار'} ✅`
+                          : 'ارسال برای چاپ'}
+                      </span>
                     </button>
                   );
                 })()}
@@ -922,6 +947,37 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
           </div>
         </div>
       )}
+    
+      {/* Send to colleague (2-step) */}
+      {sendPartnerOrder && (
+        <SendToPartnerModal
+          order={sendPartnerOrder}
+          partners={partners}
+          dimensionTitle={
+            resolveDimension(sendPartnerOrder.dimensionId)?.title ||
+            sendPartnerOrder.invoiceDetails?.dimensionTitle ||
+            '—'
+          }
+          quantity={sendPartnerOrder.quantity || 1}
+          onClose={() => setSendPartnerOrder(null)}
+          onSent={(updatedOrder, message) => {
+            setSendPartnerOrder(null);
+            setPartnerToast(message);
+            setSentOrderIds((previous) => ({ ...previous, [updatedOrder.id]: true }));
+            onUpdateOrder?.(updatedOrder);
+            showToast?.(message);
+            setTimeout(() => setPartnerToast(null), 5000);
+          }}
+        />
+      )}
+
+      {partnerToast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] max-w-[92vw] px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-[11px] sm:text-xs font-bold shadow-lg flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          <span>{partnerToast}</span>
+        </div>
+      )}
+
     </div>
   );
 };
