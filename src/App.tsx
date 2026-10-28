@@ -224,7 +224,14 @@ export default function App() {
               else setUserTab(route.tab as UserTab);
             } else {
               setActiveView('user');
-              setUserTab(route.tab as UserTab);
+              // Colleagues land on their order list by default
+              setUserTab(
+                data.user.category === 'colleague'
+                  ? ((['partner_orders', 'partner_prices'].includes(route.tab)
+                      ? route.tab
+                      : 'partner_orders') as UserTab)
+                  : (route.tab as UserTab)
+              );
             }
           }
         }
@@ -713,6 +720,14 @@ export default function App() {
     });
   };
 
+  // A colleague only has the two partner menus — keep them on a valid tab
+  React.useEffect(() => {
+    if (!currentUser || currentUser.category !== 'colleague' || activeView !== 'user') return;
+    if (!['partner_orders', 'partner_prices'].includes(userTab)) {
+      setUserTab('partner_orders');
+    }
+  }, [currentUser, activeView, userTab]);
+
   // Handle Login
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -722,8 +737,10 @@ export default function App() {
       window.history.pushState({}, '', routeToPath('admin', 'dashboard'));
     } else {
       setActiveView('user');
-      setUserTab('dashboard');
-      window.history.pushState({}, '', routeToPath('user', 'dashboard'));
+      // Colleagues only have the two partner menus — start on the order list
+      const startTab: UserTab = user.category === 'colleague' ? 'partner_orders' : 'dashboard';
+      setUserTab(startTab);
+      window.history.pushState({}, '', routeToPath('user', startTab));
     }
   };
 
@@ -1068,7 +1085,8 @@ export default function App() {
       {/* MOBILE BOTTOM NAVIGATION BAR (Visible only in user panel) */}
       {activeView === 'user' && (
         <div className="lg:hidden fixed bottom-3 inset-x-3 max-w-lg mx-auto bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 text-white rounded-2xl sm:rounded-3xl p-1.5 z-40 flex items-center justify-around shadow-xl shadow-teal-950/20 border border-teal-400/30 backdrop-blur-xl">
-          {/* 1. راست: پیشخوان */}
+          {/* 1. راست: پیشخوان (برای همکاران مخفی است) */}
+          {currentUser?.category !== 'colleague' && (
           <button
             onClick={() => setUserTab('dashboard')}
             className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
@@ -1080,8 +1098,10 @@ export default function App() {
             <LayoutDashboard className="w-4 h-4" />
             <span className="text-[10px]">پیشخوان</span>
           </button>
+          )}
 
-          {/* 2. سفارشات (قبلاً پیگیری) */}
+          {/* 2. سفارشات (قبلاً پیگیری) — برای همکاران مخفی است */}
+          {currentUser?.category !== 'colleague' && (
           <button
             onClick={() => setUserTab('orders')}
             className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
@@ -1093,6 +1113,7 @@ export default function App() {
             <Package className="w-4 h-4" />
             <span className="text-[10px]">سفارشات</span>
           </button>
+          )}
 
           {/* 3. وسط: ثبت سفارش (برای همکاران مخفی است) */}
           {currentUser?.category !== 'colleague' && (
@@ -1120,7 +1141,7 @@ export default function App() {
               }`}
             >
               <PackageSearch className="w-4 h-4" />
-              <span className="text-[10px]">سفارشات من</span>
+              <span className="text-[10px]">سفارشات</span>
             </button>
           )}
 
@@ -1139,7 +1160,8 @@ export default function App() {
             </button>
           )}
 
-          {/* 4. چپ: تیکت */}
+          {/* 4. چپ: تیکت — برای همکاران مخفی است */}
+          {currentUser?.category !== 'colleague' && (
           <button
             onClick={() => setUserTab('tickets')}
             className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all relative ${
@@ -1173,6 +1195,7 @@ export default function App() {
               تیکت
             </span>
           </button>
+          )}
         </div>
       )}
     </div>
