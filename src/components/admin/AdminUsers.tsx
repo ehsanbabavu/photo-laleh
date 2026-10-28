@@ -205,18 +205,9 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
           </div>
           <button
             onClick={() =>
-              setCreating({ ...emptyForm, id: '', role: 'user', category: 'colleague', walletBalance: 0 })
-            }
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-teal-800 bg-teal-50 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer whitespace-nowrap"
-            title="افزودن همکار (فقط شناسه تلگرام و ایتا + اطلاعات پایه)"
-          >
-            <UserCog className="w-4 h-4" />
-            افزودن همکار
-          </button>
-          <button
-            onClick={() =>
               setCreating({ ...emptyForm, id: '', role: 'user', category: 'customer', walletBalance: 0 })
             }
+            title="افزودن کاربر یا همکار (انتخاب دسته در فرم)"
             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-white bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 transition-colors cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
@@ -237,7 +228,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                 <button
                   key={tab.id}
                   onClick={() => setCategoryFilter(tab.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-card font-bold transition-all cursor-pointer border ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer border ${
                     active
                       ? 'bg-gradient-to-r from-sky-50 to-emerald-50 text-sky-800 border-sky-300 shadow-xs'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
