@@ -9,6 +9,7 @@ import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
+import { LandingPage } from './components/LandingPage';
 import { AdminSidebar, AdminTab } from './components/admin/AdminSidebar';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AdminAnnouncements } from './components/admin/AdminAnnouncements';
@@ -56,6 +57,11 @@ export default function App() {
   // Current logged in user (null by default so Login/Register screen displays on home page)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  // The public landing page is the home screen; the auth form lives on /login
+  const [showAuth, setShowAuth] = useState<boolean>(() => {
+    const path = (window.location.pathname || '/').toLowerCase();
+    return path.startsWith('/login') || path.startsWith('/auth');
+  });
 
   // Active view + tabs are derived from the URL so a refresh keeps the page
   const initialRoute = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { view: 'user' as const, tab: 'dashboard' };
@@ -731,6 +737,7 @@ export default function App() {
   // Handle Login
   const handleLogin = (user: User) => {
     setCurrentUser(user);
+    setShowAuth(false);
     if (user.role === 'admin') {
       setActiveView('admin');
       setAdminTab('dashboard');
@@ -748,6 +755,7 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveView('user');
+    setShowAuth(false);
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
     window.history.pushState({}, '', '/');
     showToast('از حساب کاربری خارج شدید.');
@@ -792,7 +800,27 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <AuthView onLogin={handleLogin} />;
+    if (!showAuth) {
+      return (
+        <LandingPage
+          onLogin={() => {
+            setShowAuth(true);
+            window.history.pushState({}, '', '/login');
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      );
+    }
+    return (
+      <AuthView
+        onLogin={handleLogin}
+        onBackToHome={() => {
+          setShowAuth(false);
+          window.history.pushState({}, '', '/');
+          window.scrollTo({ top: 0 });
+        }}
+      />
+    );
   }
 
   const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
