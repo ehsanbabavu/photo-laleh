@@ -408,7 +408,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
               <span className="text-xl">🎁</span>
               <div>
                 <p className="text-xs font-black text-amber-900">
-                  ۱۰۰,۰۰۰ تومان اعتبار هدیه کیف پول
+                  ۱۰۰٬۰۰۰ تومان اعتبار هدیه کیف پول
                 </p>
                 <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
                   با ثبت‌نام شما، این اعتبار به‌صورت خودکار در فاکتور اولین سفارش کسر می‌شود.
