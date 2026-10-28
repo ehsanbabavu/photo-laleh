@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, SupportTicket, Announcement, BluPalSettings } from './types';
+import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
@@ -17,6 +17,7 @@ import { AdminOrders } from './components/admin/AdminOrders';
 import { PrintTypeManager } from './components/admin/PrintTypeManager';
 import { AdminSizesManager } from './components/admin/AdminSizesManager';
 import { AdminPartnerInvoices } from './components/admin/AdminPartnerInvoices';
+import { AdminCostRequests } from './components/admin/AdminCostRequests';
 import { PromptsManager } from './components/admin/PromptsManager';
 import { AdminTickets } from './components/admin/AdminTickets';
 import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
@@ -33,6 +34,8 @@ import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { OrderWizard } from './components/user/OrderWizard';
 import { UserOrders } from './components/user/UserOrders';
 import { UserTickets } from './components/user/UserTickets';
+import { PartnerOrders } from './components/user/PartnerOrders';
+import { PartnerPriceList } from './components/user/PartnerPriceList';
 import { UserDashboard } from './components/user/UserDashboard';
 import { aiQueueManager, QueueStateInfo } from './utils/aiQueueManager';
 import {
@@ -44,7 +47,9 @@ import {
   LayoutDashboard,
   BotMessageSquare,
   Printer,
-  Palette
+  Palette,
+  PackageSearch,
+  Wallet
 } from 'lucide-react';
 
 export default function App() {
@@ -72,6 +77,7 @@ export default function App() {
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(PRINT_TYPES);
   const [dimensions, setDimensions] = useState<PrintDimension[]>(PRINT_DIMENSIONS);
   const [partnerInvoices, setPartnerInvoices] = useState<PartnerInvoice[]>([]);
+  const [costRequests, setCostRequests] = useState<CostChangeRequest[]>([]);
 
   // AvalAI API configuration state
   const [avalaiApiKey, setAvalaiApiKey] = useState<string>('');
@@ -250,6 +256,9 @@ export default function App() {
         }
         if (Array.isArray(data.partnerInvoices)) {
           setPartnerInvoices(data.partnerInvoices);
+        }
+        if (Array.isArray(data.costRequests)) {
+          setCostRequests(data.costRequests);
         }
         if (Array.isArray(data.dimensions) && data.dimensions.length > 0) {
           setDimensions(data.dimensions);
@@ -561,6 +570,77 @@ export default function App() {
     }
   };
 
+  // --- Cost price change requests (colleague → admin review) ---
+  const handleRequestCostChange = async (dimensionId: string, newCost: number) => {
+    try {
+      const res = await fetch('/api/cost-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dimensionId, newCost })
+      });
+      const data: any = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showToast(data?.message || 'ثبت پیشنهاد قیمت ناموفق بود.');
+        return false;
+      }
+      setCostRequests((prev) => {
+        const withoutPending = prev.filter(
+          (r) =>
+            !(
+              r.dimensionId === dimensionId &&
+              r.requestedBy === data.request.requestedBy &&
+              r.status === 'pending'
+            )
+        );
+        return [data.request, ...withoutPending];
+      });
+      return true;
+    } catch {
+      showToast('خطا در ارتباط با سرور هنگام ثبت پیشنهاد قیمت.');
+      return false;
+    }
+  };
+
+  const handleReviewCostRequest = async (request: CostChangeRequest, action: 'approve' | 'reject') => {
+    try {
+      const res = await fetch(`/api/cost-requests/${encodeURIComponent(request.id)}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      const data: any = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showToast(data?.message || 'بازبینی درخواست ناموفق بود.');
+        return false;
+      }
+      setCostRequests((prev) =>
+        prev.map((item) => (item.id === request.id ? { ...item, ...data.request } : item))
+      );
+      if (action === 'approve') {
+        // Reflect the approved cost immediately in the current admin session
+        setDimensions((prev) =>
+          prev.map((dim) =>
+            dim.id === request.dimensionId
+              ? { ...dim, costPrice: Number(request.newCost) || 0 }
+              : dim
+          )
+        );
+        apiClient.saveDimensions(
+          dimensions.map((dim) =>
+            dim.id === request.dimensionId
+              ? { ...dim, costPrice: Number(request.newCost) || 0 }
+              : dim
+          )
+        );
+      }
+      showToast(data.message || (action === 'approve' ? 'قیمت تایید شد.' : 'درخواست رد شد.'));
+      return true;
+    } catch {
+      showToast('خطا در ارتباط با سرور هنگام بازبینی.');
+      return false;
+    }
+  };
+
   const handleResetDimensions = () => {
     setDimensions(PRINT_DIMENSIONS);
     apiClient.saveDimensions(PRINT_DIMENSIONS);
@@ -800,6 +880,14 @@ export default function App() {
                 />
               )}
 
+              {adminTab === 'cost_requests' && (
+                <AdminCostRequests
+                  requests={costRequests}
+                  onReview={handleReviewCostRequest}
+                  showToast={showToast}
+                />
+              )}
+
               {adminTab === 'print_types' && (
                 <PrintTypeManager
                   printTypes={printTypes}
@@ -948,6 +1036,20 @@ export default function App() {
                 />
               )}
 
+              {userTab === 'partner_orders' && (
+                <PartnerOrders user={currentUser} orders={orders} />
+              )}
+
+              {userTab === 'partner_prices' && (
+                <PartnerPriceList
+                  user={currentUser}
+                  dimensions={dimensions}
+                  requests={costRequests}
+                  onRequestChange={handleRequestCostChange}
+                  showToast={showToast}
+                />
+              )}
+
               {userTab === 'tickets' && (
                 <UserTickets
                   user={currentUser}
@@ -992,7 +1094,8 @@ export default function App() {
             <span className="text-[10px]">سفارشات</span>
           </button>
 
-          {/* 3. وسط: ثبت سفارش */}
+          {/* 3. وسط: ثبت سفارش (برای همکاران مخفی است) */}
+          {currentUser?.category !== 'colleague' && (
           <button
             onClick={() => setUserTab('wizard')}
             className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
@@ -1004,6 +1107,37 @@ export default function App() {
             <Sparkles className="w-4 h-4" />
             <span className="text-[10px]">ثبت سفارش</span>
           </button>
+          )}
+
+          {/* همکاران: سفارشات ارسال‌شده */}
+          {currentUser?.category === 'colleague' && (
+            <button
+              onClick={() => setUserTab('partner_orders')}
+              className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
+                userTab === 'partner_orders'
+                  ? 'bg-white/25 text-white font-black shadow-xs scale-100'
+                  : 'text-emerald-100/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <PackageSearch className="w-4 h-4" />
+              <span className="text-[10px]">سفارشات من</span>
+            </button>
+          )}
+
+          {/* همکاران: لیست قیمت‌ها */}
+          {currentUser?.category === 'colleague' && (
+            <button
+              onClick={() => setUserTab('partner_prices')}
+              className={`flex-1 flex flex-col items-center gap-1 cursor-pointer py-2 px-1 rounded-xl transition-all ${
+                userTab === 'partner_prices'
+                  ? 'bg-white/25 text-white font-black shadow-xs scale-100'
+                  : 'text-emerald-100/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              <span className="text-[10px]">قیمت‌ها</span>
+            </button>
+          )}
 
           {/* 4. چپ: تیکت */}
           <button
