@@ -817,13 +817,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </div>
           </div>
 
-          <div className="mt-9 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-[10px] sm:text-[11px] text-slate-500">
+          <div className="mt-9 pt-5 border-t border-white/10 flex items-center justify-center">
+            <p className="text-[10px] sm:text-[11px] text-slate-500 text-center">
               © {new Date().toLocaleDateString('fa-IR', { year: 'numeric' })} آتلیه دیجیتال لاله —
               تمامی حقوق محفوظ است.
-            </p>
-            <p className="text-[10px] sm:text-[11px] text-slate-500">
-              طراحی و توسعه با تمرکز بر کیفیت چاپ
             </p>
           </div>
         </div>
