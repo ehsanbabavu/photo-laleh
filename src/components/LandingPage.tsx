@@ -24,12 +24,19 @@ import {
 } from 'lucide-react';
 import { PrintDimension, PrintTypeOption } from '../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
-import { formatPrice } from '../utils/formatters';
+import { formatNumber, formatPrice } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
 
 interface LandingPageProps {
   onLogin: () => void;
 }
+
+
+/** Converts ASCII digits to Persian digits and normalises «x» to «×» in size labels. */
+const toFaDigits = (value: string): string =>
+  String(value || '')
+    .replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
+    .replace(/([۰-۹])\s*[xX]\s*([۰-۹])/g, '$1 × $2');
 
 const SERVICE_IMAGE: Record<string, string> = {
   personnel: '/service_card_portrait.jpg',
@@ -273,8 +280,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
               <div className="mt-8 grid grid-cols-3 gap-3 max-w-md">
                 {[
-                  { value: `${printTypes.length}`, label: 'سرویس چاپ تخصصی' },
-                  { value: `${dimensions.length}`, label: 'سایز آماده چاپ' },
+                  { value: formatNumber(printTypes.length), label: 'سرویس چاپ تخصصی' },
+                  { value: formatNumber(dimensions.length), label: 'سایز آماده چاپ' },
                   { value: '۲۴ ساعته', label: 'ثبت سفارش آنلاین' }
                 ].map((stat) => (
                   <div
@@ -313,7 +320,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                           روتوش حرفه‌ای + چاپ روی بوم
                         </p>
                         <p className="text-white/75 text-[10px] sm:text-[11px] font-mono mt-0.5">
-                          ۳۰ × ۴۰ cm
+                          ۳۰ × ۴۰ سانتی‌متر
                         </p>
                       </div>
                       <span className="px-2.5 py-1 rounded-lg bg-emerald-500/90 text-white text-[10px] font-black flex items-center gap-1">
@@ -549,7 +556,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     className="flex items-start gap-3.5 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-sky-200 hover:shadow-md transition-all"
                   >
                     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center font-black text-xs sm:text-sm flex-shrink-0 shadow-sm">
-                      {index + 1}
+                      {formatNumber(index + 1)}
                     </div>
                     <div className="min-w-0">
                       <h3 className="text-xs sm:text-sm font-black text-slate-900">{step.title}</h3>
@@ -596,7 +603,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               >
                 <div className="flex items-center justify-between gap-1.5">
                   <span className="text-[10px] font-mono font-bold text-sky-700 bg-white border border-sky-200 rounded-md px-1.5 py-0.5">
-                    {dimension.dimensionsCm}
+                    {toFaDigits(dimension.dimensionsCm)}
                   </span>
                   {dimension.popular && (
                     <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-0.5">
@@ -608,7 +615,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   {dimension.title}
                 </p>
                 {dimension.aspectRatio && dimension.aspectRatio !== '—' && (
-                  <p className="mt-1 text-[10px] text-slate-500 font-mono">{dimension.aspectRatio}</p>
+                  <p className="mt-1 text-[10px] text-slate-500 font-mono">{toFaDigits(dimension.aspectRatio)}</p>
                 )}
               </div>
             ))}
