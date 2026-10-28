@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { OrderDraft, PrintDimension, PrintTypeOption, User } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../../data/mockData';
-import { formatPrice, formatRialDirect } from '../../../utils/formatters';
+import { formatPrice } from '../../../utils/formatters';
 
 interface StepInvoiceProps {
   draft: OrderDraft;
@@ -87,7 +87,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
         discountCode: code,
         discountAmount: 40000
       });
-      setVoucherMessage({ text: 'کد تخفیف خوش‌آمدگویی اعمال شد (۴۰,۰۰۰ تومان کسر شد).', type: 'success' });
+      setVoucherMessage({ text: `کد تخفیف خوش‌آمدگویی اعمال شد (${formatPrice(40000)} کسر شد).`, type: 'success' });
     } else {
       setVoucherMessage({ text: 'کد نامعتبر است. (تست: EHSAN یا WELCOME)', type: 'error' });
     }
@@ -209,7 +209,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                   }`}
                 >
                   <p className="font-bold text-[11px] sm:text-xs text-slate-900">پیک اکسپرس (تحویل فوری)</p>
-                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">+۴۵,۰۰۰ تومان</p>
+                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">+{formatPrice(45000)}</p>
                 </button>
 
                 <button
@@ -222,7 +222,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                   }`}
                 >
                   <p className="font-bold text-[11px] sm:text-xs text-slate-900">پست پیشتاز (سراسر کشور)</p>
-                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">+۳۵,۰۰۰ تومان</p>
+                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">+{formatPrice(35000)}</p>
                 </button>
               </div>
             </div>
@@ -321,10 +321,6 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               <span className="bg-gradient-to-l from-sky-700 to-emerald-700 bg-clip-text text-transparent font-mono text-sm sm:text-base font-black">
                 {formatPrice(finalTotal)}
               </span>
-            </div>
-            <div className="flex justify-between items-center text-[10px] sm:text-[11px] text-slate-500">
-              <span>معادل ریالی مبنای فاکتور:</span>
-              <span className="font-mono font-bold">{formatRialDirect(finalTotal * 10)}</span>
             </div>
           </div>
         </div>
