@@ -12,7 +12,6 @@ import {
   ChevronDown,
   Ruler,
   Users,
-  Image as ImageIcon,
   Star,
   PhoneCall,
   Send,
@@ -727,34 +726,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FINAL CTA ================= */}
-      <section className="relative py-14 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200 shadow-xl p-6 sm:p-10 text-center">
-            <div className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-sky-200/40 blur-3xl" />
-            <div className="relative">
-              <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-sky-500/25">
-                <ImageIcon className="w-6 h-6" />
-              </div>
-              <h2 className="mt-4 text-2xl sm:text-3xl font-black leading-snug">
-                عکس‌هایت را از قاب گوشی بیرون بیاور
-              </h2>
-              <p className="mt-2.5 text-xs sm:text-sm text-slate-600 leading-7 max-w-xl mx-auto">
-                وارد حساب کاربری خود شوید، سرویس و سایز را انتخاب کنید و سفارش چاپ را در چند دقیقه
-                ثبت کنید.
-              </p>
-              <button
-                onClick={onLogin}
-                className="mt-6 flex w-full sm:inline-flex sm:w-auto items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-black text-white bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 shadow-xl shadow-sky-600/25 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                <Sparkles className="w-4.5 h-4.5" />
-                ورود به سایت
-              </button>
-            </div>
           </div>
         </div>
       </section>
