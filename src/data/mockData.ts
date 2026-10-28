@@ -86,6 +86,7 @@ export const PRINT_TYPES: PrintTypeOption[] = [
 export const PERSONNEL_DIMENSIONS: PrintDimension[] = [
   {
     id: 'personnel_6x3x4',
+    costPrice: 0,
     title: '۹ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
     dimensionsCm: '9x (3×4 cm) + 1x تبلیغاتی',
     aspectRatio: '3:4',
@@ -95,6 +96,7 @@ export const PERSONNEL_DIMENSIONS: PrintDimension[] = [
   },
   {
     id: 'personnel_12x3x4',
+    costPrice: 22000,
     title: '۱۸ عدد عکس ۳×۴ و یک عدد عکس تبلیغاتی',
     dimensionsCm: '18x (3×4 cm) + 1x تبلیغاتی',
     aspectRatio: '3:4',
@@ -107,6 +109,7 @@ export const PERSONNEL_DIMENSIONS: PrintDimension[] = [
 export const GENERAL_PRINT_DIMENSIONS: PrintDimension[] = [
   {
     id: 'size_10x15',
+    costPrice: 25000,
     title: 'سایز کارت‌پستالی ۱۰×۱۵',
     dimensionsCm: '10 x 15 cm',
     aspectRatio: '2:3',
@@ -116,6 +119,7 @@ export const GENERAL_PRINT_DIMENSIONS: PrintDimension[] = [
   },
   {
     id: 'size_13x18',
+    costPrice: 42000,
     title: 'سایز محبوب رومیزی ۱۳×۱۸',
     dimensionsCm: '13 x 18 cm',
     aspectRatio: '5:7',
@@ -125,6 +129,7 @@ export const GENERAL_PRINT_DIMENSIONS: PrintDimension[] = [
   },
   {
     id: 'size_16x21',
+    costPrice: 62000,
     title: 'سایز قاب ۱۶×۲۱',
     dimensionsCm: '16 x 21 cm',
     aspectRatio: '3:4',
@@ -134,6 +139,7 @@ export const GENERAL_PRINT_DIMENSIONS: PrintDimension[] = [
   },
   {
     id: 'size_20x30',
+    costPrice: 93000,
     title: 'سایز بزرگ A4 (۲۰×۳۰)',
     dimensionsCm: '20 x 30 cm',
     aspectRatio: '2:3',
@@ -143,6 +149,7 @@ export const GENERAL_PRINT_DIMENSIONS: PrintDimension[] = [
   },
   {
     id: 'size_30x40',
+    costPrice: 135000,
     title: 'سایز استودیویی A3 (۳۰×۴۰)',
     dimensionsCm: '30 x 40 cm',
     aspectRatio: '3:4',
@@ -152,6 +159,7 @@ export const GENERAL_PRINT_DIMENSIONS: PrintDimension[] = [
   },
   {
     id: 'size_50x70',
+    costPrice: 236000,
     title: 'سایز فاخر دیواری ۵۰×۷۰',
     dimensionsCm: '50 x 70 cm',
     aspectRatio: '5:7',
