@@ -23,7 +23,8 @@ import {
   HardDrive,
   MessageSquare,
   Activity,
-  Maximize2
+  Maximize2,
+  Receipt
 } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
@@ -120,6 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const printItems = [
     { id: 'print_types' as AdminTab, label: 'مدیریت انواع چاپ', icon: Palette },
     { id: 'print_sizes' as AdminTab, label: 'مدیریت سایز', icon: Maximize2 },
+    { id: 'partner_invoices' as AdminTab, label: 'فاکتورهای صادر شده', icon: Receipt },
     { id: 'prompts_manager' as AdminTab, label: 'مدیریت پرامپت‌های چاپ', icon: Sparkles }
   ];
 
