@@ -78,14 +78,14 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
     }
   ];
 
-  // Colleagues get two extra menus: their assigned print jobs + cost price list
+  // Colleagues have a dedicated panel with exactly two menus (like the admin panel):
+  // their assigned print jobs and the cost price list.
   const isColleague = user.category === 'colleague';
   const visibleMenuItems = isColleague
     ? [
-        ...menuItems.filter((item) => item.id !== 'wizard'),
         {
           id: 'partner_orders' as UserTab,
-          label: 'سفارشات من',
+          label: 'لیست سفارشات',
           icon: PackageSearch,
           badge: userOrdersCount > 0 ? `${userOrdersCount}` : null,
           badgeColor: 'text-emerald-700 bg-emerald-100 border border-emerald-200'
@@ -133,12 +133,14 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
             </div>
           </div>
 
-          <div className="mt-2.5 pt-2.5 border-t border-sky-200/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-600 font-medium">کیف پول:</span>
-            <span className="font-mono text-emerald-700 font-bold">
-              {(user.walletBalance ?? 100000).toLocaleString('fa-IR')} تومان
-            </span>
-          </div>
+          {user.category !== 'colleague' && (
+            <div className="mt-2.5 pt-2.5 border-t border-sky-200/60 flex items-center justify-between text-[11px]">
+              <span className="text-slate-600 font-medium">کیف پول:</span>
+              <span className="font-mono text-emerald-700 font-bold">
+                {(user.walletBalance ?? 0).toLocaleString('fa-IR')} تومان
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Nav links */}
