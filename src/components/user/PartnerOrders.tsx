@@ -51,7 +51,7 @@ export const PartnerOrders: React.FC<PartnerOrdersProps> = ({ user, orders }) =>
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black text-slate-900">سفارشات من</h1>
+              <h1 className="text-base sm:text-lg font-black text-slate-900">لیست سفارشات</h1>
               <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
                 سفارش‌های چاپی که برای شما ارسال شده است
               </p>
