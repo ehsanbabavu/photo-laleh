@@ -19,6 +19,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { User, UserCategory } from '../../types';
+import { formatNumber } from '../../utils/formatters';
 
 interface AdminUsersProps {
   showToast: (msg: string) => void;
@@ -371,7 +372,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-slate-700">
-                      {Number(user.walletBalance || 0).toLocaleString('fa-IR')}
+                      {formatNumber(user.walletBalance || 0)}
                     </td>
                     <td className="px-4 py-3 text-[11px] text-slate-500">{user.createdAt || '—'}</td>
                     <td className="px-4 py-3">
@@ -474,7 +475,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                   <span className="inline-flex items-center gap-1">
                     <Wallet className="w-3.5 h-3.5 text-emerald-600" />
                     <span className="font-mono">
-                      {Number(user.walletBalance || 0).toLocaleString('fa-IR')}
+                      {formatNumber(user.walletBalance || 0)}
                     </span>
                   </span>
                   <span className="inline-flex items-center gap-1 text-slate-400">
