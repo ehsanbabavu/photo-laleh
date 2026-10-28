@@ -149,7 +149,10 @@ app.use('/api', async (req: any, res, next) => {
     req.currentUser = session.user;
 
     const isAdmin = session.user?.role === 'admin';
-    const adminOnly = ADMIN_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'));
+    // `/api/db/all` is readable by every signed-in user — it is filtered per role
+    const adminOnly =
+      path !== '/api/db/all' &&
+      ADMIN_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'));
     const isWriteOnContent =
       (path.startsWith('/api/print-types') || path.startsWith('/api/announcements') || path.startsWith('/api/tickets')) &&
       req.method !== 'GET';
@@ -268,12 +271,30 @@ function sanitizeUsers(users: any[]) {
 app.get('/api/db/all', async (req: any, res) => {
   const db = await readDb();
   const isAdmin = req.currentUser?.role === 'admin';
+  const currentUserId = req.currentUser?.id;
+  const isColleague = req.currentUser?.category === 'colleague';
   res.json({
     ...db,
+    // A customer only receives their own data; a colleague only their print jobs
+    orders: isAdmin
+      ? db.orders || []
+      : isColleague
+      ? (db.orders || []).filter((o: any) => o.partnerId === currentUserId)
+      : (db.orders || []).filter((o: any) => o.userId === currentUserId),
+    partnerInvoices: isAdmin ? db.partnerInvoices || [] : [],
+    costRequests: isAdmin
+      ? db.costRequests || []
+      : isColleague
+      ? (db.costRequests || []).filter((r: any) => r.requestedBy === currentUserId)
+      : [],
     users: isAdmin ? sanitizeUsers(db.users) : [],
     settings: sanitizeSettings(db.settings, isAdmin),
     // Internal cost figures are admin-only: never ship them to a customer's browser
-    dimensions: isAdmin ? db.dimensions || [] : sanitizeDimensions(db.dimensions)
+    // Colleagues maintain the cost prices, so they may read them — customers may not
+    dimensions:
+      isAdmin || req.currentUser?.category === 'colleague'
+        ? db.dimensions || []
+        : sanitizeDimensions(db.dimensions)
   });
 });
 
@@ -377,7 +398,7 @@ app.post('/api/backup/restore', async (req, res) => {
     const payload = req.body || {};
     const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
 
-    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'announcements', 'invoices', 'partnerInvoices', 'webhookLogs'];
+    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'announcements', 'invoices', 'partnerInvoices', 'costRequests', 'webhookLogs'];
     const objectKeys = ['settings', 'prompts'];
     const providedKeys = [...arrayKeys, ...objectKeys].filter((key) => data[key] !== undefined);
     if (providedKeys.length === 0) {
@@ -875,6 +896,11 @@ app.get('/api/orders', async (req: any, res) => {
   const db = await readDb();
   const orders = db.orders || [];
   if (req.currentUser?.role === 'admin') return res.json(orders);
+  // Colleagues see the print jobs that were assigned to them
+  if (req.currentUser?.category === 'colleague') {
+    const assigned = orders.filter((o: any) => o.partnerId === req.currentUser.id);
+    return res.json(assigned);
+  }
   const mine = orders.filter((o: any) => o.userId === req.currentUser.id);
   res.json(mine);
 });
@@ -2152,6 +2178,153 @@ app.post('/api/eitaa/test', async (req, res) => {
     });
   } catch (err: any) {
     res.json({ success: false, error: err?.message || 'خطا در ارتباط با ایتایار' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Cost-price change requests submitted by colleagues and reviewed by the admin.
+// Approving a request updates the size's cost price, which is what every new
+// partner invoice is calculated from.
+// ---------------------------------------------------------------------------
+app.get('/api/cost-requests', async (req: any, res) => {
+  const db = await readDb();
+  const requests = db.costRequests || [];
+  if (req.currentUser?.role === 'admin') return res.json(requests);
+  if (req.currentUser?.category === 'colleague') {
+    return res.json(requests.filter((r: any) => r.requestedBy === req.currentUser.id));
+  }
+  res.json([]);
+});
+
+app.post('/api/cost-requests', async (req: any, res) => {
+  try {
+    const user = req.currentUser;
+    if (!user || user.category !== 'colleague') {
+      return res.status(403).json({
+        success: false,
+        error: 'forbidden',
+        message: 'فقط همکاران می‌توانند قیمت تمام‌شده را پیشنهاد دهند.'
+      });
+    }
+
+    const dimensionId = String(req.body?.dimensionId || '').trim();
+    const newCost = Number(req.body?.newCost);
+
+    if (!dimensionId) {
+      return res.status(400).json({ success: false, error: 'invalid_dimension', message: 'محصول انتخاب نشده است.' });
+    }
+    if (!Number.isFinite(newCost) || newCost < 0) {
+      return res.status(400).json({ success: false, error: 'invalid_price', message: 'مبلغ وارد‌شده معتبر نیست.' });
+    }
+
+    const db = await readDb();
+    const dimension = (db.dimensions || []).find((d: any) => d.id === dimensionId);
+    if (!dimension) {
+      return res.status(404).json({ success: false, error: 'not_found', message: 'این سایز یافت نشد.' });
+    }
+
+    const oldCost = Number(dimension.costPrice) || 0;
+    const rounded = Math.round(newCost);
+    if (rounded === oldCost) {
+      return res.status(400).json({
+        success: false,
+        error: 'same_price',
+        message: 'مبلغ جدید با قیمت فعلی یکسان است.'
+      });
+    }
+
+    const now = new Date().toLocaleString('fa-IR', {
+      timeZone: 'Asia/Tehran',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // One pending request per size per colleague: a new submission replaces it
+    db.costRequests = (db.costRequests || []).filter(
+      (r: any) => !(r.dimensionId === dimensionId && r.requestedBy === user.id && r.status === 'pending')
+    );
+
+    const request = {
+      id: 'CR-' + Date.now().toString(36).toUpperCase(),
+      dimensionId,
+      dimensionTitle: dimension.title || '',
+      dimensionsCm: dimension.dimensionsCm || '',
+      oldCost,
+      newCost: rounded,
+      requestedBy: user.id,
+      requestedByName: user.name || '',
+      requestedAt: now,
+      requestedAtTs: Date.now(),
+      status: 'pending' as const
+    };
+
+    db.costRequests = [request, ...db.costRequests].slice(0, 300);
+    await writeDb(db);
+    res.json({ success: true, request, message: 'پیشنهاد قیمت ثبت شد و در انتظار تایید مدیر است.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'internal_error', message: err.message });
+  }
+});
+
+app.post('/api/cost-requests/:id/review', async (req: any, res) => {
+  try {
+    if (req.currentUser?.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'forbidden', message: 'فقط مدیر می‌تواند بازبینی کند.' });
+    }
+
+    const action = req.body?.action === 'approve' ? 'approve' : req.body?.action === 'reject' ? 'reject' : null;
+    if (!action) {
+      return res.status(400).json({ success: false, error: 'invalid_action', message: 'عملیات نامعتبر است.' });
+    }
+
+    const db = await readDb();
+    const requestId = String(req.params.id || '').trim();
+    const request = (db.costRequests || []).find((r: any) => r.id === requestId);
+    if (!request) {
+      return res.status(404).json({ success: false, error: 'not_found', message: 'درخواست یافت نشد.' });
+    }
+    if (request.status !== 'pending') {
+      return res.status(400).json({ success: false, error: 'already_reviewed', message: 'این درخواست قبلاً بازبینی شده است.' });
+    }
+
+    const reviewedAt = new Date().toLocaleString('fa-IR', {
+      timeZone: 'Asia/Tehran',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    request.status = action === 'approve' ? 'approved' : 'rejected';
+    request.reviewedAt = reviewedAt;
+    request.reviewedBy = req.currentUser?.name || 'مدیر';
+    request.reviewNote = String(req.body?.note || '').trim();
+
+    let appliedCost: number | null = null;
+    if (action === 'approve') {
+      db.dimensions = (db.dimensions || []).map((dim: any) => {
+        if (dim.id !== request.dimensionId) return dim;
+        appliedCost = Number(request.newCost) || 0;
+        return { ...dim, costPrice: Number(request.newCost) || 0 };
+      });
+    }
+
+    await writeDb(db);
+    res.json({
+      success: true,
+      request,
+      appliedCost,
+      message:
+        action === 'approve'
+          ? `قیمت «${request.dimensionTitle}» به ${Number(request.newCost).toLocaleString('fa-IR')} تومان به‌روزرسانی شد و در فاکتورهای جدید اعمال می‌شود.`
+          : 'درخواست رد شد.'
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'internal_error', message: err.message });
   }
 });
 
