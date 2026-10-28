@@ -240,17 +240,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           <div className="grid lg:grid-cols-12 gap-10 lg:gap-8 items-center">
             {/* Copy */}
             <div className="lg:col-span-6 animate-landing-up">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-sky-200 shadow-xs backdrop-blur">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                </span>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-700">
-                  چاپ حرفه‌ای عکس + روتوش هوش مصنوعی
-                </span>
-              </div>
-
-              <h1 className="mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-black leading-[1.25] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-[3.25rem] font-black leading-[1.25] tracking-tight">
                 خاطره‌هایت را
                 <span className="relative inline-block mx-1.5">
                   <span className="relative z-10 bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 bg-clip-text text-transparent">
