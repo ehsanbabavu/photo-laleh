@@ -329,43 +329,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                         }`}
                       />
                     ))}
+                  </div>
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/10 to-transparent pointer-events-none" />
-
-                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/90 backdrop-blur text-[10px] font-black text-slate-800 shadow-sm">
-                      نمونه چاپ استودیویی
-                    </div>
-
-                    <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-white text-xs sm:text-sm font-black truncate">
-                          {HERO_SLIDES[activeSlide].title}
-                        </p>
-                        <p className="text-white/75 text-[10px] sm:text-[11px] font-mono mt-0.5">
-                          {HERO_SLIDES[activeSlide].meta}
-                        </p>
-                      </div>
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/90 text-white text-[10px] font-black flex items-center gap-1 flex-shrink-0">
-                        <CheckCircle2 className="w-3 h-3" />
-                        {HERO_SLIDES[activeSlide].tag}
-                      </span>
-                    </div>
-
-                    {/* Slide indicators */}
-                    <div className="absolute bottom-14 sm:bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-                      {HERO_SLIDES.map((slide, index) => (
-                        <button
-                          key={slide.src}
-                          onClick={() => setActiveSlide(index)}
-                          aria-label={`نمایش تصویر ${index + 1}`}
-                          className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                            index === activeSlide
-                              ? 'w-6 bg-white'
-                              : 'w-1.5 bg-white/50 hover:bg-white/80'
-                          }`}
-                        />
-                      ))}
-                    </div>
+                  {/* Slide navigation — below the image */}
+                  <div className="mt-3 flex items-center justify-center gap-1.5">
+                    {HERO_SLIDES.map((slide, index) => (
+                      <button
+                        key={`dot-${index}`}
+                        onClick={() => setActiveSlide(index)}
+                        aria-label={`نمایش تصویر ${index + 1}`}
+                        className={`h-2 rounded-full transition-all cursor-pointer ${
+                          index === activeSlide
+                            ? 'w-7 bg-gradient-to-l from-sky-600 to-emerald-500'
+                            : 'w-2 bg-slate-300 hover:bg-slate-400'
+                        }`}
+                      />
+                    ))}
                   </div>
 
                   <div className="mt-3 grid grid-cols-3 gap-2">
