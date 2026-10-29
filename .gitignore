@@ -1,6 +1,9 @@
 node_modules/
 dist/
 data/
+!src/data/
+files/
+public/slide-*opt.jpg
 .vercel
 .env.local
 *.tsbuildinfo
