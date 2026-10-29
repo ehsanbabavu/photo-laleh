@@ -20,6 +20,22 @@ export const AdminBackup: React.FC<AdminBackupProps> = ({ showToast }) => {
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  /** Jalali (Persian) stamp, e.g. 1405-08-07-22-45-07 */
+  const jalaliStamp = (date: Date = new Date()) => {
+    const parts = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', {
+      timeZone: 'Asia/Tehran',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(date);
+    const part = (type: string) => parts.find((p) => p.type === type)?.value || '00';
+    return [part('year'), part('month'), part('day'), part('hour'), part('minute'), part('second')].join('-');
+  };
+
   const handleBackup = async () => {
     setError(null);
     setSuccess(null);
@@ -27,12 +43,14 @@ export const AdminBackup: React.FC<AdminBackupProps> = ({ showToast }) => {
     try {
       const res = await fetch('/api/backup');
       if (!res.ok) throw new Error('backup failed');
+      // Prefer the file name the server sends (already Jalali dated)
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const serverName = /filename="?([^";]+)"?/.exec(disposition)?.[1];
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       link.href = url;
-      link.download = `laleh-backup-${stamp}.json`;
+      link.download = serverName || `laleh-backup-${jalaliStamp()}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
