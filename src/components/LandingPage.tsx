@@ -149,7 +149,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
     let active = true;
     (async () => {
       try {
-        const res = await fetch('/api/public/landing');
+        const res = await fetch('/api/public/landing', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
         if (!active) return;
