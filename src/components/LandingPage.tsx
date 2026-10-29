@@ -758,13 +758,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   <p className="text-sm font-black text-white">
                     آتلیه دیجیتال <span className="text-red-400">لاله</span>
                   </p>
-                  <p className="text-[11px] text-slate-400">چاپ عکس و روتوش هوش مصنوعی</p>
                 </div>
               </div>
-              <p className="mt-4 text-[11px] sm:text-xs leading-7 text-slate-400 max-w-md mx-auto">
-                سامانه سفارش آنلاین چاپ عکس با پردازش هوشمند تصویر؛ از عکس پرسنلی و تبلیغاتی تا
-                بازسازی خاطرات قدیمی و تابلوهای هنری، با تحویل سریع در سراسر کشور.
-              </p>
 
               {/* Messenger bots */}
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl mx-auto text-right">
