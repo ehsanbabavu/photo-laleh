@@ -24,7 +24,7 @@ import { PrintDimension, PrintTypeOption } from '../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
 import { formatNumber, formatPrice } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
-import { HERO_SLIDES } from '../data/heroSlides';
+import { HERO_SLIDES, SERVICE_IMAGE_BLOB } from '../data/heroSlides';
 import { EitaaIcon, TelegramIcon } from './BrandIcons';
 
 interface LandingPageProps {
@@ -38,13 +38,7 @@ const toFaDigits = (value: string): string =>
     .replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
     .replace(/([۰-۹])\s*[xX]\s*([۰-۹])/g, '$1 × $2');
 
-const SERVICE_IMAGE: Record<string, string> = {
-  personnel: '/service_card_portrait.jpg',
-  commercial: '/service_commercial.jpg',
-  bw_to_color: '/service_bw_to_color.jpg',
-  memorial: '/service_memorial.jpg',
-  wedding: '/service_wedding.jpg'
-};
+const SERVICE_IMAGE: Record<string, string> = SERVICE_IMAGE_BLOB;
 
 const FEATURES = [
   {
