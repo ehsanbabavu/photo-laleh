@@ -135,8 +135,9 @@ const NAV_LINKS = [
 export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [scrolled, setScrolled] = useState(false);
-  const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(PRINT_TYPES);
-  const [dimensions, setDimensions] = useState<PrintDimension[]>(PRINT_DIMENSIONS);
+  const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
+  const [dimensions, setDimensions] = useState<PrintDimension[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -150,13 +151,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
     (async () => {
       try {
         const res = await fetch('/api/public/landing', { cache: 'no-store' });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error(`landing ${res.status}`);
         const data = await res.json();
         if (!active) return;
-        if (Array.isArray(data.printTypes) && data.printTypes.length > 0) setPrintTypes(data.printTypes);
-        if (Array.isArray(data.dimensions) && data.dimensions.length > 0) setDimensions(data.dimensions);
+        // The database is the single source of truth — including when it is empty
+        setPrintTypes(Array.isArray(data.printTypes) ? data.printTypes : []);
+        setDimensions(Array.isArray(data.dimensions) ? data.dimensions : []);
+        setCatalogLoaded(true);
       } catch {
-        /* keep the built-in defaults */
+        // Offline / API failure: keep the page usable with the built-in catalog
+        if (active && !catalogLoaded) {
+          setPrintTypes(PRINT_TYPES);
+          setDimensions(PRINT_DIMENSIONS);
+        }
       }
     })();
     return () => {
@@ -404,6 +411,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </p>
           </div>
 
+          {printTypes.length === 0 ? (
+            <div className="mt-9 p-8 rounded-3xl bg-white border border-dashed border-slate-300 text-center">
+              <p className="text-sm font-bold text-slate-700">در حال آماده‌سازی سرویس‌های چاپ</p>
+              <p className="text-xs text-slate-500 mt-1">به‌زودی خدمات آتلیه در این بخش نمایش داده می‌شود.</p>
+            </div>
+          ) : (
           <div className="mt-9 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
             {printTypes.map((service) => (
               <article
@@ -462,6 +475,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </article>
             ))}
           </div>
+          )}
         </div>
       </section>
 
@@ -583,6 +597,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             )}
           </div>
 
+          {dimensions.length === 0 ? (
+            <div className="mt-8 p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-center text-xs text-slate-500">
+              سایزهای چاپ به‌زودی از پنل مدیریت اضافه می‌شوند.
+            </div>
+          ) : (
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {dimensions.map((dimension) => (
               <div
@@ -608,6 +627,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </div>
             ))}
           </div>
+          )}
         </div>
       </section>
 
