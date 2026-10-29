@@ -108,6 +108,18 @@ export const apiClient = {
     }
   },
 
+  async saveRemovedPrintTypes(ids: string[]) {
+    try {
+      await fetch('/api/db/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ removedPrintTypes: ids })
+      });
+    } catch (err) {
+      console.warn('API saveRemovedPrintTypes error:', err);
+    }
+  },
+
   async saveDimensions(dimensions: PrintDimension[]) {
     try {
       await fetch('/api/db/sync', {
