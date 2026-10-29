@@ -248,10 +248,75 @@ async function ensureSizeCatalog(db: Db) {
   await meta.insertOne({ _id: 'sizes_migrated' as any, migratedAt: new Date().toISOString() }).catch(() => undefined);
 }
 
+/**
+ * Older databases may have been seeded when only a subset of the print services
+ * existed (e.g. a single type). Restore any missing default service once so the
+ * storefront always lists the complete catalog stored in the database.
+ */
+export async function ensurePrintTypeCatalog(db: Db) {
+  const meta = db.collection('meta');
+  const migrated = await meta.findOne({ _id: 'print_types_migrated' as any });
+  if (migrated) return;
+
+  const seed = cloneSeed();
+  const defaultTypes: any[] = Array.isArray(seed.printTypes) ? seed.printTypes : [];
+  const existing = await db.collection('printTypes').find({}).toArray().catch(() => [] as any[]);
+  const existingIds = new Set(existing.map((type: any) => String(type.id)));
+
+  const missing = defaultTypes.filter((type) => !existingIds.has(String(type.id)));
+  if (missing.length > 0) {
+    await db
+      .collection('printTypes')
+      .insertMany(missing.map((item) => ({ ...item })), { ordered: false })
+      .catch(() => undefined);
+    await db.collection('printTypes').createIndex({ id: 1 }, { unique: true, sparse: true }).catch(() => undefined);
+  }
+
+  // Repair services saved with missing fields (only fills blanks, never overrides edits)
+  const defaultsById = new Map<string, any>(
+    defaultTypes.map((type) => [String(type.id), type])
+  );
+  const REPAIRABLE_FIELDS = [
+    'subtitle',
+    'description',
+    'basePrice',
+    'features',
+    'sampleImage',
+    'tag',
+    'dimensionIds'
+  ];
+  for (const type of existing) {
+    const defaults = defaultsById.get(String(type.id));
+    if (!defaults) continue;
+
+    const patch: Record<string, any> = {};
+    for (const field of REPAIRABLE_FIELDS) {
+      if (defaults[field] === undefined) continue;
+      const current = (type as any)[field];
+      const isBlank =
+        current === undefined ||
+        current === null ||
+        current === '' ||
+        (Array.isArray(current) && current.length === 0);
+      if (isBlank) patch[field] = defaults[field];
+    }
+    if (Object.keys(patch).length === 0) continue;
+    await db
+      .collection('printTypes')
+      .updateOne({ _id: (type as any)._id }, { $set: patch })
+      .catch(() => undefined);
+  }
+
+  await meta
+    .insertOne({ _id: 'print_types_migrated' as any, migratedAt: new Date().toISOString(), added: missing.length })
+    .catch(() => undefined);
+}
+
 async function ensureSeeded(db: Db) {
   const meta = db.collection('meta');
   const seeded = await meta.findOne({ _id: 'seed' as any });
   if (seeded) {
+    await ensurePrintTypeCatalog(db);
     await ensureSizeCatalog(db);
     return;
   }
@@ -268,6 +333,7 @@ async function ensureSeeded(db: Db) {
     await db.collection(name).replaceOne({ _id: 'main' as any }, { ...(seed[name] || {}) }, { upsert: true });
   }
   await meta.insertOne({ _id: 'seed' as any, seededAt: new Date().toISOString() });
+  await ensurePrintTypeCatalog(db);
   await ensureSizeCatalog(db);
 }
 
