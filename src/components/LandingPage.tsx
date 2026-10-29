@@ -12,7 +12,6 @@ import {
   ChevronDown,
   Ruler,
   Users,
-  Star,
   PhoneCall,
   Send,
   MessageCircle,
@@ -350,26 +349,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   </div>
                 </div>
 
-                {/* Floating cards */}
-                <div className="hidden sm:flex absolute -bottom-5 -left-4 items-center gap-2 px-3 py-2 rounded-2xl bg-white border border-slate-200 shadow-xl">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900">پرداخت امن</p>
-                    <p className="text-[9px] text-slate-500">درگاه بانکی معتبر</p>
-                  </div>
-                </div>
-
-                <div className="hidden sm:flex absolute -top-4 -right-3 items-center gap-2 px-3 py-2 rounded-2xl bg-white border border-slate-200 shadow-xl">
-                  <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                    <Star className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900">کالیبراسیون رنگ</p>
-                    <p className="text-[9px] text-slate-500">قبل از چاپ نهایی</p>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
