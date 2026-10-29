@@ -431,9 +431,24 @@ async function buildBackupPayload() {
   };
 }
 
+/** Jalali (Persian) date-time stamp for backup file names: 1405-08-07-22-45-07 */
+function jalaliStamp(date: Date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', {
+    timeZone: 'Asia/Tehran',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value || '00';
+  return [part('year'), part('month'), part('day'), part('hour'), part('minute'), part('second')].join('-');
+}
+
 function backupFilename(date: Date = new Date()) {
-  const stamp = date.toISOString().slice(0, 19).replace(/[:T]/g, '-');
-  return `laleh-backup-${stamp}.json`;
+  return `laleh-backup-${jalaliStamp(date)}.json`;
 }
 
 const BACKUP_DEFAULT_INTERVAL_HOURS = 4;
