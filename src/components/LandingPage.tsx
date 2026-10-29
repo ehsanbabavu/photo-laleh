@@ -24,6 +24,7 @@ import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
 import { formatNumber, formatPrice } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
 import { HERO_SLIDES } from '../data/heroSlides';
+import { EitaaIcon, TelegramIcon } from './BrandIcons';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -790,6 +791,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 سامانه سفارش آنلاین چاپ عکس با پردازش هوشمند تصویر؛ از عکس پرسنلی و تبلیغاتی تا
                 بازسازی خاطرات قدیمی و تابلوهای هنری، با تحویل سریع در سراسر کشور.
               </p>
+
+              {/* Messenger bots */}
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-md mx-auto text-right">
+                <a
+                  href="https://t.me/photo_laleh_bot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-sky-400/40 transition-all"
+                >
+                  <span className="w-9 h-9 rounded-xl bg-[#229ED9] text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <TelegramIcon className="w-5 h-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-black text-white">ربات تلگرام</span>
+                    <span className="block text-[10px] font-mono text-slate-400 truncate" dir="ltr">
+                      @photo_laleh_bot
+                    </span>
+                  </span>
+                </a>
+
+                <a
+                  href="https://eitaa.com/photo_laleh_app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-emerald-400/40 transition-all"
+                >
+                  <span className="w-9 h-9 rounded-xl bg-[#14a7a7] text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <EitaaIcon className="w-5 h-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-black text-white">ربات ایتا</span>
+                    <span className="block text-[10px] font-mono text-slate-400 truncate" dir="ltr">
+                      eitaa.com/photo_laleh_app
+                    </span>
+                  </span>
+                </a>
+              </div>
             </div>
           </div>
 
