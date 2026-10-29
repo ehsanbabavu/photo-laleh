@@ -793,7 +793,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </p>
 
               {/* Messenger bots */}
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-md mx-auto text-right">
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl mx-auto text-right">
                 <a
                   href="https://t.me/photo_laleh_bot"
                   target="_blank"
@@ -824,6 +824,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     <span className="block text-[11px] font-black text-white">ربات ایتا</span>
                     <span className="block text-[10px] font-mono text-slate-400 truncate" dir="ltr">
                       eitaa.com/photo_laleh_app
+                    </span>
+                  </span>
+                </a>
+
+                <a
+                  href="tel:+989135621232"
+                  className="group flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-amber-400/40 transition-all"
+                >
+                  <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <PhoneCall className="w-5 h-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-black text-white">تماس با ما</span>
+                    <span className="block text-[10px] font-mono text-slate-400 truncate" dir="ltr">
+                      09135621232
                     </span>
                   </span>
                 </a>
