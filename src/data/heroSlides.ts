@@ -24,6 +24,14 @@ export const HERO_SLIDES: HeroSlide[] = [
   {
     src: `${BLOB}/hero-4-IaU9Noa2WOqHEqpbBaIG5figcB0zp9.jpg`,
     alt: 'چاپ عکس پرتره و تبلیغاتی'
+  },
+  {
+    src: `${BLOB}/hero-5-L2xVMtUEyOYHUdqYUjpBbGsM0HUoYy.jpg`,
+    alt: 'عکاسی کودک و چاپ عکس کودکانه در آتلیه لاله'
+  },
+  {
+    src: `${BLOB}/hero-6-O6B1hwsUO9HEZiY1dgLQsK2jwkvhyD.jpg`,
+    alt: 'چاپ عکس کودک با تم کلاس و اتوبوس مدرسه'
   }
 ];
 
