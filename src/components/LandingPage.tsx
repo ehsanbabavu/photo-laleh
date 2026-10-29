@@ -18,8 +18,7 @@ import {
   MessageCircle,
   Layers,
   ScanFace,
-  Crop,
-  Camera
+  Crop
 } from 'lucide-react';
 import { PrintDimension, PrintTypeOption } from '../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
@@ -750,26 +749,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 سامانه سفارش آنلاین چاپ عکس با پردازش هوشمند تصویر؛ از عکس پرسنلی و تبلیغاتی تا
                 بازسازی خاطرات قدیمی و تابلوهای هنری، با تحویل سریع در سراسر کشور.
               </p>
-              <div className="mt-4 flex items-center justify-center gap-2">
-                {[
-                  { icon: Camera, label: 'اینستاگرام' },
-                  { icon: Send, label: 'تلگرام' },
-                  { icon: MessageCircle, label: 'ایتا' }
-                ].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <span
-                      key={item.label}
-                      className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-slate-300 flex items-center justify-center"
-                      title={item.label}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </span>
-                  );
-                })}
-              </div>
             </div>
-
           </div>
 
           <div className="mt-9 pt-5 border-t border-white/10 flex items-center justify-center">
