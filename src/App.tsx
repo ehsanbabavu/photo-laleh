@@ -26,6 +26,7 @@ import { AdminBluPalSettings } from './components/admin/AdminBluPalSettings';
 import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings';
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
+import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
 import { AdminAudit } from './components/admin/AdminAudit';
@@ -1011,7 +1012,14 @@ export default function App() {
 
               {adminTab === 'users' && <AdminUsers showToast={showToast} />}
 
-              {adminTab === 'backup' && <AdminBackup showToast={showToast} />}
+              {adminTab === 'backup' && (
+                <div className="space-y-3 lg:space-y-4">
+                  <AdminBackup showToast={showToast} />
+                  <div className="w-full max-w-4xl mx-auto">
+                    <AdminBackupSchedule showToast={showToast} />
+                  </div>
+                </div>
+              )}
 
               {adminTab === 'sms' && <AdminSmsSettings showToast={showToast} />}
 
