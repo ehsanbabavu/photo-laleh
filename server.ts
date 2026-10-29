@@ -97,7 +97,8 @@ const PUBLIC_API_PATHS = new Set([
   '/api/public/landing',
   '/api/blupal/webhook',
   '/api/webhook/blupal',
-  '/api/telegram/webhook'
+  '/api/telegram/webhook',
+  '/api/cron/backup'
 ]);
 
 const ADMIN_ONLY_PREFIXES = [
@@ -140,7 +141,7 @@ app.use('/api', (req: any, res, next) => {
 app.use('/api', async (req: any, res, next) => {
   const path = String(req.originalUrl || req.url || '').split('?')[0].replace(/\/+$/, '') || '/api';
   if (!path.startsWith('/api')) return next();
-  if (PUBLIC_API_PATHS.has(path)) return next();
+  if (PUBLIC_API_PATHS.has(path) || path.startsWith('/api/cron/backup/')) return next();
 
   try {
     const session = await currentUserFromRequest(req);
@@ -225,7 +226,8 @@ const SECRET_SETTING_KEYS = [
   'eitaaToken',
   'blupalWebhookSecret',
   'telegramToken',
-  'smsApiToken'
+  'smsApiToken',
+  'backupCronToken'
 ];
 
 /** Removes admin-only fields (internal cost) from print sizes. */
@@ -415,22 +417,204 @@ app.delete('/api/uploads/blob', async (req: any, res) => {
 });
 
 // --- Backup & restore ---
-app.get('/api/backup', async (_req, res) => {
+async function buildBackupPayload() {
   const state = await readDb();
   const safeState = {
     ...state,
     users: sanitizeUsers(state.users)
   };
-  const payload = {
+  return {
     app: 'laleh-digital-studio',
     version: 1,
     createdAt: new Date().toISOString(),
     data: safeState
   };
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+}
+
+function backupFilename(date: Date = new Date()) {
+  const stamp = date.toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  return `laleh-backup-${stamp}.json`;
+}
+
+const BACKUP_DEFAULT_INTERVAL_HOURS = 4;
+
+/** Shape of the automatic Telegram backup schedule, taken from `settings`. */
+function backupScheduleState(settings: any) {
+  const s = settings || {};
+  const hours = Number(s.backupIntervalHours);
+  return {
+    enabled: s.backupTelegramEnabled === true,
+    intervalHours: Number.isFinite(hours) && hours > 0 ? hours : BACKUP_DEFAULT_INTERVAL_HOURS,
+    chatId: String(s.backupChatId || s.telegramChatId || '').trim(),
+    cronToken: String(s.backupCronToken || ''),
+    lastSentAt: s.backupLastSentAt || null,
+    lastAttemptAt: s.backupLastAttemptAt || null,
+    lastStatus: s.backupLastStatus || null,
+    lastError: s.backupLastError || null,
+    lastSizeBytes: Number(s.backupLastSizeBytes) || null
+  };
+}
+
+function safeTokenEqual(a: string, b: string) {
+  const ha = crypto.createHash('sha256').update(String(a || '')).digest();
+  const hb = crypto.createHash('sha256').update(String(b || '')).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
+/**
+ * Takes a full snapshot of the database and sends it to Telegram as a JSON
+ * document. The result is recorded on `settings` so the panel can show the
+ * last run and the scheduler can decide whether the next one is due.
+ */
+async function sendBackupToTelegram(db: any, reason: string) {
+  const settings = { ...(db.settings || {}) };
+  const schedule = backupScheduleState(settings);
+  const token = String(settings.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+
+  if (!token) return { ok: false, error: 'توکن ربات تلگرام تنظیم نشده است' };
+  if (!schedule.chatId) return { ok: false, error: 'شناسه چت مقصد تنظیم نشده است' };
+
+  const payload = await buildBackupPayload();
+  const buffer = Buffer.from(JSON.stringify(payload, null, 2), 'utf8');
+  const data: any = payload.data || {};
+  const count = (key: string) => (Array.isArray(data[key]) ? data[key].length : 0);
+
+  const caption = [
+    '🗄 پشتیبان خودکار دیتابیس — آتلیه لاله',
+    `📅 ${nowFaFull()}`,
+    schedule.enabled ? `⏱ بازه: هر ${schedule.intervalHours} ساعت` : '⏱ حالت دستی',
+    `👥 کاربران: ${count('users')} • 🧾 سفارش‌ها: ${count('orders')} • 🎫 تیکت‌ها: ${count('tickets')}`,
+    `📐 سایزها: ${count('printTypes')} • 💳 فاکتورها: ${count('invoices')} • 🤝 همکاران: ${count('partnerInvoices')}`,
+    `📦 حجم فایل: ${(buffer.length / 1024).toFixed(0)} KB`
+  ].join('\n');
+
+  const result = await sendTelegramDocument(
+    token,
+    schedule.chatId,
+    { buffer, mime: 'application/json' },
+    backupFilename(),
+    caption
+  );
+
+  const at = new Date().toISOString();
+  settings.backupLastAttemptAt = at;
+  if (result.ok) {
+    settings.backupLastSentAt = at;
+    settings.backupLastStatus = 'ok';
+    settings.backupLastError = '';
+    settings.backupLastSizeBytes = buffer.length;
+    settings.backupLastReason = reason;
+  } else {
+    settings.backupLastStatus = 'error';
+    settings.backupLastError = result.error || 'ارسال ناموفق بود';
+  }
+  db.settings = settings;
+  try {
+    await writeDb(db);
+  } catch {
+    // A failed settings write must not hide a successful Telegram delivery
+  }
+
+  return { ok: result.ok, error: result.error, sizeBytes: buffer.length, sentAt: result.ok ? at : null };
+}
+
+app.get('/api/backup', async (_req, res) => {
+  const payload = await buildBackupPayload();
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="laleh-backup-${stamp}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${backupFilename()}"`);
   res.send(JSON.stringify(payload, null, 2));
+});
+
+// --- Automatic backup to Telegram: panel settings ---
+app.get('/api/backup/schedule', async (_req, res) => {
+  const db = await readDb();
+  res.json({ success: true, schedule: backupScheduleState(db.settings) });
+});
+
+app.post('/api/backup/schedule', async (req, res) => {
+  const db = await readDb();
+  const body = req.body || {};
+  const settings = { ...(db.settings || {}) };
+
+  if (body.enabled !== undefined) settings.backupTelegramEnabled = body.enabled === true;
+  if (body.chatId !== undefined) settings.backupChatId = String(body.chatId || '').trim();
+  if (body.intervalHours !== undefined) {
+    const hours = Number(body.intervalHours);
+    if (!Number.isFinite(hours) || hours < 1 || hours > 168) {
+      return res.status(400).json({ success: false, error: 'بازه زمانی باید بین ۱ تا ۱۶۸ ساعت باشد' });
+    }
+    settings.backupIntervalHours = hours;
+  }
+  // A token always exists, so the cron URL can be copied right away
+  if (body.rotateToken === true || !settings.backupCronToken) {
+    settings.backupCronToken = crypto.randomBytes(24).toString('hex');
+  }
+
+  db.settings = settings;
+  await writeDb(db);
+  res.json({ success: true, schedule: backupScheduleState(settings) });
+});
+
+// Send a backup right now (used by the "send test" button in the panel)
+app.post('/api/backup/telegram', async (_req, res) => {
+  try {
+    const db = await readDb();
+    const result = await sendBackupToTelegram(db, 'manual');
+    if (!result.ok) return res.status(400).json({ success: false, error: result.error });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'ارسال پشتیبان ناموفق بود' });
+  }
+});
+
+// --- Cron entry point (cron-job.org / any external scheduler) ---
+// Public route guarded by the token in `settings.backupCronToken`.
+//   GET /api/cron/backup?token=...          -> sends only when the interval elapsed
+//   GET /api/cron/backup/<token>            -> same, token in the path
+//   GET /api/cron/backup?token=...&force=1  -> sends immediately
+app.all(['/api/cron/backup', '/api/cron/backup/:token'], async (req: any, res) => {
+  try {
+    const provided = String(
+      req.params?.token || req.query?.token || req.headers['x-cron-token'] || ''
+    );
+    const db = await readDb();
+    const schedule = backupScheduleState(db.settings);
+
+    if (!schedule.cronToken || !provided || !safeTokenEqual(provided, schedule.cronToken)) {
+      return res.status(401).json({ success: false, error: 'توکن زمان‌بند نامعتبر است' });
+    }
+
+    const force = String(req.query?.force || '') === '1';
+    if (!schedule.enabled && !force) {
+      return res.json({ success: true, skipped: 'disabled', message: 'پشتیبان خودکار خاموش است' });
+    }
+
+    const now = Date.now();
+    const lastSent = Date.parse(schedule.lastSentAt || '') || 0;
+    const lastAttempt = Date.parse(schedule.lastAttemptAt || '') || 0;
+    const intervalMs = schedule.intervalHours * 3600 * 1000;
+
+    if (!force && now - lastSent < intervalMs) {
+      return res.json({
+        success: true,
+        skipped: 'not-due',
+        nextDueAt: new Date(lastSent + intervalMs).toISOString(),
+        lastSentAt: schedule.lastSentAt
+      });
+    }
+    // After a failure, retry at most every 10 minutes
+    if (!force && schedule.lastStatus === 'error' && now - lastAttempt < 10 * 60 * 1000) {
+      return res.json({ success: true, skipped: 'retry-wait', lastError: schedule.lastError });
+    }
+
+    const result = await sendBackupToTelegram(db, force ? 'cron-force' : 'cron');
+    if (!result.ok) {
+      return res.status(502).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, sentAt: result.sentAt, sizeBytes: result.sizeBytes });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'cron error' });
+  }
 });
 
 app.post('/api/backup/restore', async (req, res) => {
