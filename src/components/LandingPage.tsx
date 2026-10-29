@@ -255,7 +255,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 </span>
                 کن،
                 <br className="hidden sm:block" />
-                روی کاغذ و بوم چاپشان کن
+                روی کاغذ چاپش کن
               </h1>
 
               <p className="mt-4 sm:mt-5 text-sm sm:text-base text-slate-600 leading-8 max-w-xl">
