@@ -13,6 +13,7 @@ import {
   Ruler,
   Users,
   PhoneCall,
+  MapPin,
   Send,
   MessageCircle,
   Layers,
@@ -842,6 +843,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     </span>
                   </span>
                 </a>
+              </div>
+
+              {/* Address */}
+              <div className="mt-2.5 max-w-2xl mx-auto">
+                <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 text-right">
+                  <span className="w-9 h-9 rounded-xl bg-white/10 text-emerald-300 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-black text-white">آدرس آتلیه</span>
+                    <span className="block text-[11px] sm:text-xs leading-6 text-slate-300">
+                      اصفهان، خانه اصفهان، خیابان شهید اسماعیلی
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
