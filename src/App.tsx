@@ -84,6 +84,8 @@ export default function App() {
   const [dimensions, setDimensions] = useState<PrintDimension[]>(PRINT_DIMENSIONS);
   const [partnerInvoices, setPartnerInvoices] = useState<PartnerInvoice[]>([]);
   const [costRequests, setCostRequests] = useState<CostChangeRequest[]>([]);
+  // Default service ids the admin removed on purpose (never re-added to the landing)
+  const [removedPrintTypeIds, setRemovedPrintTypeIds] = useState<string[]>([]);
 
   // AvalAI API configuration state
   const [avalaiApiKey, setAvalaiApiKey] = useState<string>('');
@@ -272,6 +274,9 @@ export default function App() {
         }
         if (Array.isArray(data.costRequests)) {
           setCostRequests(data.costRequests);
+        }
+        if (Array.isArray(data.removedPrintTypes)) {
+          setRemovedPrintTypeIds(data.removedPrintTypes);
         }
         if (Array.isArray(data.dimensions) && data.dimensions.length > 0) {
           setDimensions(data.dimensions);
@@ -479,6 +484,12 @@ export default function App() {
     setPrintTypes((prev) => {
       const next = [...prev, newItem];
       apiClient.savePrintTypes(next);
+      setRemovedPrintTypeIds((previous) => {
+        if (!previous.includes(String(newItem.id))) return previous;
+        const ids = previous.filter((id) => id !== String(newItem.id));
+        apiClient.saveRemovedPrintTypes(ids);
+        return ids;
+      });
       return next;
     });
     showToast(`نوع چاپ «${newItem.title}» با موفقیت افزوده شد.`);
@@ -498,6 +509,11 @@ export default function App() {
       const target = prev.find((p) => p.id === id);
       const next = prev.filter((p) => p.id !== id);
       apiClient.savePrintTypes(next);
+      setRemovedPrintTypeIds((previous) => {
+        const ids = Array.from(new Set([...previous, id]));
+        apiClient.saveRemovedPrintTypes(ids);
+        return ids;
+      });
       if (target) {
         showToast(`نوع چاپ «${target.title}» حذف گردید.`);
       }
@@ -508,6 +524,8 @@ export default function App() {
   const handleResetPrintTypes = () => {
     setPrintTypes(PRINT_TYPES);
     apiClient.savePrintTypes(PRINT_TYPES);
+    setRemovedPrintTypeIds([]);
+    apiClient.saveRemovedPrintTypes([]);
     showToast('کارت‌های نوع چاپ به حالت اولیه بازنشانی شدند.');
   };
 
