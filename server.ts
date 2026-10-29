@@ -269,6 +269,8 @@ function sanitizeUsers(users: any[]) {
 // --- Public landing page data (no session required) ---
 app.get('/api/public/landing', async (_req, res) => {
   try {
+    // Always fresh: the sizes/prices are managed in the admin panel
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     const db = await readDb();
     const printTypes = (db.printTypes || [])
       .filter((type: any) => type.isEnabled !== false)
