@@ -437,6 +437,10 @@ function backupFilename(date: Date = new Date()) {
 }
 
 const BACKUP_DEFAULT_INTERVAL_HOURS = 4;
+// Out-of-the-box value for the scheduler token, so the cron URL works before the
+// admin ever opens the panel. It can be rotated from the panel (backupCronToken)
+// and it only ever triggers a send when the configured interval has elapsed.
+const BACKUP_DEFAULT_CRON_TOKEN = 'laleh-backup-9f3c1d7ab5e042d8';
 
 /** Shape of the automatic Telegram backup schedule, taken from `settings`. */
 function backupScheduleState(settings: any) {
@@ -446,7 +450,8 @@ function backupScheduleState(settings: any) {
     enabled: s.backupTelegramEnabled === true,
     intervalHours: Number.isFinite(hours) && hours > 0 ? hours : BACKUP_DEFAULT_INTERVAL_HOURS,
     chatId: String(s.backupChatId || s.telegramChatId || '').trim(),
-    cronToken: String(s.backupCronToken || ''),
+    cronToken: String(s.backupCronToken || BACKUP_DEFAULT_CRON_TOKEN),
+    isDefaultToken: !s.backupCronToken,
     lastSentAt: s.backupLastSentAt || null,
     lastAttemptAt: s.backupLastAttemptAt || null,
     lastStatus: s.backupLastStatus || null,
@@ -545,9 +550,13 @@ app.post('/api/backup/schedule', async (req, res) => {
     }
     settings.backupIntervalHours = hours;
   }
-  // A token always exists, so the cron URL can be copied right away
-  if (body.rotateToken === true || !settings.backupCronToken) {
+  // A token always exists (see BACKUP_DEFAULT_CRON_TOKEN), so the cron URL
+  // can be copied right away. "rotate" replaces the shared default.
+  if (body.rotateToken === true) {
     settings.backupCronToken = crypto.randomBytes(24).toString('hex');
+  }
+  if (body.cronToken !== undefined && String(body.cronToken).trim()) {
+    settings.backupCronToken = String(body.cronToken).trim();
   }
 
   db.settings = settings;
@@ -585,6 +594,10 @@ app.all(['/api/cron/backup', '/api/cron/backup/:token'], async (req: any, res) =
     }
 
     const force = String(req.query?.force || '') === '1';
+    // The shared default token must not be able to force extra sends
+    if (force && schedule.isDefaultToken) {
+      return res.status(403).json({ success: false, error: 'برای ارسال اجباری، توکن اختصاصی لازم است' });
+    }
     if (!schedule.enabled && !force) {
       return res.json({ success: true, skipped: 'disabled', message: 'پشتیبان خودکار خاموش است' });
     }
