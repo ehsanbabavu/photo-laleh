@@ -259,9 +259,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </h1>
 
               <p className="mt-4 sm:mt-5 text-sm sm:text-base text-slate-600 leading-8 max-w-xl">
-                آتلیه دیجیتال لاله عکس‌های شما را با هوش مصنوعی روتوش، رنگی و بازسازی می‌کند و با
-                کیفیت استودیویی روی سایز و متریال دلخواه شما چاپ می‌کند؛ از عکس پرسنلی ۳×۴ تا
-                تابلو ۵۰×۷۰.
+                آتلیه دیجیتال لاله با نیم قرن تجربه، از گذشته تا به امروز شاهد ثبت لحظات
+                خاطره‌انگیزی بوده است و با گذشت زمان از فناوری‌های به‌روز جهت چاپ با کیفیت عکس‌ها
+                استفاده کرده است.
+              </p>
+
+              <p className="mt-3 text-sm sm:text-base font-black text-slate-900 leading-8 max-w-xl">
+                ثبت خاطرات خود را به ما بسپارید
               </p>
 
               <div className="mt-7 flex items-center">
