@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Order, User, SupportTicket, PrintTypeOption, Announcement } from '../../types';
 import { formatNumber } from '../../utils/formatters';
+import { SERVICE_IMAGE_BLOB } from '../../data/heroSlides';
 
 interface UserDashboardProps {
   user: User;
@@ -590,11 +591,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   return it.cardBgImage;
                 }
                 switch (it.id) {
-                  case 'personnel': return '/service_card_portrait.jpg';
-                  case 'commercial': return '/service_commercial.jpg';
-                  case 'bw_to_color': return '/service_bw_to_color.jpg';
-                  case 'memorial': return '/service_memorial.jpg';
-                  case 'wedding': return '/service_wedding.jpg';
+                  case 'personnel': return SERVICE_IMAGE_BLOB.personnel;
+                  case 'commercial': return SERVICE_IMAGE_BLOB.commercial;
+                  case 'bw_to_color': return SERVICE_IMAGE_BLOB.bw_to_color;
+                  case 'memorial': return SERVICE_IMAGE_BLOB.memorial;
+                  case 'wedding': return SERVICE_IMAGE_BLOB.wedding;
                   default: return null;
                 }
               };
