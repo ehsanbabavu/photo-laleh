@@ -817,8 +817,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   rel="noopener noreferrer"
                   className="group flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-emerald-400/40 transition-all"
                 >
-                  <span className="w-9 h-9 rounded-xl bg-[#14a7a7] text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <EitaaIcon className="w-5 h-5" />
+                  <span className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm bg-white/10">
+                    <EitaaIcon className="w-full h-full object-cover" />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[11px] font-black text-white">ربات ایتا</span>
