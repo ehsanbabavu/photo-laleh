@@ -23,6 +23,7 @@ import { PrintDimension, PrintTypeOption } from '../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
 import { formatNumber, formatPrice } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
+import { HERO_SLIDES } from '../data/heroSlides';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -34,37 +35,6 @@ const toFaDigits = (value: string): string =>
   String(value || '')
     .replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
     .replace(/([۰-۹])\s*[xX]\s*([۰-۹])/g, '$1 × $2');
-
-const HERO_SLIDES = [
-  {
-    src: '/slide-wedding.jpg',
-    alt: 'نمونه چاپ استودیویی عکس عروسی در آتلیه لاله',
-    title: 'روتوش حرفه‌ای + چاپ روی بوم',
-    meta: '۳۰ × ۴۰ سانتی‌متر',
-    tag: 'کیفیت گالری'
-  },
-  {
-    src: '/slide-restore.jpg',
-    alt: 'بازسازی و رنگی‌کردن عکس قدیمی',
-    title: 'بازسازی عکس‌های قدیمی',
-    meta: 'قبل و بعد از مرمت دیجیتال',
-    tag: 'هوش مصنوعی'
-  },
-  {
-    src: '/slide-pregnancy.jpg',
-    alt: 'عکاسی بارداری و چاپ آلبوم خانوادگی',
-    title: 'ثبت لحظه‌های خانوادگی',
-    meta: 'چاپ روی کاغذ سیلک مات',
-    tag: 'آلبوم خاطرات'
-  },
-  {
-    src: '/slide-portrait.jpg',
-    alt: 'چاپ عکس پرتره و تبلیغاتی',
-    title: 'پرتره و عکس تبلیغاتی',
-    meta: 'سایز دلخواه تا ۵۰ × ۷۰',
-    tag: 'چاپ استودیویی'
-  }
-];
 
 const SERVICE_IMAGE: Record<string, string> = {
   personnel: '/service_card_portrait.jpg',
