@@ -1,5 +1,4 @@
 import express from 'express';
-import { INITIAL_DB } from './seedData';
 import crypto from 'crypto';
 import cors from 'cors';
 import path from 'path';
@@ -274,19 +273,9 @@ app.get('/api/public/landing', async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     const db = await readDb();
 
-    // The complete service catalog must always be visible. Rows stored in the
-    // database win; services that were never stored (or were lost when an older
-    // database was seeded) are completed from the built-in catalog, unless the
-    // admin explicitly removed them.
-    const storedTypes: any[] = db.printTypes || [];
-    const removedIds = new Set<string>((db.removedPrintTypes || []).map((id: any) => String(id)));
-    const storedIds = new Set(storedTypes.map((type: any) => String(type.id)));
-    const missingDefaults = (INITIAL_DB.printTypes || []).filter(
-      (type: any) => !storedIds.has(String(type.id)) && !removedIds.has(String(type.id))
-    );
-    const catalogTypes = [...storedTypes, ...missingDefaults];
-
-    const printTypes = catalogTypes
+    // Services come from the database only. A service that the admin disabled
+    // (`isEnabled: false`) stays hidden on the landing page as well.
+    const printTypes = (db.printTypes || [])
       .filter((type: any) => type.isEnabled !== false)
       .map((type: any) => ({
         id: type.id,
