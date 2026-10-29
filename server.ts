@@ -447,7 +447,8 @@ function backupScheduleState(settings: any) {
   const s = settings || {};
   const hours = Number(s.backupIntervalHours);
   return {
-    enabled: s.backupTelegramEnabled === true,
+    // On by default: the panel toggle only turns it off explicitly
+    enabled: s.backupTelegramEnabled !== false,
     intervalHours: Number.isFinite(hours) && hours > 0 ? hours : BACKUP_DEFAULT_INTERVAL_HOURS,
     chatId: String(s.backupChatId || s.telegramChatId || '').trim(),
     cronToken: String(s.backupCronToken || BACKUP_DEFAULT_CRON_TOKEN),
