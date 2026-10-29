@@ -207,10 +207,54 @@ function buildSignatures(state: any): Record<string, Map<string, string>> {
   return result;
 }
 
+/**
+ * Databases created before the print-size catalog existed have an empty
+ * `dimensions` collection and print types without `dimensionIds`. Seed the
+ * default sizes once (tracked with a meta flag) so the storefront always reads
+ * its sizes from the database instead of falling back to built-in constants.
+ */
+async function ensureSizeCatalog(db: Db) {
+  const meta = db.collection('meta');
+  const migrated = await meta.findOne({ _id: 'sizes_migrated' as any });
+  if (migrated) return;
+
+  const seed = cloneSeed();
+  const defaultSizes = Array.isArray(seed.dimensions) ? seed.dimensions : [];
+  const existingSizes = await db.collection('dimensions').countDocuments().catch(() => 0);
+
+  if (existingSizes === 0 && defaultSizes.length > 0) {
+    await db
+      .collection('dimensions')
+      .insertMany(defaultSizes.map((item: any) => ({ ...item })), { ordered: false })
+      .catch(() => undefined);
+    await db.collection('dimensions').createIndex({ id: 1 }, { unique: true, sparse: true }).catch(() => undefined);
+  }
+
+  // Print types created before sizes existed: attach the default assignment
+  const defaultByType = new Map<string, string[]>(
+    (seed.printTypes || []).map((type: any) => [type.id, Array.isArray(type.dimensionIds) ? type.dimensionIds : []])
+  );
+  const types = await db.collection('printTypes').find({}).toArray().catch(() => []);
+  for (const type of types) {
+    if (Array.isArray(type.dimensionIds) && type.dimensionIds.length > 0) continue;
+    const fallback = defaultByType.get(type.id);
+    if (!fallback || fallback.length === 0) continue;
+    await db
+      .collection('printTypes')
+      .updateOne({ _id: (type as any)._id }, { $set: { dimensionIds: fallback } })
+      .catch(() => undefined);
+  }
+
+  await meta.insertOne({ _id: 'sizes_migrated' as any, migratedAt: new Date().toISOString() }).catch(() => undefined);
+}
+
 async function ensureSeeded(db: Db) {
   const meta = db.collection('meta');
   const seeded = await meta.findOne({ _id: 'seed' as any });
-  if (seeded) return;
+  if (seeded) {
+    await ensureSizeCatalog(db);
+    return;
+  }
 
   const seed = cloneSeed();
   for (const name of ARRAY_COLLECTIONS) {
@@ -224,6 +268,7 @@ async function ensureSeeded(db: Db) {
     await db.collection(name).replaceOne({ _id: 'main' as any }, { ...(seed[name] || {}) }, { upsert: true });
   }
   await meta.insertOne({ _id: 'seed' as any, seededAt: new Date().toISOString() });
+  await ensureSizeCatalog(db);
 }
 
 async function loadState(db: Db) {
