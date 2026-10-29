@@ -35,6 +35,37 @@ const toFaDigits = (value: string): string =>
     .replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
     .replace(/([۰-۹])\s*[xX]\s*([۰-۹])/g, '$1 × $2');
 
+const HERO_SLIDES = [
+  {
+    src: '/slide-wedding.jpg',
+    alt: 'نمونه چاپ استودیویی عکس عروسی در آتلیه لاله',
+    title: 'روتوش حرفه‌ای + چاپ روی بوم',
+    meta: '۳۰ × ۴۰ سانتی‌متر',
+    tag: 'کیفیت گالری'
+  },
+  {
+    src: '/slide-restore.jpg',
+    alt: 'بازسازی و رنگی‌کردن عکس قدیمی',
+    title: 'بازسازی عکس‌های قدیمی',
+    meta: 'قبل و بعد از مرمت دیجیتال',
+    tag: 'هوش مصنوعی'
+  },
+  {
+    src: '/slide-pregnancy.jpg',
+    alt: 'عکاسی بارداری و چاپ آلبوم خانوادگی',
+    title: 'ثبت لحظه‌های خانوادگی',
+    meta: 'چاپ روی کاغذ سیلک مات',
+    tag: 'آلبوم خاطرات'
+  },
+  {
+    src: '/slide-portrait.jpg',
+    alt: 'چاپ عکس پرتره و تبلیغاتی',
+    title: 'پرتره و عکس تبلیغاتی',
+    meta: 'سایز دلخواه تا ۵۰ × ۷۰',
+    tag: 'چاپ استودیویی'
+  }
+];
+
 const SERVICE_IMAGE: Record<string, string> = {
   personnel: '/service_card_portrait.jpg',
   commercial: '/service_commercial.jpg',
@@ -137,6 +168,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
   const [dimensions, setDimensions] = useState<PrintDimension[]>([]);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  // Hero gallery: auto-advance every 5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((current) => (current + 1) % HERO_SLIDES.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -301,30 +341,58 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 <div className="absolute -inset-3 bg-gradient-to-tr from-sky-200/60 via-teal-200/40 to-emerald-200/60 rounded-[2.2rem] blur-xl" />
 
                 <div className="relative rounded-[2rem] bg-white border border-slate-200 shadow-2xl shadow-slate-300/40 p-3 sm:p-4">
-                  <div className="relative rounded-[1.5rem] overflow-hidden aspect-[4/3] bg-slate-100">
-                    <img
-                      src={SERVICE_IMAGE.wedding}
-                      alt="نمونه چاپ عکس عروسی در آتلیه لاله"
-                      className="w-full h-full object-cover"
-                      loading="eager"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/10 to-transparent" />
+                  <div className="relative rounded-[1.5rem] overflow-hidden aspect-[4/3] bg-slate-900">
+                    {HERO_SLIDES.map((slide, index) => (
+                      <img
+                        key={slide.src}
+                        src={slide.src}
+                        alt={slide.alt}
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                        onError={(event) => {
+                          // Keep the slider graceful if an image has not been uploaded yet
+                          event.currentTarget.style.visibility = 'hidden';
+                        }}
+                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-out ${
+                          index === activeSlide ? 'opacity-100' : 'opacity-0'
+                        }`}
+                      />
+                    ))}
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/10 to-transparent pointer-events-none" />
+
                     <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/90 backdrop-blur text-[10px] font-black text-slate-800 shadow-sm">
                       نمونه چاپ استودیویی
                     </div>
+
                     <div className="absolute bottom-3 inset-x-3 flex items-end justify-between gap-2">
-                      <div>
-                        <p className="text-white text-xs sm:text-sm font-black">
-                          روتوش حرفه‌ای + چاپ روی بوم
+                      <div className="min-w-0">
+                        <p className="text-white text-xs sm:text-sm font-black truncate">
+                          {HERO_SLIDES[activeSlide].title}
                         </p>
                         <p className="text-white/75 text-[10px] sm:text-[11px] font-mono mt-0.5">
-                          ۳۰ × ۴۰ سانتی‌متر
+                          {HERO_SLIDES[activeSlide].meta}
                         </p>
                       </div>
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/90 text-white text-[10px] font-black flex items-center gap-1">
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/90 text-white text-[10px] font-black flex items-center gap-1 flex-shrink-0">
                         <CheckCircle2 className="w-3 h-3" />
-                        کیفیت گالری
+                        {HERO_SLIDES[activeSlide].tag}
                       </span>
+                    </div>
+
+                    {/* Slide indicators */}
+                    <div className="absolute bottom-14 sm:bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                      {HERO_SLIDES.map((slide, index) => (
+                        <button
+                          key={slide.src}
+                          onClick={() => setActiveSlide(index)}
+                          aria-label={`نمایش تصویر ${index + 1}`}
+                          className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                            index === activeSlide
+                              ? 'w-6 bg-white'
+                              : 'w-1.5 bg-white/50 hover:bg-white/80'
+                          }`}
+                        />
+                      ))}
                     </div>
                   </div>
 
