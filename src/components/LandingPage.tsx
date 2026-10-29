@@ -733,9 +733,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       {/* ================= FOOTER ================= */}
       <footer className="bg-slate-900 text-slate-300 pt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="sm:col-span-2">
-              <div className="flex items-center gap-2.5">
+          <div className="max-w-xl mx-auto text-center">
+            <div>
+              <div className="flex items-center justify-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center p-1.5 overflow-hidden">
                   <TulipIcon className="w-full h-full object-contain" />
                 </div>
@@ -746,11 +746,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   <p className="text-[11px] text-slate-400">چاپ عکس و روتوش هوش مصنوعی</p>
                 </div>
               </div>
-              <p className="mt-4 text-[11px] sm:text-xs leading-7 text-slate-400 max-w-md">
+              <p className="mt-4 text-[11px] sm:text-xs leading-7 text-slate-400 max-w-md mx-auto">
                 سامانه سفارش آنلاین چاپ عکس با پردازش هوشمند تصویر؛ از عکس پرسنلی و تبلیغاتی تا
                 بازسازی خاطرات قدیمی و تابلوهای هنری، با تحویل سریع در سراسر کشور.
               </p>
-              <div className="mt-4 flex items-center gap-2">
+              <div className="mt-4 flex items-center justify-center gap-2">
                 {[
                   { icon: Camera, label: 'اینستاگرام' },
                   { icon: Send, label: 'تلگرام' },
@@ -770,51 +770,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            <div>
-              <p className="text-xs font-black text-white">دسترسی سریع</p>
-              <ul className="mt-3 space-y-2">
-                {NAV_LINKS.slice(0, 4).map((link) => (
-                  <li key={link.href}>
-                    <button
-                      onClick={() => goTo(link.href)}
-                      className="text-[11px] sm:text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
-                    >
-                      {link.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <p className="text-xs font-black text-white">حساب کاربری</p>
-              <ul className="mt-3 space-y-2">
-                <li>
-                  <button
-                    onClick={onLogin}
-                    className="text-[11px] sm:text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    ورود / ثبت‌نام
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => goTo('#partners')}
-                    className="text-[11px] sm:text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    همکاری با ما
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => goTo('#faq')}
-                    className="text-[11px] sm:text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    سوالات متداول
-                  </button>
-                </li>
-              </ul>
-            </div>
           </div>
 
           <div className="mt-9 pt-5 border-t border-white/10 flex items-center justify-center">
