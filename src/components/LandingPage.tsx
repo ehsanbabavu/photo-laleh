@@ -394,41 +394,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         </div>
       </section>
 
-      {/* ================= ABOUT ================= */}
-      <section id="about" className="relative py-16 sm:py-20 scroll-mt-24">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200 shadow-lg shadow-slate-200/60 p-6 sm:p-10">
-            <div className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 rounded-full bg-sky-200/40 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-24 -right-10 w-72 h-72 rounded-full bg-emerald-200/40 blur-3xl" />
-
-            <div className="relative">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-black text-emerald-700">
-                <Sparkles className="w-3.5 h-3.5" />
-                درباره آتلیه لاله
-              </span>
-
-              <h2 className="mt-3 text-2xl sm:text-3xl font-black leading-snug">
-                نیم قرن ثبت خاطره، با نگاه امروز
-              </h2>
-
-              <p className="mt-4 text-[13px] sm:text-sm text-slate-600 leading-8 text-justify sm:text-right">
-                آتلیه دیجیتال لاله با نیم قرن تجربه، از گذشته تا به امروز شاهد ثبت لحظات خاطره‌انگیزی
-                بوده است و با گذشت زمان از فناوری‌های به‌روز جهت چاپ با کیفیت عکس‌ها استفاده کرده است.
-              </p>
-
-              <div className="mt-6 flex items-start sm:items-center gap-3 p-4 rounded-2xl bg-gradient-to-l from-sky-50 to-emerald-50 border border-sky-200">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-                <p className="text-sm sm:text-base font-black text-slate-900 leading-7">
-                  ثبت خاطرات خود را به ما بسپارید
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ================= SERVICES ================= */}
       <section id="services" className="relative py-16 sm:py-24 scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
