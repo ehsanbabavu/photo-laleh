@@ -226,8 +226,10 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     const shippingMethod =
       activeMethods.find((method) => method.id === draft.deliveryMethod) || activeMethods[0] || null;
     const shipping = Math.max(0, Number(shippingMethod?.price) || 0);
-    // Wallet credit and vouchers are no longer deducted from the invoice
-    const total = Math.max(0, subtotal + shipping);
+    const grossTotal = Math.max(0, subtotal + shipping);
+    // Wallet credit used by this order; the whole balance is consumed and zeroed
+    const walletCredit = Math.max(0, Math.min(Number(draft.walletCreditUsed) || 0, grossTotal));
+    const total = Math.max(0, grossTotal - walletCredit);
 
     // Amount actually issued/paid through BluPal, if any (exact, includes tracking digits)
     const paidRial = draft.paymentAmountRial || Math.round(total * 10);
@@ -251,9 +253,18 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       totalPrice: paidToman,
       paymentAmountToman: paidToman,
       paymentAmountRial: paidRial,
-      walletCreditUsed: 0,
+      walletCreditUsed: walletCredit,
       paymentStatus: draft.paymentReference ? 'paid' : 'pending'
     };
+
+    // The credit is spent: zero the balance locally (the server persists it too)
+    if (walletCredit > 0 && user) {
+      onUserUpdate?.({
+        ...user,
+        walletBalance: 0,
+        hasUsedFirstOrderGift: true
+      });
+    }
 
     clearOrderDraft(user.id);
     setResumeNotice(null);
