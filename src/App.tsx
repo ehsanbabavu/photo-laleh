@@ -28,6 +28,13 @@ import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
 import { AdminTransport } from './components/admin/AdminTransport';
 import { AdminMcpOrderKey } from './components/admin/AdminMcpOrderKey';
+import {
+  readOrderPrefill,
+  stashOrderPrefill,
+  takeStashedOrderPrefill,
+  clearOrderPrefillFromUrl,
+  applyOrderPrefill
+} from './utils/orderPrefill';
 import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
@@ -216,6 +223,27 @@ export default function App() {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
+
+
+  // Order link from the ChatGPT connector (…/user/wizard?o_service=…&o_size=…)
+  React.useEffect(() => {
+    const fromUrl = readOrderPrefill();
+    if (fromUrl) {
+      stashOrderPrefill(fromUrl);
+      clearOrderPrefillFromUrl();
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!currentUser) return;
+    const pending = takeStashedOrderPrefill();
+    if (!pending) return;
+    applyOrderPrefill(currentUser.id, pending, { name: currentUser.name, phone: currentUser.phone });
+    setActiveView('user');
+    setUserTab('wizard');
+    showToast('سفارش از لینک افزونه پیش‌پر شد؛ فقط عکس را اضافه کن.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   // Restore the session from the server on page load
   React.useEffect(() => {
