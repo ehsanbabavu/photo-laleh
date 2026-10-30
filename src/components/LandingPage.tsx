@@ -404,13 +404,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             <div className="pointer-events-none absolute -top-20 -left-20 w-56 h-56 rounded-full bg-emerald-100/70 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-24 -right-16 w-56 h-56 rounded-full bg-sky-100/60 blur-3xl" />
 
-            <div className="relative flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
+            <div className="relative flex flex-col items-center justify-center gap-4">
               <a
                 href={LEGAL_TRACK_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="استعلام مجوز رسمی از سامانه ملی مجوزها"
-                className="group flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
+                className="flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
               >
                 <img
                   src={LEGAL_QR_URL}
@@ -422,36 +422,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 />
               </a>
 
-              <div className="text-center sm:text-right">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-black text-emerald-700">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  مجوزات
-                </span>
-                <h2 className="mt-3 text-lg sm:text-2xl font-black text-slate-900">
-                  مجوز رسمی فعالیت
-                </h2>
-                <a
-                  href={LEGAL_TRACK_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 block text-sm sm:text-base font-bold text-slate-700 hover:text-emerald-700 underline decoration-emerald-300 decoration-2 underline-offset-8 transition-colors"
-                >
-                  مجوز رسمی از سامانه ملی مجوزها
-                </a>
-                <p className="mt-4 text-[11px] sm:text-xs text-slate-500 leading-7">
-                  برای استعلام اصالت مجوز، کد را با دوربین گوشی اسکن کنید یا روی آن بزنید.
-                </p>
-                <a
-                  href={LEGAL_TRACK_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-black text-emerald-700 hover:text-emerald-800"
-                  dir="ltr"
-                >
-                  <span>qr.mojavez.ir/track/8678392</span>
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                </a>
-              </div>
+              <a
+                href={LEGAL_TRACK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-center text-sm sm:text-base font-bold text-slate-700 hover:text-emerald-700 underline decoration-emerald-300 decoration-2 underline-offset-8 transition-colors"
+              >
+                مجوز رسمی از سامانه ملی مجوزها
+              </a>
             </div>
           </div>
         </div>
