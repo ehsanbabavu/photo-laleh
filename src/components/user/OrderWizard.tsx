@@ -9,7 +9,7 @@ import {
   CheckCircle2,
   History
 } from 'lucide-react';
-import { OrderDraft, Order, User, PrintTypeOption, PrintDimension, BluPalSettings } from '../../types';
+import { OrderDraft, Order, User, PrintTypeOption, PrintDimension, BluPalSettings, DeliveryMethod } from '../../types';
 import { StepPrintType } from './wizard/StepPrintType';
 import { StepUploadPhoto } from './wizard/StepUploadPhoto';
 import { StepDimensions } from './wizard/StepDimensions';
@@ -30,6 +30,7 @@ interface OrderWizardProps {
   onUserUpdate?: (updatedUser: User) => void;
   printTypes?: PrintTypeOption[];
   dimensions?: PrintDimension[];
+  deliveryMethods?: DeliveryMethod[];
   avalaiApiKey?: string;
   printTypePrompts?: Record<string, string>;
   avalaiBaseUrl?: string;
@@ -43,6 +44,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   onUserUpdate,
   printTypes = PRINT_TYPES,
   dimensions,
+  deliveryMethods,
   avalaiApiKey = '',
   printTypePrompts = {},
   avalaiBaseUrl = 'https://api.avalai.ir/v1',
@@ -219,24 +221,17 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     const unitBase = printTypeObj.basePrice + dimensionObj.basePrice;
     const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
     const subtotal = (unitBase + unitExtras) * draft.quantity;
-    const shipping = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-    const walletCredit = draft.walletCreditUsed || 0;
-    const total = Math.max(0, subtotal + shipping - draft.discountAmount - walletCredit);
+    const activeMethods = (deliveryMethods && deliveryMethods.length > 0 ? deliveryMethods : [])
+      .filter((method) => method.isEnabled !== false);
+    const shippingMethod =
+      activeMethods.find((method) => method.id === draft.deliveryMethod) || activeMethods[0] || null;
+    const shipping = Math.max(0, Number(shippingMethod?.price) || 0);
+    // Wallet credit and vouchers are no longer deducted from the invoice
+    const total = Math.max(0, subtotal + shipping);
 
     // Amount actually issued/paid through BluPal, if any (exact, includes tracking digits)
     const paidRial = draft.paymentAmountRial || Math.round(total * 10);
     const paidToman = draft.paymentAmountToman || Math.round(paidRial / 10);
-
-    // Deduct wallet credit from the user's real wallet balance and mark the gift as used
-    if (walletCredit > 0 && user && typeof user.walletBalance === 'number') {
-      const remainingBalance = Math.max(0, user.walletBalance - walletCredit);
-      const updatedUser: User = {
-        ...user,
-        walletBalance: remainingBalance,
-        hasUsedFirstOrderGift: true
-      };
-      onUserUpdate?.(updatedUser);
-    }
 
     const promptToUse =
       printTypePrompts[draft.printType] ||
@@ -256,7 +251,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       totalPrice: paidToman,
       paymentAmountToman: paidToman,
       paymentAmountRial: paidRial,
-      walletCreditUsed: walletCredit,
+      walletCreditUsed: 0,
       paymentStatus: draft.paymentReference ? 'paid' : 'pending'
     };
 
@@ -398,6 +393,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             onBack={() => setCurrentStep(3)}
             printTypes={resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES}
             dimensions={dimensions}
+            deliveryMethods={deliveryMethods}
             user={user}
           />
         )}
