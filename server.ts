@@ -497,7 +497,7 @@ function mcpFindService(services: any[], serviceId: string) {
   );
 }
 
-async function mcpCallTool(name: string, rawArgs: any, requestKey = '') {
+async function mcpCallTool(name: string, rawArgs: any, requestKey = '', clientAddress = '') {
   const args = rawArgs && typeof rawArgs === 'object' ? rawArgs : {};
   const { db, services, sizes } = await mcpResolveCatalog();
 
@@ -634,15 +634,19 @@ async function mcpCallTool(name: string, rawArgs: any, requestKey = '') {
 
   if (name === 'create_order' || name === 'create_payment_link') {
     const db2 = await readDb();
+    // Writes are public by default. As soon as the admin creates a key in the
+    // panel, every write call must present it (`x-mcp-key` header or accessKey).
     const configuredKey = String((db2.settings || {}).mcpOrderKey || '').trim();
-    const providedKey = String(requestKey || args.accessKey || '').trim();
-    if (!configuredKey) {
-      return {
-        text: 'ثبت سفارش از طریق افزونه فعال نیست. مدیر باید در پنل «افزونه چت‌جی‌پی‌تی» کلید ثبت سفارش را بسازد.'
-      };
+    if (configuredKey) {
+      const providedKey = String(requestKey || args.accessKey || '').trim();
+      if (!providedKey || !safeTokenEqual(providedKey, configuredKey)) {
+        return { text: 'کلید ثبت سفارش نامعتبر است. هدر x-mcp-key را در تنظیمات کانکتور بررسی کنید.' };
+      }
     }
-    if (!providedKey || !safeTokenEqual(providedKey, configuredKey)) {
-      return { text: 'کلید ثبت سفارش نامعتبر است. هدر x-mcp-key را در تنظیمات کانکتور بررسی کنید.' };
+
+    // Abuse guard: at most 5 write calls per 10 minutes from the same address
+    if (clientAddress && (await hitRateLimit(`mcp-order:${clientAddress}`, 5, 10 * 60_000))) {
+      return { text: 'تعداد درخواست‌های ثبت سفارش زیاد است؛ چند دقیقه بعد دوباره تلاش کنید.' };
     }
 
     const phoneDigits = (value: any) => String(value || '').replace(/\D/g, '');
@@ -901,7 +905,7 @@ app.post('/api/mcp', async (req: any, res) => {
         const toolName = String(params.name || '');
         try {
           const headerKey = String(req.headers['x-mcp-key'] || req.headers['x-api-key'] || '');
-          const output = await mcpCallTool(toolName, params.arguments, headerKey);
+          const output = await mcpCallTool(toolName, params.arguments, headerKey, ip);
           replies.push({
             jsonrpc: '2.0',
             id,
@@ -1111,9 +1115,9 @@ app.get('/api/chatgpt-connector', async (req: any, res) => {
     '## ثبت سفارش و لینک پرداخت',
     '',
     'ابزارهای `create_order` و `create_payment_link` سفارش ثبت می‌کنند و لینک پرداخت',
-    'می‌سازند. این دو ابزار فقط با «کلید ثبت سفارش» کار می‌کنند.',
-    'کلید را از پنل ادمین → افزونه چت‌جی‌پی‌تی → «کلید ثبت سفارش افزونه» بساز و در',
-    'بخش Headers کانکتور ChatGPT این هدر را اضافه کن:',
+    'می‌سازند. این دو ابزار به‌صورت پیش‌فرض بدون کلید کار می‌کنند (حالت عمومی).',
+    'اگر مدیر در پنل «کلید ثبت سفارش» بسازد، از آن به بعد هر درخواست باید این هدر را',
+    'داشته باشد:',
     '',
     '```',
     'x-mcp-key: <کلید ثبت سفارش>',
