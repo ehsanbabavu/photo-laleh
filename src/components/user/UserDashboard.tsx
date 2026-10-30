@@ -14,7 +14,6 @@ import {
 import { Order, User, SupportTicket, PrintTypeOption, Announcement } from '../../types';
 import { formatNumber } from '../../utils/formatters';
 import { SERVICE_IMAGE_BLOB } from '../../data/heroSlides';
-import { ChatGptConnectorCard } from './ChatGptConnectorCard';
 
 interface UserDashboardProps {
   user: User;
@@ -412,22 +411,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         {announcementsCardNode}
       </div>
 
-      {/* Desktop: user information + ChatGPT connector, side by side (2 columns) */}
+      {/* Desktop: user information + latest order (2 columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-start">
         {/* CARD: USER INFORMATION (Desktop Only) */}
         <div className="hidden lg:flex flex-col">
           {userInfoCard}
-        </div>
-
-        {/* CARD: ChatGPT connector (collapsible) */}
-        <ChatGptConnectorCard />
-      </div>
-
-      {/* Desktop: announcements + latest order, side by side (2 columns) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-start">
-        {/* Announcements (desktop column; mobile renders it above) */}
-        <div className="hidden lg:block">
-          {announcementsCardNode}
         </div>
 
         {/* 3. CARD: LATEST ORDER (کارت بازطراحی‌شده و جمع‌وجور آخرین سفارش) */}
@@ -513,6 +501,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
           </div>
         </div>
+      </div>
+
+      {/* 4. Desktop-only: announcements (full width) */}
+      <div className="hidden lg:block">
+        {announcementsCardNode}
       </div>
 
       {/* 5. Quick Services Showcase (خدمات تخصصی آتلیه دیجیتال لاله) */}
