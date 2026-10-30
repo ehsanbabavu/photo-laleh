@@ -35,11 +35,14 @@ export const HERO_SLIDES: HeroSlide[] = [
   }
 ];
 
-/** Public service images (Vercel Blob), keyed by print-type id. */
-export const SERVICE_IMAGE_BLOB: Record<string, string> = {
+/** Public service images (Vercel Blob), keyed by print-type id. */export const SERVICE_IMAGE_BLOB: Record<string, string> = {
   personnel: `${BLOB}/service_card_portrait-xF3ueXpYrmkkyvxXQWrRni4p4J6Q3D.jpg`,
   commercial: `${BLOB}/service_commercial-i4THWdCfMq2S83WFHqcGvd3rvo7vIE.jpg`,
   bw_to_color: `${BLOB}/service_bw_to_color-Q28fz9e4AZsw1Y2WDkXxRlBnjanjwi.jpg`,
   memorial: `${BLOB}/service_memorial-PwPxvzpIH951y23l0QKCyz9Yl8mKoP.jpg`,
   wedding: `${BLOB}/service_wedding-zs4aFRDD2zNX4XKCJLgI3ndVM2fCvJ.jpg`
 };
+
+/** Official licence QR code (سامانه ملی مجوزها) and its verification page. */
+export const LEGAL_QR_URL = `${BLOB}/legal-qr-EJJINUPKrVZHBDYHa2yv1Uu6ZYsgwo.png`;
+export const LEGAL_TRACK_URL = 'https://qr.mojavez.ir/track/8678392';
