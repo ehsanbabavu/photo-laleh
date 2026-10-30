@@ -431,6 +431,26 @@ function mcpToolsDefinition() {
       inputSchema: { type: 'object', properties: {}, additionalProperties: false }
     },
     {
+      name: 'build_order_link',
+      title: 'لینک آماده سفارش (بدون ثبت)',
+      description:
+        'یک لینک آماده سفارش می‌سازد که مشخصات سفارش در آن پیش‌پر شده است. مشتری با باز کردن لینک، سفارش را نهایی و پرداخت می‌کند. این ابزار فقط خواندنی است و در همه پلن‌های ChatGPT کار می‌کند.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          serviceId: { type: 'string', description: 'شناسه خدمت چاپ، مثلاً personnel' },
+          sizeId: { type: 'string', description: 'شناسه سایز چاپ' },
+          quantity: { type: 'integer', minimum: 1, maximum: 100, description: 'تعداد سری' },
+          deliveryMethod: { type: 'string', description: 'شناسه روش تحویل' },
+          fullName: { type: 'string', description: 'نام مشتری' },
+          phone: { type: 'string', description: 'شماره موبایل مشتری' },
+          notes: { type: 'string', description: 'توضیح سفارش' }
+        },
+        required: ['serviceId', 'sizeId'],
+        additionalProperties: false
+      }
+    },
+    {
       name: 'create_order',
       title: 'ثبت سفارش جدید',
       description:
@@ -497,7 +517,7 @@ function mcpFindService(services: any[], serviceId: string) {
   );
 }
 
-async function mcpCallTool(name: string, rawArgs: any, requestKey = '', clientAddress = '') {
+async function mcpCallTool(name: string, rawArgs: any, requestKey = '', clientAddress = '', baseUrl = '') {
   const args = rawArgs && typeof rawArgs === 'object' ? rawArgs : {};
   const { db, services, sizes } = await mcpResolveCatalog();
 
@@ -626,6 +646,49 @@ async function mcpCallTool(name: string, rawArgs: any, requestKey = '', clientAd
         '• روش‌های ارسال: پیک موتوری و پست پیشتاز در سراسر کشور',
         settings.studioPhone ? `• تلفن: ${settings.studioPhone}` : null,
         settings.studioAddress ? `• آدرس: ${settings.studioAddress}` : null
+      ]
+        .filter(Boolean)
+        .join('\n')
+    };
+  }
+
+  if (name === 'build_order_link') {
+    const service = mcpFindService(services, String(args.serviceId || ''));
+    if (!service) return { text: `خدمتی با شناسه «${args.serviceId}» پیدا نشد.` };
+    const size = sizes.find((s: any) => String(s.id) === String(args.sizeId));
+    if (!size) return { text: `سایزی با شناسه «${args.sizeId}» پیدا نشد.` };
+
+    const methods = (db.deliveryMethods || []).filter((m: any) => m && m.isEnabled !== false);
+    const method =
+      methods.find((m: any) => String(m.id) === String(args.deliveryMethod || '')) || methods[0] || null;
+
+    const quantity = Math.min(Math.max(Number(args.quantity) || 1, 1), 100);
+    const unitBase = (Number(service.basePrice) || 0) + (Number(size.basePrice) || 0);
+    const shipping = Math.max(0, Number(method?.price) || 0);
+    const total = unitBase * quantity + shipping;
+
+    const params = new URLSearchParams();
+    params.set('o_service', String(service.id));
+    params.set('o_size', String(size.id));
+    params.set('o_qty', String(quantity));
+    if (method) params.set('o_delivery', String(method.id));
+    if (args.fullName) params.set('o_name', String(args.fullName));
+    if (args.phone) params.set('o_phone', String(args.phone));
+    if (args.notes) params.set('o_notes', String(args.notes));
+
+    const link = `${baseUrl || 'https://photo-laleh.vercel.app'}/user/wizard?${params.toString()}`;
+
+    return {
+      text: [
+        'لینک آماده سفارش:',
+        link,
+        '',
+        `• ${service.title} — ${size.title} × ${quantity}`,
+        method ? `• روش تحویل: ${method.title}` : null,
+        `• مبلغ تقریبی: ${tomanFa(total)}`,
+        '',
+        'مشتری با باز کردن این لینک، سفارش را (با پیش‌پر شدن مشخصات) نهایی و پرداخت می‌کند.',
+        'این لینک را عیناً برای مشتری بفرست.'
       ]
         .filter(Boolean)
         .join('\n')
@@ -868,6 +931,9 @@ app.get('/api/mcp', (_req, res) => {
 
 app.post('/api/mcp', async (req: any, res) => {
   const ip = clientIp(req);
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  const host = String(req.headers['x-forwarded-host'] || req.get('host') || 'photo-laleh.vercel.app').split(',')[0].trim();
+  const base = `${proto}://${host}`;
   if (await hitRateLimit(`mcp:${ip}`, 120, 60_000)) {
     return res.status(429).json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'درخواست‌های بیش از حد؛ کمی بعد تلاش کنید' } });
   }
@@ -905,7 +971,7 @@ app.post('/api/mcp', async (req: any, res) => {
         const toolName = String(params.name || '');
         try {
           const headerKey = String(req.headers['x-mcp-key'] || req.headers['x-api-key'] || '');
-          const output = await mcpCallTool(toolName, params.arguments, headerKey, ip);
+          const output = await mcpCallTool(toolName, params.arguments, headerKey, ip, base);
           replies.push({
             jsonrpc: '2.0',
             id,
@@ -1194,8 +1260,10 @@ app.get('/api/chatgpt-connector', async (req: any, res) => {
     '   اگر کاربر لینک پرداخت خواست، همان ابزار را با `createPaymentLink: true` صدا بزن.',
     '5. برای سفارش پرداخت‌نشده، `create_payment_link` را با کد رهگیری و چهار رقم آخر موبایل صدا بزن',
     '   و لینک برگشتی را کامل برای کاربر بنویس (اعتبار ۱۵ دقیقه).',
-    '6. هرگز نگو «امکان ثبت سفارش ندارم» یا «سامانه اجازه نمی‌دهد»؛ ابزارهای ثبت سفارش موجودند.',
-    '7. مبالغ را به تومان و با ارقام فارسی بنویس. هیچ اطلاعات تماس یا پرداخت سفارش را نمایش نده.',
+    '6. اگر ثبت سفارش با `create_order` توسط سامانه مسدود شد یا خطا داد، بلافاصله',
+    '   `build_order_link` را صدا بزن و لینک برگشتی را به کاربر بده (همیشه کار می‌کند).',
+    '7. هرگز نگو «امکان ثبت سفارش ندارم» یا «سامانه اجازه نمی‌دهد»؛ ابزارهای ثبت سفارش موجودند.',
+    '8. مبالغ را به تومان و با ارقام فارسی بنویس. هیچ اطلاعات تماس یا پرداخت سفارش را نمایش نده.',
     '',
     '## نمونه‌ها',
     '',
