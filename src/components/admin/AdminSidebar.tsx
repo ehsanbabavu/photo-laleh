@@ -4,6 +4,7 @@ import {
   BotMessageSquare,
   Printer,
   Palette,
+  Truck,
   LogOut,
   ExternalLink,
   ChevronLeft,
@@ -32,6 +33,7 @@ export type AdminTab =
   | 'dashboard'
   | 'print_types'
   | 'print_sizes'
+  | 'transport'
   | 'partner_invoices'
   | 'cost_requests'
   | 'announcements'
@@ -124,6 +126,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const printItems = [
     { id: 'print_types' as AdminTab, label: 'مدیریت انواع چاپ', icon: Palette },
     { id: 'print_sizes' as AdminTab, label: 'مدیریت سایز', icon: Maximize2 },
+    { id: 'transport' as AdminTab, label: 'ترابری', icon: Truck },
     { id: 'partner_invoices' as AdminTab, label: 'فاکتورهای صادر شده', icon: Receipt },
     { id: 'cost_requests' as AdminTab, label: 'بازبینی قیمت همکاران', icon: Wallet },
     { id: 'prompts_manager' as AdminTab, label: 'مدیریت پرامپت‌های چاپ', icon: Sparkles }
