@@ -28,14 +28,14 @@ export const ChatGptConnectorCard: React.FC<ChatGptConnectorCardProps> = ({ show
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'laleh-chatgpt-connector.json';
+      link.download = 'laleh-chatgpt-connector.zip';
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      showToast?.('فایل اتصال ChatGPT دانلود شد.');
+      showToast?.('بسته افزونه ChatGPT دانلود شد.');
     } catch {
-      setError('دانلود فایل اتصال ناموفق بود.');
+      setError('دانلود بسته افزونه ناموفق بود.');
     } finally {
       setIsDownloading(false);
     }
@@ -61,8 +61,8 @@ export const ChatGptConnectorCard: React.FC<ChatGptConnectorCardProps> = ({ show
         <div className="min-w-0 flex-1">
           <h3 className="text-xs sm:text-sm font-black text-slate-900">افزونه چت‌جی‌پی‌تی</h3>
           <p className="text-[11px] text-slate-500 mt-1 leading-6">
-            کانکتور رسمی آتلیه لاله برای ChatGPT: گرفتن قیمت خدمات و سایزها، برآورد قیمت سفارش و
-            پیگیری وضعیت سفارش با کد رهگیری.
+            بسته ZIP کانکتور رسمی آتلیه لاله برای ChatGPT: راهنمای نصب، فایل تنظیمات و شمای
+            ابزارها (قیمت خدمات و سایزها، برآورد قیمت سفارش و پیگیری وضعیت).
           </p>
 
           <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-2">
@@ -101,7 +101,7 @@ export const ChatGptConnectorCard: React.FC<ChatGptConnectorCardProps> = ({ show
             ) : (
               <Download className="w-4 h-4" />
             )}
-            <span>دانلود فایل اتصال</span>
+            <span>دانلود بسته افزونه (ZIP)</span>
           </button>
         </div>
       </div>
