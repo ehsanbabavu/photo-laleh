@@ -3,6 +3,8 @@ import {
   Sparkles,
   ArrowLeft,
   Wand2,
+  ZoomIn,
+  X,
   Printer,
   Truck,
   ShieldCheck,
@@ -24,7 +26,7 @@ import { PrintDimension, PrintTypeOption } from '../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
 import { formatNumber, formatPrice } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
-import { HERO_SLIDES, SERVICE_IMAGE_BLOB, LEGAL_QR_URL, LEGAL_TRACK_URL } from '../data/heroSlides';
+import { HERO_SLIDES, SERVICE_IMAGE_BLOB, LEGAL_QR_URL, LEGAL_TRACK_URL, LICENSE_THUMB_URL, LICENSE_IMAGE_URL } from '../data/heroSlides';
 import { EitaaIcon, TelegramIcon } from './BrandIcons';
 
 interface LandingPageProps {
@@ -135,6 +137,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [dimensions, setDimensions] = useState<PrintDimension[]>([]);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [licenseOpen, setLicenseOpen] = useState(false);
+
+  // Close the licence lightbox with Esc and lock background scrolling while open
+  useEffect(() => {
+    if (!licenseOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLicenseOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [licenseOpen]);
 
   // Hero gallery: auto-advance every 5 seconds
   useEffect(() => {
@@ -405,22 +423,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             <div className="pointer-events-none absolute -bottom-24 -right-16 w-56 h-56 rounded-full bg-sky-100/60 blur-3xl" />
 
             <div className="relative flex flex-col items-center justify-center gap-4">
-              <a
-                href={LEGAL_TRACK_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="استعلام مجوز رسمی از سامانه ملی مجوزها"
-                className="flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
-              >
-                <img
-                  src={LEGAL_QR_URL}
-                  alt="کیوآرکد مجوز رسمی سامانه ملی مجوزها"
-                  width={168}
-                  height={168}
-                  loading="lazy"
-                  className="w-36 h-36 sm:w-[168px] sm:h-[168px] object-contain"
-                />
-              </a>
+              <div className="flex items-stretch justify-center gap-3 sm:gap-5">
+                <a
+                  href={LEGAL_TRACK_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="استعلام مجوز رسمی از سامانه ملی مجوزها"
+                  className="flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
+                >
+                  <img
+                    src={LEGAL_QR_URL}
+                    alt="کیوآرکد مجوز رسمی سامانه ملی مجوزها"
+                    width={168}
+                    height={168}
+                    loading="lazy"
+                    className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
+                  />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setLicenseOpen(true)}
+                  aria-label="بزرگ‌نمایی تصویر پروانه کسب"
+                  className="group relative flex-shrink-0 rounded-2xl bg-white p-1.5 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-zoom-in overflow-hidden"
+                >
+                  <img
+                    src={LICENSE_THUMB_URL}
+                    alt="پروانه کسب آتلیه دیجیتال لاله"
+                    width={168}
+                    height={168}
+                    loading="lazy"
+                    className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-cover rounded-xl"
+                  />
+                  <span className="absolute inset-1.5 rounded-xl bg-slate-900/0 group-hover:bg-slate-900/45 transition-colors flex items-center justify-center">
+                    <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                </button>
+              </div>
 
               <a
                 href={LEGAL_TRACK_URL}
@@ -434,6 +473,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           </div>
         </div>
       </section>
+
+      {/* Licence lightbox */}
+      {licenseOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="پروانه کسب آتلیه دیجیتال لاله"
+          onClick={() => setLicenseOpen(false)}
+          className="fixed inset-0 z-[70] bg-slate-900/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-landing-fade"
+        >
+          <button
+            type="button"
+            onClick={() => setLicenseOpen(false)}
+            aria-label="بستن"
+            className="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={LICENSE_IMAGE_URL}
+            alt="پروانه کسب آتلیه دیجیتال لاله"
+            onClick={(event) => event.stopPropagation()}
+            className="max-h-[92vh] max-w-full object-contain rounded-2xl bg-white shadow-2xl"
+          />
+        </div>
+      )}
 
       {/* ================= SERVICES ================= */}
       <section id="services" className="relative py-16 sm:py-24 scroll-mt-24">
