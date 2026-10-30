@@ -57,7 +57,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({
       id: 'wizard' as UserTab,
       label: 'ثبت سفارش ۵ مرحله‌ای',
       icon: Sparkles,
-      badge: 'جدید',
+      badge: null,
       badgeColor: 'text-sky-700 bg-sky-100 border border-sky-200'
     },
     {
