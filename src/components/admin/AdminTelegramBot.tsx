@@ -11,6 +11,14 @@ interface AdminTelegramBotProps {
   onSaveEitaa?: (token: string) => void;
 }
 
+/** Removes invisible characters that break provider tokens (ZWSP, RTL/LTR marks, BOM, NBSP). */
+const normalizeToken = (value: string) =>
+  String(value || '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\s\u180E]+/g, '')
+    .trim();
+
 export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
   token,
   chatId,
@@ -160,7 +168,7 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          onSaveEitaa?.(eitaaTokenValue.trim());
+          onSaveEitaa?.(normalizeToken(eitaaTokenValue));
           showToast('توکن ایتایار ذخیره شد.');
         }}
         className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4"
@@ -228,7 +236,7 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
                 const res = await fetch('/api/eitaa/test', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token: eitaaTokenValue.trim() })
+                  body: JSON.stringify({ token: normalizeToken(eitaaTokenValue) })
                 });
                 const data: any = await res.json().catch(() => null);
                 setEitaaResult({
