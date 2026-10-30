@@ -27,14 +27,6 @@ import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings'
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
 import { AdminTransport } from './components/admin/AdminTransport';
-import { AdminMcpOrderKey } from './components/admin/AdminMcpOrderKey';
-import {
-  readOrderPrefill,
-  stashOrderPrefill,
-  takeStashedOrderPrefill,
-  clearOrderPrefillFromUrl,
-  applyOrderPrefill
-} from './utils/orderPrefill';
 import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
@@ -224,26 +216,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-
-  // Order link from the ChatGPT connector (…/user/wizard?o_service=…&o_size=…)
-  React.useEffect(() => {
-    const fromUrl = readOrderPrefill();
-    if (fromUrl) {
-      stashOrderPrefill(fromUrl);
-      clearOrderPrefillFromUrl();
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (!currentUser) return;
-    const pending = takeStashedOrderPrefill();
-    if (!pending) return;
-    applyOrderPrefill(currentUser.id, pending, { name: currentUser.name, phone: currentUser.phone });
-    setActiveView('user');
-    setUserTab('wizard');
-    showToast('سفارش از لینک افزونه پیش‌پر شد؛ فقط عکس را اضافه کن.');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]);
 
   // Restore the session from the server on page load
   React.useEffect(() => {
@@ -1016,19 +988,16 @@ export default function App() {
               )}
 
               {adminTab === 'chatgpt' && (
-                <div className="space-y-4">
-                  <AdminMcpOrderKey showToast={showToast} />
-                  <ChatGPTConnect
-                    apiKey={avalaiApiKey}
-                    onUpdateApiKey={handleUpdateAvalaiApiKey}
-                    baseUrl={avalaiBaseUrl}
-                    onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
-                    model={avalaiModel}
-                    onUpdateModel={handleUpdateAvalaiModel}
-                    aiEnabled={aiEnabled}
-                    onUpdateAiEnabled={handleUpdateAiEnabled}
-                  />
-                </div>
+                <ChatGPTConnect
+                  apiKey={avalaiApiKey}
+                  onUpdateApiKey={handleUpdateAvalaiApiKey}
+                  baseUrl={avalaiBaseUrl}
+                  onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
+                  model={avalaiModel}
+                  onUpdateModel={handleUpdateAvalaiModel}
+                  aiEnabled={aiEnabled}
+                  onUpdateAiEnabled={handleUpdateAiEnabled}
+                />
               )}
 
               {adminTab === 'prompts_manager' && (
