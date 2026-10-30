@@ -794,7 +794,19 @@ app.get('/api/chatgpt-connector', async (req: any, res) => {
     `- نسخه پروتکل: ${MCP_PROTOCOL_VERSION}`,
     '- احراز هویت: بدون کلید (None)',
     '',
-    '## مراحل نصب',
+    '## نصب به‌صورت افزونه (همین فایل ZIP)',
+    '',
+    '1. به chatgpt.com/plugins برو و روی «افزودن افزونه» بزن.',
+    '2. همین فایل ZIP را انتخاب و آپلود کن (ساختار `.mcp.json` و `skills/laleh-studio/SKILL.md` داخلش هست).',
+    '3. بعد از نصب، افزونه «آتلیه دیجیتال لاله» در لیست افزونه‌هایت ظاهر می‌شود.',
+    '',
+    '## نصب به‌صورت سرور MCP (بدون فایل)',
+    '',
+    '1. در chatgpt.com/plugins دکمه «افزودن سرور MCP سفارشی» را بزن.',
+    `2. آدرس را وارد کن: ${base}/api/mcp`,
+    '3. احراز هویت را روی «بدون کلید / None» بگذار و ذخیره کن.',
+    '',
+    '## مراحل نصب (نسخه قدیمی Connected apps)',
     '',
     ...manifest.setup.map((step: string, index: number) => `${index + 1}. ${step}`),
     '',
@@ -824,8 +836,65 @@ app.get('/api/chatgpt-connector', async (req: any, res) => {
     params: { name: 'get_print_services', arguments: {} }
   };
 
+  // ChatGPT plug-in archives need a recognised manifest: `.mcp.json` and/or
+  // `skills/<name>/SKILL.md`, plus an optional `plugin.json` descriptor.
+  const mcpConfig = {
+    mcpServers: {
+      'laleh-studio': {
+        type: 'http',
+        url: `${base}/api/mcp`
+      }
+    }
+  };
+
+  const pluginManifest = {
+    name: 'laleh-studio',
+    displayName: 'آتلیه دیجیتال لاله',
+    version: '1.0.0',
+    description:
+      'قیمت خدمات و سایزهای چاپ عکس، برآورد قیمت سفارش و پیگیری وضعیت سفارش آتلیه دیجیتال لاله.',
+    author: { name: 'آتلیه دیجیتال لاله', url: base },
+    license: 'UNLICENSED',
+    mcpServers: './.mcp.json',
+    skills: ['./skills/laleh-studio']
+  };
+
+  const skillFile = [
+    '---',
+    'name: laleh-studio',
+    'description: آتلیه دیجیتال لاله — قیمت خدمات و سایزهای چاپ عکس، برآورد قیمت سفارش و پیگیری وضعیت سفارش با کد رهگیری و چهار رقم آخر موبایل. وقتی کاربر از قیمت چاپ عکس، سایز چاپ، ثبت سفارش یا وضعیت سفارش می‌پرسد از این افزونه استفاده کن.',
+    '---',
+    '',
+    '# آتلیه دیجیتال لاله',
+    '',
+    'این افزونه به سرور MCP آتلیه لاله در آدرس زیر وصل است:',
+    '',
+    `${base}/api/mcp`,
+    '',
+    '## ابزارها',
+    '',
+    ...manifest.tools.map(
+      (tool: any) => `- **${tool.name}** (${tool.title}) — ${tool.description}`
+    ),
+    '',
+    '## نحوه پاسخ‌دهی',
+    '',
+    '1. برای قیمت، ابتدا `get_print_services` و سپس `get_print_sizes` را صدا بزن.',
+    '2. برای برآورد نهایی از `quote_price` استفاده کن (خدمت + سایز + تعداد + گزینه‌ها + ارسال).',
+    '3. برای پیگیری سفارش، کد رهگیری و چهار رقم آخر موبایل کاربر را بپرس و بعد `track_order_status` را صدا بزن.',
+    '4. مبالغ را به تومان و با ارقام فارسی بنویس. هیچ اطلاعات تماس یا پرداخت سفارش را نمایش نده.',
+    '',
+    '## نمونه‌ها',
+    '',
+    ...manifest.examples.map((example: string) => `- ${example}`),
+    ''
+  ].join('\n');
+
   const zip = buildZip([
     { name: 'README.md', data: Buffer.from(readme, 'utf8') },
+    { name: '.mcp.json', data: Buffer.from(JSON.stringify(mcpConfig, null, 2), 'utf8') },
+    { name: 'plugin.json', data: Buffer.from(JSON.stringify(pluginManifest, null, 2), 'utf8') },
+    { name: 'skills/laleh-studio/SKILL.md', data: Buffer.from(skillFile, 'utf8') },
     { name: 'connector.json', data: Buffer.from(JSON.stringify(manifest, null, 2), 'utf8') },
     { name: 'examples/mcp-call.json', data: Buffer.from(JSON.stringify(sampleCall, null, 2), 'utf8') }
   ]);
