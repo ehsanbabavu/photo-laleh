@@ -157,12 +157,15 @@ app.use('/api', async (req: any, res, next) => {
     const adminOnly =
       path !== '/api/db/all' &&
       ADMIN_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'));
+    // Marking an announcement as read is allowed for every signed-in user
+    const isAnnouncementRead = /^\/api\/announcements\/[^/]+\/read$/.test(path);
     const isWriteOnContent =
       (path.startsWith('/api/print-types') ||
         path.startsWith('/api/delivery-methods') ||
         path.startsWith('/api/announcements') ||
         path.startsWith('/api/tickets')) &&
-      req.method !== 'GET';
+      req.method !== 'GET' &&
+      !isAnnouncementRead;
 
     if ((adminOnly || isWriteOnContent) && !isAdmin) {
       return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
@@ -2069,6 +2072,34 @@ app.post('/api/announcements', async (req, res) => {
   }
   await writeDb(db);
   res.json({ success: true, announcement: newAnn });
+});
+
+// Per-user read receipt for an announcement — persisted so it survives a refresh
+app.post('/api/announcements/:id/read', async (req: any, res) => {
+  const userId = req.currentUser?.id ? String(req.currentUser.id) : '';
+  if (!userId) return res.status(401).json({ success: false, error: 'برای دسترسی باید وارد حساب شوید' });
+
+  const db = await readDb();
+  const annId = req.params.id;
+  let updated: any = null;
+
+  db.announcements = (db.announcements || []).map((item: any) => {
+    if (item.id !== annId) return item;
+    const readBy: string[] = Array.isArray(item.readBy) ? item.readBy.map(String) : [];
+    if (readBy.includes(userId)) {
+      updated = item;
+      return item;
+    }
+    updated = { ...item, readBy: [...readBy, userId] };
+    return updated;
+  });
+
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'اطلاعیه پیدا نشد' });
+  }
+
+  await writeDb(db);
+  res.json({ success: true, announcement: updated });
 });
 
 app.put('/api/announcements/:id', async (req, res) => {
