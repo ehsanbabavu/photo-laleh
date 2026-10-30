@@ -27,6 +27,7 @@ import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings'
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
 import { AdminTransport } from './components/admin/AdminTransport';
+import { AdminMcpOrderKey } from './components/admin/AdminMcpOrderKey';
 import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
@@ -987,16 +988,19 @@ export default function App() {
               )}
 
               {adminTab === 'chatgpt' && (
-                <ChatGPTConnect
-                  apiKey={avalaiApiKey}
-                  onUpdateApiKey={handleUpdateAvalaiApiKey}
-                  baseUrl={avalaiBaseUrl}
-                  onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
-                  model={avalaiModel}
-                  onUpdateModel={handleUpdateAvalaiModel}
-                  aiEnabled={aiEnabled}
-                  onUpdateAiEnabled={handleUpdateAiEnabled}
-                />
+                <div className="space-y-4">
+                  <AdminMcpOrderKey showToast={showToast} />
+                  <ChatGPTConnect
+                    apiKey={avalaiApiKey}
+                    onUpdateApiKey={handleUpdateAvalaiApiKey}
+                    baseUrl={avalaiBaseUrl}
+                    onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
+                    model={avalaiModel}
+                    onUpdateModel={handleUpdateAvalaiModel}
+                    aiEnabled={aiEnabled}
+                    onUpdateAiEnabled={handleUpdateAiEnabled}
+                  />
+                </div>
               )}
 
               {adminTab === 'prompts_manager' && (
