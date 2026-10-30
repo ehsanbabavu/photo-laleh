@@ -17,6 +17,7 @@ import {
 import { Order, User, SupportTicket, PrintTypeOption, Announcement } from '../../types';
 import { formatNumber } from '../../utils/formatters';
 import { SERVICE_IMAGE_BLOB } from '../../data/heroSlides';
+import { ChatGptConnectorCard } from './ChatGptConnectorCard';
 
 interface UserDashboardProps {
   user: User;
@@ -476,6 +477,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       <div className="block lg:hidden">
         {announcementsCardNode}
       </div>
+
+      {/* ChatGPT connector — downloadable setup file */}
+      <ChatGptConnectorCard />
 
       {/* Main Grid: User Info Card (Desktop) + Latest Order Card */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-start">
