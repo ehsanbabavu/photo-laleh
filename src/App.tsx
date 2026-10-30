@@ -444,6 +444,8 @@ export default function App() {
       });
       return next;
     });
+    // Persist the read receipt so a page refresh does not mark it unread again
+    apiClient.markAnnouncementRead(announcementId).catch(() => undefined);
   };
 
   // Toast notification state
