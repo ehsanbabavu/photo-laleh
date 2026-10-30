@@ -423,52 +423,60 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             <div className="pointer-events-none absolute -bottom-24 -right-16 w-56 h-56 rounded-full bg-sky-100/60 blur-3xl" />
 
             <div className="relative flex flex-col items-center justify-center gap-4">
-              <div className="flex items-stretch justify-center gap-3 sm:gap-5">
-                <a
-                  href={LEGAL_TRACK_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="استعلام مجوز رسمی از سامانه ملی مجوزها"
-                  className="flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
-                >
-                  <img
-                    src={LEGAL_QR_URL}
-                    alt="کیوآرکد مجوز رسمی سامانه ملی مجوزها"
-                    width={168}
-                    height={168}
-                    loading="lazy"
-                    className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
-                  />
-                </a>
+              <div className="grid grid-cols-2 items-start justify-center gap-3 sm:gap-6">
+                {/* QR code */}
+                <div className="flex flex-col items-center gap-2">
+                  <a
+                    href={LEGAL_TRACK_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="استعلام مجوز رسمی از سامانه ملی مجوزها"
+                    className="flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
+                  >
+                    <img
+                      src={LEGAL_QR_URL}
+                      alt="کیوآرکد مجوز رسمی سامانه ملی مجوزها"
+                      width={168}
+                      height={168}
+                      loading="lazy"
+                      className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
+                    />
+                  </a>
+                  <a
+                    href={LEGAL_TRACK_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-center text-[11px] sm:text-sm font-bold text-slate-700 hover:text-emerald-700 underline decoration-emerald-300 decoration-2 underline-offset-[6px] transition-colors max-w-[9rem] sm:max-w-[11rem] leading-6"
+                  >
+                    مجوز رسمی از سامانه ملی مجوزها
+                  </a>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setLicenseOpen(true)}
-                  aria-label="بزرگ‌نمایی تصویر پروانه کسب"
-                  className="group relative flex-shrink-0 rounded-2xl bg-white p-1.5 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-zoom-in overflow-hidden"
-                >
-                  <img
-                    src={LICENSE_THUMB_URL}
-                    alt="پروانه کسب آتلیه دیجیتال لاله"
-                    width={168}
-                    height={168}
-                    loading="lazy"
-                    className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-cover rounded-xl"
-                  />
-                  <span className="absolute inset-1.5 rounded-xl bg-slate-900/0 group-hover:bg-slate-900/45 transition-colors flex items-center justify-center">
-                    <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </span>
-                </button>
+                {/* Business licence image */}
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLicenseOpen(true)}
+                    aria-label="بزرگ‌نمایی تصویر پروانه کسب"
+                    className="group relative flex-shrink-0 rounded-2xl bg-white p-1.5 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-zoom-in overflow-hidden"
+                  >
+                    <img
+                      src={LICENSE_THUMB_URL}
+                      alt="پروانه کسب و مجوز اتحادیه عکاسان آتلیه دیجیتال لاله"
+                      width={168}
+                      height={168}
+                      loading="lazy"
+                      className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-cover rounded-xl"
+                    />
+                    <span className="absolute inset-1.5 rounded-xl bg-slate-900/0 group-hover:bg-slate-900/45 transition-colors flex items-center justify-center">
+                      <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </span>
+                  </button>
+                  <p className="text-center text-[11px] sm:text-sm font-bold text-slate-700 max-w-[9rem] sm:max-w-[11rem] leading-6">
+                    مجوز رسمی اتحادیه عکاسان
+                  </p>
+                </div>
               </div>
-
-              <a
-                href={LEGAL_TRACK_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-center text-sm sm:text-base font-bold text-slate-700 hover:text-emerald-700 underline decoration-emerald-300 decoration-2 underline-offset-8 transition-colors"
-              >
-                مجوز رسمی از سامانه ملی مجوزها
-              </a>
             </div>
           </div>
         </div>
