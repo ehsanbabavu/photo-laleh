@@ -1,5 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
+import zlib from 'zlib';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -649,6 +650,90 @@ app.post('/api/mcp', async (req: any, res) => {
 });
 
 // Downloadable connector manifest + setup guide (shown in the user dashboard)
+/** Minimal ZIP writer (deflate) — no external dependency needed. */
+function buildZip(entries: { name: string; data: Buffer }[]): Buffer {
+  const crcTable = (() => {
+    const table = new Int32Array(256);
+    for (let i = 0; i < 256; i += 1) {
+      let c = i;
+      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      table[i] = c;
+    }
+    return table;
+  })();
+
+  const crc32 = (buffer: Buffer) => {
+    let crc = -1;
+    for (let i = 0; i < buffer.length; i += 1) crc = (crc >>> 8) ^ crcTable[(crc ^ buffer[i]) & 0xff];
+    return (crc ^ -1) >>> 0;
+  };
+
+  const now = new Date();
+  const dosTime =
+    ((now.getHours() & 0x1f) << 11) | ((now.getMinutes() & 0x3f) << 5) | (Math.floor(now.getSeconds() / 2) & 0x1f);
+  const dosDate =
+    (((now.getFullYear() - 1980) & 0x7f) << 9) | (((now.getMonth() + 1) & 0x0f) << 5) | (now.getDate() & 0x1f);
+
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const nameBuffer = Buffer.from(entry.name, 'utf8');
+    const compressed = zlib.deflateRawSync(entry.data);
+    const crc = crc32(entry.data);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6); // UTF-8 file names
+    local.writeUInt16LE(8, 8); // deflate
+    local.writeUInt16LE(dosTime, 10);
+    local.writeUInt16LE(dosDate, 12);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(entry.data.length, 22);
+    local.writeUInt16LE(nameBuffer.length, 26);
+    local.writeUInt16LE(0, 28);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt16LE(dosTime, 12);
+    central.writeUInt16LE(dosDate, 14);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt32LE(entry.data.length, 24);
+    central.writeUInt16LE(nameBuffer.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+
+    locals.push(local, nameBuffer, compressed);
+    centrals.push(central, nameBuffer);
+    offset += local.length + nameBuffer.length + compressed.length;
+  }
+
+  const centralBuffer = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralBuffer.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...locals, centralBuffer, end]);
+}
+
 app.get('/api/chatgpt-connector', async (req: any, res) => {
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
   const host = String(req.headers['x-forwarded-host'] || req.get('host') || 'photo-laleh.vercel.app').split(',')[0].trim();
@@ -688,9 +773,67 @@ app.get('/api/chatgpt-connector', async (req: any, res) => {
     generatedAt: new Date().toISOString()
   };
 
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="laleh-chatgpt-connector.json"');
-  res.send(JSON.stringify(manifest, null, 2));
+  // ?format=json keeps a plain manifest for tooling; the default is a ZIP bundle
+  if (String(req.query?.format || '') === 'json') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="laleh-chatgpt-connector.json"');
+    return res.send(JSON.stringify(manifest, null, 2));
+  }
+
+  const readme = [
+    '# افزونه چت‌جی‌پی‌تی آتلیه دیجیتال لاله',
+    '',
+    'این بسته، اتصال ChatGPT به سایت آتلیه دیجیتال لاله را فراهم می‌کند.',
+    'ChatGPT از طریق این کانکتور می‌تواند قیمت خدمات و سایزها را بگوید،',
+    'برآورد قیمت سفارش بدهد و وضعیت سفارش را پیگیری کند.',
+    '',
+    '## اطلاعات اتصال',
+    '',
+    `- آدرس MCP: ${base}/api/mcp`,
+    '- روش انتقال: Streamable HTTP (JSON-RPC 2.0)',
+    `- نسخه پروتکل: ${MCP_PROTOCOL_VERSION}`,
+    '- احراز هویت: بدون کلید (None)',
+    '',
+    '## مراحل نصب',
+    '',
+    ...manifest.setup.map((step: string, index: number) => `${index + 1}. ${step}`),
+    '',
+    '## ابزارهای موجود',
+    '',
+    ...manifest.tools.map(
+      (tool: any) => `- **${tool.name}** (${tool.title}) — ${tool.description}`
+    ),
+    '',
+    '## نمونه پرامپت‌ها',
+    '',
+    ...manifest.examples.map((example: string) => `- ${example}`),
+    '',
+    '## نکته امنیتی',
+    '',
+    'پیگیری سفارش فقط با «کد رهگیری + چهار رقم آخر شماره موبایل» انجام می‌شود و',
+    'نام، آدرس، شماره کامل و اطلاعات پرداخت مشتری هرگز به مدل داده نمی‌شود.',
+    '',
+    `تاریخ ساخت این بسته: ${new Date().toISOString()}`,
+    ''
+  ].join('\n');
+
+  const sampleCall = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'get_print_services', arguments: {} }
+  };
+
+  const zip = buildZip([
+    { name: 'README.md', data: Buffer.from(readme, 'utf8') },
+    { name: 'connector.json', data: Buffer.from(JSON.stringify(manifest, null, 2), 'utf8') },
+    { name: 'examples/mcp-call.json', data: Buffer.from(JSON.stringify(sampleCall, null, 2), 'utf8') }
+  ]);
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="laleh-chatgpt-connector.zip"');
+  res.setHeader('Content-Length', String(zip.length));
+  res.send(zip);
 });
 
 // --- REST API ENDPOINTS ---
