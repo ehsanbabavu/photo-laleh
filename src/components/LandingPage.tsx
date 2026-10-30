@@ -866,9 +866,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       {/* ================= FOOTER ================= */}
       <footer className="bg-slate-900 text-slate-300 pt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-xl mx-auto text-center">
-            <div>
-              <div className="flex items-center justify-center gap-2.5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14 items-start text-center lg:text-right">
+            {/* ستون راست (دسکتاپ): لوگو و نام سایت */}
+            <div className="flex flex-col items-center lg:items-start">
+              <div className="flex items-center justify-center lg:justify-start gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center p-1.5 overflow-hidden">
                   <TulipIcon className="w-full h-full object-contain" />
                 </div>
@@ -878,9 +879,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   </p>
                 </div>
               </div>
+            </div>
 
-              {/* Messenger bots */}
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl mx-auto text-right">
+            {/* ستون چپ (دسکتاپ): ارتباط با ما */}
+            <div className="w-full max-w-xl mx-auto lg:mx-0">
+              <p className="text-[11px] font-black tracking-wide text-white/60 mb-3">ارتباط با ما</p>
+
+              {/* Messenger bots + phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-2.5 text-right">
                 <a
                   href="https://t.me/photo_laleh_bot"
                   target="_blank"
@@ -932,7 +938,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </div>
 
               {/* Address */}
-              <div className="mt-2.5 max-w-2xl mx-auto">
+              <div className="mt-2.5">
                 <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 text-right">
                   <span className="w-9 h-9 rounded-xl bg-white/10 text-emerald-300 flex items-center justify-center flex-shrink-0">
                     <MapPin className="w-5 h-5" />
