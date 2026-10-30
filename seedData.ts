@@ -188,6 +188,26 @@ export const INITIAL_DB = {
       popular: false
     }
   ],
+  deliveryMethods: [
+    {
+      id: 'peyk',
+      title: 'پیک اکسپرس (تحویل فوری)',
+      subtitle: 'ارسال با پیک موتوری در همان روز',
+      price: 45000,
+      eta: 'همان روز',
+      requiresAddress: false,
+      isEnabled: true
+    },
+    {
+      id: 'pishtaz',
+      title: 'پست پیشتاز (سراسر کشور)',
+      subtitle: 'ارسال با پست پیشتاز به تمام شهرها',
+      price: 35000,
+      eta: '۲ تا ۴ روز کاری',
+      requiresAddress: true,
+      isEnabled: true
+    }
+  ],
   partnerInvoices: [],
   costRequests: [],
   prompts: {
