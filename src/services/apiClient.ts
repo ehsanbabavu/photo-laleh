@@ -2,7 +2,7 @@
  * API Client for interacting with real internal database server (/api/*)
  */
 
-import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User } from '../types';
+import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -117,6 +117,18 @@ export const apiClient = {
       });
     } catch (err) {
       console.warn('API saveDimensions error:', err);
+    }
+  },
+
+  async saveDeliveryMethods(deliveryMethods: DeliveryMethod[]) {
+    try {
+      await fetch('/api/db/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryMethods })
+      });
+    } catch (err) {
+      console.warn('API saveDeliveryMethods error:', err);
     }
   },
 
