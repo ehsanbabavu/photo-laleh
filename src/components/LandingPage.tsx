@@ -24,7 +24,7 @@ import { PrintDimension, PrintTypeOption } from '../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
 import { formatNumber, formatPrice } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
-import { HERO_SLIDES, SERVICE_IMAGE_BLOB } from '../data/heroSlides';
+import { HERO_SLIDES, SERVICE_IMAGE_BLOB, LEGAL_QR_URL, LEGAL_TRACK_URL } from '../data/heroSlides';
 import { EitaaIcon, TelegramIcon } from './BrandIcons';
 
 interface LandingPageProps {
@@ -213,6 +213,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </div>
 
             <nav className="hidden lg:flex items-center gap-1">
+              <button
+                onClick={() => goTo('#licenses')}
+                className="group inline-flex items-center gap-1.5 px-3 py-1.5 me-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 text-[11px] font-black transition-colors cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>مجوزات</span>
+              </button>
               {NAV_LINKS.map((link) => (
                 <button
                   key={link.href}
@@ -386,6 +393,66 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= LICENCES ================= */}
+      <section id="licenses" className="relative py-14 sm:py-20 scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-xl shadow-slate-200/40 p-6 sm:p-10">
+            <div className="pointer-events-none absolute -top-20 -left-20 w-56 h-56 rounded-full bg-emerald-100/70 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-24 -right-16 w-56 h-56 rounded-full bg-sky-100/60 blur-3xl" />
+
+            <div className="relative flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
+              <a
+                href={LEGAL_TRACK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="استعلام مجوز رسمی از سامانه ملی مجوزها"
+                className="group flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
+              >
+                <img
+                  src={LEGAL_QR_URL}
+                  alt="کیوآرکد مجوز رسمی سامانه ملی مجوزها"
+                  width={168}
+                  height={168}
+                  loading="lazy"
+                  className="w-36 h-36 sm:w-[168px] sm:h-[168px] object-contain"
+                />
+              </a>
+
+              <div className="text-center sm:text-right">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-black text-emerald-700">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  مجوزات
+                </span>
+                <h2 className="mt-3 text-lg sm:text-2xl font-black text-slate-900">
+                  مجوز رسمی فعالیت
+                </h2>
+                <a
+                  href={LEGAL_TRACK_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 block text-sm sm:text-base font-bold text-slate-700 hover:text-emerald-700 underline decoration-emerald-300 decoration-2 underline-offset-8 transition-colors"
+                >
+                  مجوز رسمی از سامانه ملی مجوزها
+                </a>
+                <p className="mt-4 text-[11px] sm:text-xs text-slate-500 leading-7">
+                  برای استعلام اصالت مجوز، کد را با دوربین گوشی اسکن کنید یا روی آن بزنید.
+                </p>
+                <a
+                  href={LEGAL_TRACK_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-black text-emerald-700 hover:text-emerald-800"
+                  dir="ltr"
+                >
+                  <span>qr.mojavez.ir/track/8678392</span>
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </section>
