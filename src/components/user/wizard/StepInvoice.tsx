@@ -5,7 +5,7 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
-import { OrderDraft, PrintDimension, PrintTypeOption, User } from '../../../types';
+import { DeliveryMethod, OrderDraft, PrintDimension, PrintTypeOption, User } from '../../../types';
 import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../../data/mockData';
 import { formatPrice } from '../../../utils/formatters';
 
@@ -16,6 +16,7 @@ interface StepInvoiceProps {
   onBack: () => void;
   printTypes?: PrintTypeOption[];
   dimensions?: PrintDimension[];
+  deliveryMethods?: DeliveryMethod[];
   user?: User;
 }
 
@@ -26,18 +27,20 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   onBack,
   printTypes,
   dimensions,
+  deliveryMethods,
   user
 }) => {
-  const [voucherInput, setVoucherInput] = useState('');
-  const [voucherMessage, setVoucherMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(
-    draft.discountAmount > 0 ? { text: 'کد تخفیف با موفقیت اعمال شده است.', type: 'success' } : null
-  );
-  const [addressError, setAddressError] = useState('');
+  const DEFAULT_DELIVERY: DeliveryMethod[] = [
+    { id: 'peyk', title: 'پیک اکسپرس (تحویل فوری)', price: 45000, eta: 'همان روز', requiresAddress: false, isEnabled: true },
+    { id: 'pishtaz', title: 'پست پیشتاز (سراسر کشور)', price: 35000, eta: '۲ تا ۴ روز کاری', requiresAddress: true, isEnabled: true }
+  ];
 
-  // Wallet credit is only usable when the user really owns a positive balance
-  const userWallet = typeof user?.walletBalance === 'number' ? user.walletBalance : 0;
-  const isFirstOrderGiftAvailable = userWallet > 0 && !user?.hasUsedFirstOrderGift;
-  const [applyWalletGift, setApplyWalletGift] = useState<boolean>(isFirstOrderGiftAvailable);
+  // Transport methods come from the admin «ترابری» panel
+  const activeDeliveryMethods = (deliveryMethods && deliveryMethods.length > 0 ? deliveryMethods : DEFAULT_DELIVERY)
+    .filter((method) => method.isEnabled !== false);
+  const selectedMethod =
+    activeDeliveryMethods.find((method) => method.id === draft.deliveryMethod) || activeDeliveryMethods[0];
+  const [addressError, setAddressError] = useState('');
 
   // Resolve printType from the print types coming from the database
   const activePrintTypes: PrintTypeOption[] =
@@ -54,15 +57,11 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   const unitBase = printType.basePrice + dimension.basePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
-  const shippingCost = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-  const grossBeforeWallet = Math.max(0, subtotal + shippingCost - (draft.discountAmount || 0));
-  
-  // Calculate wallet gift deduction (up to 100,000 Tomans)
-  const maxGiftDeductible = Math.min(100000, userWallet, Math.max(0, grossBeforeWallet));
-  const walletDeduction = (applyWalletGift && isFirstOrderGiftAvailable) ? maxGiftDeductible : 0;
-  const finalTotal = Math.max(0, grossBeforeWallet - walletDeduction);
+  const shippingCost = Math.max(0, Number(selectedMethod?.price) || 0);
+  // Wallet credit and discount vouchers are no longer applied to the invoice
+  const finalTotal = Math.max(0, subtotal + shippingCost);
 
-  const isPostDelivery = draft.deliveryMethod === 'pishtaz';
+  const isPostDelivery = selectedMethod?.requiresAddress === true;
   const customerInfo = draft.customerInfo || {
     fullName: user?.name || '',
     phoneNumber: user?.phone || '',
@@ -73,28 +72,8 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
     notes: ''
   };
 
-  const handleApplyVoucher = () => {
-    const code = voucherInput.trim().toUpperCase();
-    if (code === 'EHSAN' || code === 'EHSAN20' || code === 'STUDIO') {
-      const discount = Math.round(subtotal * 0.2);
-      onUpdateDraft({
-        discountCode: code,
-        discountAmount: discount
-      });
-      setVoucherMessage({ text: `کد تخفیف ${code} اعمال شد! ۲۰٪ تخفیف کسر گردید.`, type: 'success' });
-    } else if (code === 'WELCOME') {
-      onUpdateDraft({
-        discountCode: code,
-        discountAmount: 40000
-      });
-      setVoucherMessage({ text: `کد تخفیف خوش‌آمدگویی اعمال شد (${formatPrice(40000)} کسر شد).`, type: 'success' });
-    } else {
-      setVoucherMessage({ text: 'کد نامعتبر است. (تست: EHSAN یا WELCOME)', type: 'error' });
-    }
-  };
-
   const handleProceed = () => {
-    if (draft.deliveryMethod === 'pishtaz') {
+    if (isPostDelivery) {
       if (!customerInfo.fullName?.trim() || !customerInfo.phoneNumber?.trim()) {
         setAddressError('لطفاً نام و شماره تماس تحویل‌گیرنده را وارد نمایید.');
         return;
@@ -111,10 +90,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
       extrasPrice: unitExtras,
       subtotal,
       shippingCost,
-      deliveryMethod: draft.deliveryMethod,
-      discountAmount: draft.discountAmount || 0,
-      discountCode: draft.discountCode || '',
-      walletCreditUsed: walletDeduction,
+      deliveryMethod: selectedMethod?.id || draft.deliveryMethod,
+      discountAmount: 0,
+      discountCode: '',
+      walletCreditUsed: 0,
       finalTotal,
       finalTotalRial: finalTotal * 10,
       customerFullName: customerInfo.fullName || user?.name || 'مشتری آتلیه',
@@ -125,7 +104,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
 
     onUpdateDraft({
       customerInfo,
-      walletCreditUsed: walletDeduction,
+      deliveryMethod: selectedMethod?.id || draft.deliveryMethod,
+      walletCreditUsed: 0,
+      discountAmount: 0,
+      discountCode: '',
       totalPrice: finalTotal,
       invoiceDetails: invDetails
     });
@@ -195,100 +177,34 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               </div>
             )}
 
-            {/* Shipping selection */}
+            {/* Delivery method (managed in the admin «ترابری» panel) */}
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <span className="text-[11px] text-slate-700 block font-bold">روش تحویل / ارسال:</span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => onUpdateDraft({ deliveryMethod: 'peyk' })}
-                  className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                    draft.deliveryMethod === 'peyk'
-                      ? 'bg-gradient-to-r from-sky-50 to-emerald-50 border-sky-400 text-slate-900 shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <p className="font-bold text-[11px] sm:text-xs text-slate-900">پیک اکسپرس (تحویل فوری)</p>
-                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">+{formatPrice(45000)}</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onUpdateDraft({ deliveryMethod: 'pishtaz' })}
-                  className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                    draft.deliveryMethod === 'pishtaz'
-                      ? 'bg-gradient-to-r from-sky-50 to-emerald-50 border-sky-400 text-slate-900 shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <p className="font-bold text-[11px] sm:text-xs text-slate-900">پست پیشتاز (سراسر کشور)</p>
-                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">+{formatPrice(35000)}</p>
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {activeDeliveryMethods.map((method) => {
+                  const isActive = (selectedMethod?.id || '') === method.id;
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => onUpdateDraft({ deliveryMethod: method.id })}
+                      className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-gradient-to-r from-sky-50 to-emerald-50 border-sky-400 text-slate-900 shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <p className="font-bold text-[11px] sm:text-xs text-slate-900">{method.title}</p>
+                      <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">
+                        {Number(method.price) > 0 ? `+${formatPrice(method.price)}` : 'رایگان'}
+                        {method.eta ? ` • ${method.eta}` : ''}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
-
-          {/* Discount Voucher Input */}
-          <div className="space-y-1.5 pt-2 border-t border-slate-200">
-            <label className="block text-xs font-bold text-slate-700">کد تخفیف استودیو دارید؟</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="مثال: EHSAN یا WELCOME"
-                value={voucherInput}
-                onChange={(e) => setVoucherInput(e.target.value)}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 uppercase font-mono placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"
-              />
-              <button
-                type="button"
-                onClick={handleApplyVoucher}
-                className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex-shrink-0"
-              >
-                اعمال
-              </button>
-            </div>
-            {voucherMessage && (
-              <p
-                className={`text-[11px] font-bold ${
-                  voucherMessage.type === 'success' ? 'text-emerald-600' : 'text-red-600'
-                }`}
-              >
-                {voucherMessage.text}
-              </p>
-            )}
-          </div>
-
-          {/* 100,000 Tomans Gift Credit from Wallet (First Invoice Special Infrastructure) */}
-          {isFirstOrderGiftAvailable && (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-300 flex items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black text-sm flex-shrink-0 shadow-xs">
-                  🎁
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-black text-emerald-900">اعتبار کیف پول</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                      ویژه اولین سفارش
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-emerald-700 mt-0.5 leading-snug">
-                    مبلغ {formatPrice(maxGiftDeductible)} از فاکتور این سفارش کسر خواهد شد.
-                  </p>
-                </div>
-              </div>
-
-              <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0 bg-white/80 px-2.5 py-1.5 rounded-xl border border-emerald-200">
-                <input
-                  type="checkbox"
-                  checked={applyWalletGift}
-                  onChange={(e) => setApplyWalletGift(e.target.checked)}
-                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-emerald-300 cursor-pointer"
-                />
-                <span className="text-xs font-bold text-emerald-900 select-none">کسر از فاکتور</span>
-              </label>
-            </div>
-          )}
 
           {/* Totals Summary */}
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50/80 to-emerald-50/80 border border-sky-200 space-y-1.5 text-xs">
@@ -297,25 +213,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               <span className="font-mono font-bold text-slate-800">{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>هزینه ارسال:</span>
+              <span>هزینه ارسال ({selectedMethod?.title || '—'}):</span>
               <span className="font-mono font-bold text-slate-800">{formatPrice(shippingCost)}</span>
             </div>
-            {draft.discountAmount > 0 && (
-              <div className="flex justify-between text-emerald-700 font-bold">
-                <span>تخفیف کوپن ویژه:</span>
-                <span className="font-mono">- {formatPrice(draft.discountAmount)}</span>
-              </div>
-            )}
-            {walletDeduction > 0 && (
-              <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-100/70 p-2 rounded-xl border border-emerald-300/80">
-                <div className="flex items-center gap-1.5">
-                  <span>🎁 کسر هدیه کیف پول (سفارش اول):</span>
-                </div>
-                <span className="font-mono font-black text-xs sm:text-sm text-emerald-700">
-                  - {formatPrice(walletDeduction)}
-                </span>
-              </div>
-            )}
+
             <div className="pt-2 border-t border-sky-200/80 flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
               <span>مبلغ کل قابل پرداخت:</span>
               <span className="bg-gradient-to-l from-sky-700 to-emerald-700 bg-clip-text text-transparent font-mono text-sm sm:text-base font-black">
