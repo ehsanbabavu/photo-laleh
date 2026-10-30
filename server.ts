@@ -1778,15 +1778,29 @@ app.get('/api/orders', async (req: any, res) => {
 
 app.post('/api/orders', async (req, res) => {
   const db = await readDb();
-  const newOrder = req.body;
+  const newOrder = req.body || {};
   const existingIdx = (db.orders || []).findIndex((o: any) => o.id === newOrder.id);
-  if (existingIdx >= 0) {
+  const isNew = existingIdx < 0;
+  if (!isNew) {
     db.orders[existingIdx] = newOrder;
   } else {
     db.orders = [newOrder, ...(db.orders || [])];
   }
+
+  // Wallet credit is one-time: an order that consumes it zeroes the balance for good.
+  // Done here (server side) so it is persisted even when the buyer is not an admin.
+  let updatedUser: any = null;
+  const usedCredit = Number(newOrder.walletCreditUsed) || 0;
+  if (isNew && usedCredit > 0 && newOrder.userId) {
+    db.users = (db.users || []).map((u: any) => {
+      if (u.id !== newOrder.userId) return u;
+      updatedUser = { ...u, walletBalance: 0, hasUsedFirstOrderGift: true };
+      return updatedUser;
+    });
+  }
+
   await writeDb(db);
-  res.json({ success: true, order: newOrder });
+  res.json({ success: true, order: newOrder, user: updatedUser ? sanitizeUser(updatedUser) : null });
 });
 
 app.put('/api/orders/:id', async (req, res) => {
