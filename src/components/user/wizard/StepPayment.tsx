@@ -60,9 +60,9 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const unitBase = printType.basePrice + dimension.basePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
-  const shippingCost = draft.deliveryMethod === 'peyk' ? 45000 : 35000;
-  const walletCredit = draft.walletCreditUsed || draft.invoiceDetails?.walletCreditUsed || 0;
-  const computedTotal = Math.max(0, subtotal + shippingCost - (draft.discountAmount || 0) - walletCredit);
+  // Shipping fee comes from the invoice produced by the transport panel
+  const shippingCost = Number(draft.invoiceDetails?.shippingCost) || 0;
+  const computedTotal = Math.max(0, subtotal + shippingCost);
 
   // Base final total from Step 4 (the pre-invoice quote, in Toman)
   const baseTotal = draft.invoiceDetails?.finalTotal ?? draft.totalPrice ?? computedTotal;
