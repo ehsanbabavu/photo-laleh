@@ -55,6 +55,18 @@ export interface PrintDimension {
   popular?: boolean;
 }
 
+export interface DeliveryMethod {
+  id: string;
+  title: string;
+  subtitle?: string;
+  price: number;
+  /** Human readable delivery time, e.g. «همان روز» */
+  eta?: string;
+  /** Needs the recipient postal address (post/courier companies) */
+  requiresAddress?: boolean;
+  isEnabled?: boolean;
+}
+
 export interface PaperMaterial {
   id: string;
   name: string;
@@ -103,7 +115,8 @@ export interface OrderDraft {
   quantity: number;
   hasLamination: boolean;
   designerRetouch: boolean;
-  deliveryMethod: 'peyk' | 'pishtaz';
+  /** Id of the delivery method defined in the admin «ترابری» panel */
+  deliveryMethod: string;
   customerInfo: {
     fullName: string;
     phoneNumber: string;
