@@ -58,8 +58,15 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
   const shippingCost = Math.max(0, Number(selectedMethod?.price) || 0);
-  // Wallet credit and discount vouchers are no longer applied to the invoice
-  const finalTotal = Math.max(0, subtotal + shippingCost);
+  const grossTotal = Math.max(0, subtotal + shippingCost);
+
+  // Wallet credit: usable once, and consumed completely by the order that uses it
+  const userWallet = typeof user?.walletBalance === 'number' ? user.walletBalance : 0;
+  const isWalletCreditAvailable = userWallet > 0 && !user?.hasUsedFirstOrderGift;
+  const [applyWalletCredit, setApplyWalletCredit] = useState<boolean>(isWalletCreditAvailable);
+  const walletDeduction =
+    applyWalletCredit && isWalletCreditAvailable ? Math.min(userWallet, grossTotal) : 0;
+  const finalTotal = Math.max(0, grossTotal - walletDeduction);
 
   const isPostDelivery = selectedMethod?.requiresAddress === true;
   const customerInfo = draft.customerInfo || {
@@ -93,7 +100,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
       deliveryMethod: selectedMethod?.id || draft.deliveryMethod,
       discountAmount: 0,
       discountCode: '',
-      walletCreditUsed: 0,
+      walletCreditUsed: walletDeduction,
       finalTotal,
       finalTotalRial: finalTotal * 10,
       customerFullName: customerInfo.fullName || user?.name || 'مشتری آتلیه',
@@ -105,7 +112,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
     onUpdateDraft({
       customerInfo,
       deliveryMethod: selectedMethod?.id || draft.deliveryMethod,
-      walletCreditUsed: 0,
+      walletCreditUsed: walletDeduction,
       discountAmount: 0,
       discountCode: '',
       totalPrice: finalTotal,
@@ -206,6 +213,39 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
             </div>
           </div>
 
+          {/* Wallet credit card (one-time credit, consumed by the order) */}
+          {isWalletCreditAvailable && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-300 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black text-sm flex-shrink-0 shadow-xs">
+                  🎁
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-black text-emerald-900">اعتبار کیف پول</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                      یک‌بار مصرف
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 mt-0.5 leading-snug">
+                    موجودی شما {formatPrice(userWallet)} است؛ با استفاده از آن، مبلغ از همین فاکتور
+                    کسر و اعتبار کیف پول شما صفر می‌شود.
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0 bg-white/80 px-2.5 py-1.5 rounded-xl border border-emerald-200">
+                <input
+                  type="checkbox"
+                  checked={applyWalletCredit}
+                  onChange={(e) => setApplyWalletCredit(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-emerald-300 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-emerald-900 select-none">کسر از فاکتور</span>
+              </label>
+            </div>
+          )}
+
           {/* Totals Summary */}
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50/80 to-emerald-50/80 border border-sky-200 space-y-1.5 text-xs">
             <div className="flex justify-between text-slate-600">
@@ -217,6 +257,16 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               <span className="font-mono font-bold text-slate-800">{formatPrice(shippingCost)}</span>
             </div>
 
+            {walletDeduction > 0 && (
+              <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-100/70 p-2 rounded-xl border border-emerald-300/80">
+                <div className="flex items-center gap-1.5">
+                  <span>🎁 کسر اعتبار کیف پول:</span>
+                </div>
+                <span className="font-mono font-black text-xs sm:text-sm text-emerald-700">
+                  - {formatPrice(walletDeduction)}
+                </span>
+              </div>
+            )}
             <div className="pt-2 border-t border-sky-200/80 flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
               <span>مبلغ کل قابل پرداخت:</span>
               <span className="bg-gradient-to-l from-sky-700 to-emerald-700 bg-clip-text text-transparent font-mono text-sm sm:text-base font-black">
