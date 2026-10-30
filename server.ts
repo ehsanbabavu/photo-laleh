@@ -98,7 +98,8 @@ const PUBLIC_API_PATHS = new Set([
   '/api/blupal/webhook',
   '/api/webhook/blupal',
   '/api/telegram/webhook',
-  '/api/cron/backup'
+  '/api/cron/backup',
+  '/api/mcp'
 ]);
 
 const ADMIN_ONLY_PREFIXES = [
@@ -305,6 +306,391 @@ app.get('/api/public/landing', async (_req, res) => {
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'landing data error' });
   }
+});
+
+// ---------------------------------------------------------------------------
+// ChatGPT connector — read-only MCP server (Streamable HTTP + JSON-RPC 2.0)
+//
+//   GET  /api/mcp                  -> status / tool overview (for debugging)
+//   POST /api/mcp                  -> initialize | tools/list | tools/call | ping
+//   GET  /api/chatgpt-connector    -> downloadable connector manifest + guide
+//
+// Everything exposed here is either public catalogue data or a phone-verified
+// order status lookup. No customer name, address, payment data or admin field
+// is ever returned.
+// ---------------------------------------------------------------------------
+const MCP_PROTOCOL_VERSION = '2025-06-18';
+const MCP_SERVER_INFO = {
+  name: 'laleh-digital-studio',
+  title: 'آتلیه دیجیتال لاله',
+  version: '1.0.0'
+};
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending_review: 'ثبت شده و در انتظار بررسی',
+  ai_processing: 'در حال پردازش هوشمند تصویر',
+  printing: 'در حال چاپ',
+  ready_to_ship: 'آماده ارسال',
+  delivered: 'تحویل داده شده'
+};
+
+const MCP_SHIPPING_PRICES: Record<string, number> = { peyk: 45000, pishtaz: 35000 };
+const MCP_SHIPPING_LABELS: Record<string, string> = { peyk: 'پیک موتوری', pishtaz: 'پست پیشتاز' };
+const MCP_EXTRA_PRICES = { lamination: 35000, designerRetouch: 50000 };
+
+function tomanFa(value: number) {
+  return `${new Intl.NumberFormat('fa-IR').format(Math.round(Number(value) || 0))} تومان`;
+}
+
+function mcpToolsDefinition() {
+  return [
+    {
+      name: 'get_print_services',
+      title: 'فهرست خدمات چاپ',
+      description:
+        'فهرست خدمات فعال آتلیه لاله (پرسنلی، تبلیغاتی، سیاه‌وسفید به رنگی، یادبود، عروسی) همراه قیمت پایه و توضیح کوتاه.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+    },
+    {
+      name: 'get_print_sizes',
+      title: 'فهرست سایزهای چاپ',
+      description:
+        'سایزهای چاپ موجود با ابعاد سانتی‌متری، نسبت تصویر و قیمت پایه هر سایز. با دادن serviceId فقط سایزهای همان خدمت برمی‌گردد.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          serviceId: {
+            type: 'string',
+            description: 'شناسه خدمت، مثلاً personnel یا wedding (اختیاری)'
+          }
+        },
+        additionalProperties: false
+      }
+    },
+    {
+      name: 'quote_price',
+      title: 'محاسبه قیمت سفارش',
+      description:
+        'برآورد قیمت نهایی یک سفارش بر اساس خدمت، سایز، تعداد و گزینه‌های اضافه (لمینت، رتوش طراحی) و روش ارسال.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          serviceId: { type: 'string', description: 'شناسه خدمت چاپ' },
+          sizeId: { type: 'string', description: 'شناسه سایز چاپ' },
+          quantity: { type: 'integer', minimum: 1, maximum: 1000, description: 'تعداد سری (پیش‌فرض ۱)' },
+          lamination: { type: 'boolean', description: 'لمینت (۳۵٬۰۰۰ تومان)' },
+          designerRetouch: { type: 'boolean', description: 'رتوش طراحی (۵۰٬۰۰۰ تومان)' },
+          delivery: {
+            type: 'string',
+            enum: ['peyk', 'pishtaz'],
+            description: 'روش ارسال: پیک موتوری یا پست پیشتاز'
+          }
+        },
+        required: ['serviceId', 'sizeId'],
+        additionalProperties: false
+      }
+    },
+    {
+      name: 'track_order_status',
+      title: 'پیگیری وضعیت سفارش',
+      description:
+        'وضعیت یک سفارش را با کد رهگیری و چهار رقم آخر شماره موبایل ثبت‌شده برمی‌گرداند. اطلاعات شخصی مشتری بازگردانده نمی‌شود.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          trackingCode: { type: 'string', description: 'کد رهگیری سفارش، مثل Laleh-12345' },
+          phoneLast4: { type: 'string', description: 'چهار رقم آخر شماره موبایلی که سفارش با آن ثبت شده' }
+        },
+        required: ['trackingCode', 'phoneLast4'],
+        additionalProperties: false
+      }
+    },
+    {
+      name: 'get_studio_info',
+      title: 'اطلاعات آتلیه',
+      description:
+        'اطلاعات تماس و وضعیت فعالیت آتلیه لاله، لیست خدمات فعال و ارزان‌ترین قیمت شروع سفارش.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+    }
+  ];
+}
+
+async function mcpResolveCatalog() {
+  const db = await readDb();
+  const services = (db.printTypes || []).filter((type: any) => type.isEnabled !== false);
+  const sizes = sanitizeDimensions(db.dimensions || []);
+  return { db, services, sizes };
+}
+
+function mcpFindService(services: any[], serviceId: string) {
+  const id = String(serviceId || '').trim();
+  const byId = services.find((s) => String(s.id) === id);
+  if (byId) return byId;
+  return services.find(
+    (s) => String(s.title || '').trim() === id || String(s.id).toLowerCase() === id.toLowerCase()
+  );
+}
+
+async function mcpCallTool(name: string, rawArgs: any) {
+  const args = rawArgs && typeof rawArgs === 'object' ? rawArgs : {};
+  const { db, services, sizes } = await mcpResolveCatalog();
+
+  if (name === 'get_print_services') {
+    if (services.length === 0) return { text: 'در حال حاضر خدمت فعالی ثبت نشده است.' };
+    return {
+      text: [
+        'خدمات فعال آتلیه دیجیتال لاله:',
+        ...services.map(
+          (s: any, index: number) =>
+            `${index + 1}. ${s.title} (شناسه: ${s.id}) — از ${tomanFa(s.basePrice)}${
+              s.subtitle ? ` — ${s.subtitle}` : ''
+            }`
+        )
+      ].join('\n')
+    };
+  }
+
+  if (name === 'get_print_sizes') {
+    let list = sizes;
+    if (args.serviceId) {
+      const service = mcpFindService(services, args.serviceId);
+      if (!service) return { text: `خدمتی با شناسه «${args.serviceId}» پیدا نشد.` };
+      const allowed: string[] = Array.isArray(service.dimensionIds) ? service.dimensionIds : [];
+      if (allowed.length > 0) list = sizes.filter((s: any) => allowed.includes(String(s.id)));
+    }
+    if (list.length === 0) return { text: 'سایزی ثبت نشده است.' };
+    return {
+      text: [
+        'سایزهای چاپ:',
+        ...list.map(
+          (d: any, index: number) =>
+            `${index + 1}. ${d.title} (شناسه: ${d.id}) — ${d.dimensionsCm} — نسبت ${d.aspectRatio} — قیمت پایه ${tomanFa(d.basePrice)}`
+        )
+      ].join('\n')
+    };
+  }
+
+  if (name === 'quote_price') {
+    const service = mcpFindService(services, args.serviceId);
+    if (!service) return { text: `خدمتی با شناسه «${args.serviceId}» پیدا نشد.` };
+    const size = sizes.find((s: any) => String(s.id) === String(args.sizeId));
+    if (!size) return { text: `سایزی با شناسه «${args.sizeId}» پیدا نشد.` };
+
+    const quantity = Math.min(Math.max(Number(args.quantity) || 1, 1), 1000);
+    const unitBase = (Number(service.basePrice) || 0) + (Number(size.basePrice) || 0);
+    const extras =
+      (args.lamination ? MCP_EXTRA_PRICES.lamination : 0) +
+      (args.designerRetouch ? MCP_EXTRA_PRICES.designerRetouch : 0);
+    const subtotal = (unitBase + extras) * quantity;
+    const delivery = String(args.delivery || 'pishtaz');
+    const shipping = MCP_SHIPPING_PRICES[delivery] ?? MCP_SHIPPING_PRICES.pishtaz;
+    const total = subtotal + shipping;
+
+    return {
+      text: [
+        `برآورد قیمت: ${service.title} / ${size.title} × ${quantity}`,
+        `• قیمت واحد: ${tomanFa(unitBase)}`,
+        extras > 0 ? `• گزینه‌های اضافه: ${tomanFa(extras)} به ازای هر سری` : null,
+        `• جمع اقلام: ${tomanFa(subtotal)}`,
+        `• ارسال (${MCP_SHIPPING_LABELS[delivery] || MCP_SHIPPING_LABELS.pishtaz}): ${tomanFa(shipping)}`,
+        `• مبلغ نهایی تقریبی: ${tomanFa(total)}`,
+        'این مبلغ برآورد است؛ مبلغ قطعی در فاکتور سفارش نمایش داده می‌شود.'
+      ]
+        .filter(Boolean)
+        .join('\n')
+    };
+  }
+
+  if (name === 'track_order_status') {
+    const code = String(args.trackingCode || '').trim();
+    const last4 = String(args.phoneLast4 || '').replace(/\D/g, '').slice(-4);
+    if (!code) return { text: 'کد رهگیری سفارش را وارد کنید.' };
+    if (last4.length !== 4) return { text: 'چهار رقم آخر شماره موبایل را وارد کنید.' };
+
+    const order =
+      (db.orders || []).find(
+        (o: any) => String(o.trackingCode || '').toLowerCase() === code.toLowerCase()
+      ) || (db.orders || []).find((o: any) => String(o.id) === code);
+    if (!order) return { text: `سفارشی با کد «${code}» پیدا نشد.` };
+
+    const phone = String(order.customerInfo?.phoneNumber || '').replace(/\D/g, '');
+    const user = (db.users || []).find((u: any) => u.id === order.userId);
+    const fallbackPhone = String(user?.phone || '').replace(/\D/g, '');
+    const matches = (phone && phone.endsWith(last4)) || (fallbackPhone && fallbackPhone.endsWith(last4));
+    if (!matches) return { text: 'کد رهگیری و شماره موبایل با هم مطابقت ندارند.' };
+
+    const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status || 'نامشخص';
+    const size = sizes.find((s: any) => String(s.id) === String(order.dimensionId));
+    const service = mcpFindService(services, String(order.printType || ''));
+
+    return {
+      text: [
+        `سفارش ${order.trackingCode}`,
+        `• وضعیت: ${statusLabel}`,
+        order.date ? `• تاریخ ثبت: ${order.date}` : null,
+        service ? `• خدمت: ${service.title}` : order.printType ? `• خدمت: ${order.printType}` : null,
+        size ? `• سایز: ${size.title} (${size.dimensionsCm})` : null,
+        `• تعداد: ${order.quantity || 1} سری`,
+        `• روش ارسال: ${MCP_SHIPPING_LABELS[order.deliveryMethod] || order.deliveryMethod || '—'}`,
+        `• وضعیت پرداخت: ${order.paymentStatus === 'paid' ? 'پرداخت شده' : 'در انتظار پرداخت'}`,
+        order.aiStatus ? `• پردازش تصویر: ${order.aiStatus}` : null
+      ]
+        .filter(Boolean)
+        .join('\n')
+    };
+  }
+
+  if (name === 'get_studio_info') {
+    const prices = services
+      .map((s: any) => Number(s.basePrice) || 0)
+      .filter((p) => p > 0);
+    const settings = db.settings || {};
+    return {
+      text: [
+        'آتلیه دیجیتال لاله — سفارش آنلاین چاپ عکس با پردازش هوشمند تصویر.',
+        `• خدمات فعال: ${services.length} مورد`,
+        prices.length ? `• شروع قیمت: ${tomanFa(Math.min(...prices))}` : null,
+        '• روش‌های ارسال: پیک موتوری و پست پیشتاز در سراسر کشور',
+        settings.studioPhone ? `• تلفن: ${settings.studioPhone}` : null,
+        settings.studioAddress ? `• آدرس: ${settings.studioAddress}` : null
+      ]
+        .filter(Boolean)
+        .join('\n')
+    };
+  }
+
+  throw new Error(`ابزار ناشناخته: ${name}`);
+}
+
+app.get('/api/mcp', (_req, res) => {
+  res.json({
+    success: true,
+    server: MCP_SERVER_INFO,
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    transport: 'streamable-http',
+    endpoint: '/api/mcp',
+    auth: 'none',
+    tools: mcpToolsDefinition().map((tool) => ({ name: tool.name, title: tool.title }))
+  });
+});
+
+app.post('/api/mcp', async (req: any, res) => {
+  const ip = clientIp(req);
+  if (await hitRateLimit(`mcp:${ip}`, 120, 60_000)) {
+    return res.status(429).json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'درخواست‌های بیش از حد؛ کمی بعد تلاش کنید' } });
+  }
+
+  const payload = req.body;
+  const requests = Array.isArray(payload) ? payload : [payload];
+  const replies: any[] = [];
+
+  for (const message of requests) {
+    if (!message || message.jsonrpc !== '2.0') continue;
+    const { id, method } = message;
+    const params = message.params || {};
+
+    // Notifications carry no id and must not be answered
+    if (id === undefined && String(method || '').startsWith('notifications/')) continue;
+
+    try {
+      if (method === 'initialize') {
+        replies.push({
+          jsonrpc: '2.0',
+          id,
+          result: {
+            protocolVersion: params.protocolVersion || MCP_PROTOCOL_VERSION,
+            capabilities: { tools: { listChanged: false } },
+            serverInfo: MCP_SERVER_INFO,
+            instructions:
+              'این سرور به آتلیه دیجیتال لاله وصل است: قیمت خدمات و سایزهای چاپ، برآورد قیمت سفارش و پیگیری وضعیت سفارش با کد رهگیری و چهار رقم آخر موبایل.'
+          }
+        });
+      } else if (method === 'ping') {
+        replies.push({ jsonrpc: '2.0', id, result: {} });
+      } else if (method === 'tools/list') {
+        replies.push({ jsonrpc: '2.0', id, result: { tools: mcpToolsDefinition() } });
+      } else if (method === 'tools/call') {
+        const toolName = String(params.name || '');
+        try {
+          const output = await mcpCallTool(toolName, params.arguments);
+          replies.push({
+            jsonrpc: '2.0',
+            id,
+            result: { content: [{ type: 'text', text: output.text }], isError: false }
+          });
+        } catch (err: any) {
+          replies.push({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [{ type: 'text', text: err?.message || 'اجرای ابزار ناموفق بود' }],
+              isError: true
+            }
+          });
+        }
+      } else {
+        replies.push({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32601, message: `متد پشتیبانی نمی‌شود: ${method}` }
+        });
+      }
+    } catch (err: any) {
+      replies.push({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32603, message: err?.message || 'internal error' }
+      });
+    }
+  }
+
+  if (replies.length === 0) return res.status(202).end();
+  res.json(Array.isArray(payload) ? replies : replies[0]);
+});
+
+// Downloadable connector manifest + setup guide (shown in the user dashboard)
+app.get('/api/chatgpt-connector', async (req: any, res) => {
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  const host = String(req.headers['x-forwarded-host'] || req.get('host') || 'photo-laleh.vercel.app').split(',')[0].trim();
+  const base = `${proto}://${host}`;
+
+  const manifest = {
+    app: 'laleh-digital-studio',
+    kind: 'chatgpt-connector',
+    version: 1,
+    name: 'آتلیه دیجیتال لاله',
+    description:
+      'کانکتور خواندنی ChatGPT برای آتلیه دیجیتال لاله: قیمت خدمات و سایزهای چاپ، برآورد قیمت سفارش و پیگیری وضعیت سفارش.',
+    mcp: {
+      transport: 'streamable-http',
+      url: `${base}/api/mcp`,
+      auth: 'none',
+      protocolVersion: MCP_PROTOCOL_VERSION
+    },
+    tools: mcpToolsDefinition().map((tool) => ({
+      name: tool.name,
+      title: tool.title,
+      description: tool.description,
+      inputSchema: tool.inputSchema
+    })),
+    setup: [
+      'در ChatGPT وارد Settings → Connected apps (یا Connectors) شوید.',
+      'گزینه Add / Create connector را بزنید و نام «آتلیه دیجیتال لاله» را وارد کنید.',
+      `آدرس MCP را قرار دهید: ${base}/api/mcp`,
+      'احراز هویت را روی «بدون کلید / None» بگذارید.',
+      'ذخیره کنید؛ سپس در چت با @آتلیه دیجیتال لاله می‌توانید قیمت بگیرید یا وضعیت سفارش را بپرسید.'
+    ],
+    examples: [
+      'قیمت چاپ عکس پرسنلی در سایز ۳×۴ چقدر است؟',
+      'یک چاپ عروسی ۱۰×۱۵ به تعداد ۲ سری با لمینت چقدر می‌شود؟',
+      'سفارش Laleh-12345 را با چهار رقم آخر ۱۲۳۴ پیگیری کن.'
+    ],
+    generatedAt: new Date().toISOString()
+  };
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="laleh-chatgpt-connector.json"');
+  res.send(JSON.stringify(manifest, null, 2));
 });
 
 // --- REST API ENDPOINTS ---
