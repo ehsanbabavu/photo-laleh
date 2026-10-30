@@ -33,6 +33,7 @@ const ARRAY_COLLECTIONS = [
   'tickets',
   'printTypes',
   'dimensions',
+  'deliveryMethods',
   'announcements',
   'invoices',
   'partnerInvoices',
@@ -312,12 +313,36 @@ export async function ensurePrintTypeCatalog(db: Db) {
     .catch(() => undefined);
 }
 
+/** Existing databases have no transport methods yet → add the built-in ones once. */
+export async function ensureDeliveryMethodCatalog(db: Db) {
+  const existing = await db
+    .collection('deliveryMethods')
+    .find({})
+    .toArray()
+    .catch(() => [] as any[]);
+  if (existing.length > 0) return;
+
+  const seed = cloneSeed();
+  const defaults: any[] = Array.isArray(seed.deliveryMethods) ? seed.deliveryMethods : [];
+  if (defaults.length === 0) return;
+
+  await db
+    .collection('deliveryMethods')
+    .insertMany(defaults.map((item) => ({ ...item })), { ordered: false })
+    .catch(() => undefined);
+  await db
+    .collection('deliveryMethods')
+    .createIndex({ id: 1 }, { unique: true, sparse: true })
+    .catch(() => undefined);
+}
+
 async function ensureSeeded(db: Db) {
   const meta = db.collection('meta');
   const seeded = await meta.findOne({ _id: 'seed' as any });
   if (seeded) {
     await ensurePrintTypeCatalog(db);
     await ensureSizeCatalog(db);
+    await ensureDeliveryMethodCatalog(db);
     return;
   }
 
@@ -335,6 +360,7 @@ async function ensureSeeded(db: Db) {
   await meta.insertOne({ _id: 'seed' as any, seededAt: new Date().toISOString() });
   await ensurePrintTypeCatalog(db);
   await ensureSizeCatalog(db);
+  await ensureDeliveryMethodCatalog(db);
 }
 
 async function loadState(db: Db) {
