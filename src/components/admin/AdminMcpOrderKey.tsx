@@ -71,14 +71,22 @@ export const AdminMcpOrderKey: React.FC<{ showToast?: (msg: string) => void }> =
           <KeyRound className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-black text-slate-900">کلید ثبت سفارش افزونه</h2>
+          <h2 className="text-sm font-black text-slate-900">کلید ثبت سفارش افزونه (اختیاری)</h2>
           <p className="text-[11px] text-slate-500 mt-0.5 leading-6">
             ابزارهای <span className="font-mono">create_order</span> و{' '}
-            <span className="font-mono">create_payment_link</span> فقط با این کلید کار می‌کنند تا کسی
-            نتواند از بیرون برای آتلیه سفارش جعلی ثبت کند.
+            <span className="font-mono">create_payment_link</span> به‌صورت پیش‌فرض{' '}
+            <b className="text-slate-700">عمومی و بدون کلید</b> کار می‌کنند. اگر کلید بسازی، از آن به
+            بعد هر درخواست ثبت سفارش باید این کلید را همراه داشته باشد.
           </p>
         </div>
       </div>
+
+      {!isLoading && !key && (
+        <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-2">
+          <Check className="w-3.5 h-3.5" />
+          <span>حالت عمومی فعال است — افزونه بدون کلید سفارش ثبت می‌کند.</span>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-[11px] text-slate-500">
@@ -125,7 +133,7 @@ export const AdminMcpOrderKey: React.FC<{ showToast?: (msg: string) => void }> =
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-xs font-bold transition-colors cursor-pointer"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span>{key ? 'ساخت کلید جدید (کلید قبلی باطل می‌شود)' : 'ساخت کلید'}</span>
+            <span>{key ? 'ساخت کلید جدید (کلید قبلی باطل می‌شود)' : 'ساخت کلید و قفل کردن ثبت سفارش'}</span>
           </button>
         </>
       )}
