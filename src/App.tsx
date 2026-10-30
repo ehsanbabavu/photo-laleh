@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings } from './types';
+import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
@@ -26,6 +26,7 @@ import { AdminBluPalSettings } from './components/admin/AdminBluPalSettings';
 import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings';
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
+import { AdminTransport } from './components/admin/AdminTransport';
 import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
@@ -83,6 +84,7 @@ export default function App() {
   // Dynamic Print Types State (Managed by Admin & Database)
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>(PRINT_TYPES);
   const [dimensions, setDimensions] = useState<PrintDimension[]>(PRINT_DIMENSIONS);
+  const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([]);
   const [partnerInvoices, setPartnerInvoices] = useState<PartnerInvoice[]>([]);
   const [costRequests, setCostRequests] = useState<CostChangeRequest[]>([]);
 
@@ -273,6 +275,9 @@ export default function App() {
         }
         if (Array.isArray(data.costRequests)) {
           setCostRequests(data.costRequests);
+        }
+        if (Array.isArray(data.deliveryMethods)) {
+          setDeliveryMethods(data.deliveryMethods);
         }
         if (Array.isArray(data.dimensions) && data.dimensions.length > 0) {
           setDimensions(data.dimensions);
@@ -520,6 +525,30 @@ export default function App() {
       return next;
     });
     showToast(`سایز «${newItem.title}» با موفقیت افزوده شد.`);
+  };
+
+  const handleAddDeliveryMethod = (method: DeliveryMethod) => {
+    setDeliveryMethods((prev) => {
+      const next = [...prev, method];
+      apiClient.saveDeliveryMethods(next);
+      return next;
+    });
+  };
+
+  const handleUpdateDeliveryMethod = (updated: DeliveryMethod) => {
+    setDeliveryMethods((prev) => {
+      const next = prev.map((m) => (m.id === updated.id ? updated : m));
+      apiClient.saveDeliveryMethods(next);
+      return next;
+    });
+  };
+
+  const handleDeleteDeliveryMethod = (id: string) => {
+    setDeliveryMethods((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      apiClient.saveDeliveryMethods(next);
+      return next;
+    });
   };
 
   const handleUpdateDimension = (updated: PrintDimension) => {
@@ -907,6 +936,16 @@ export default function App() {
                 />
               )}
 
+              {adminTab === 'transport' && (
+                <AdminTransport
+                  deliveryMethods={deliveryMethods}
+                  onAdd={handleAddDeliveryMethod}
+                  onUpdate={handleUpdateDeliveryMethod}
+                  onDelete={handleDeleteDeliveryMethod}
+                  showToast={showToast}
+                />
+              )}
+
               {adminTab === 'print_sizes' && (
                 <AdminSizesManager
                   dimensions={dimensions}
@@ -1069,6 +1108,7 @@ export default function App() {
               {userTab === 'wizard' && (
                 <OrderWizard
                   dimensions={dimensions}
+                  deliveryMethods={deliveryMethods}
                   user={currentUser}
                   onOrderCompleted={handleNewOrder}
                   onUserUpdate={handleUpdateUser}
