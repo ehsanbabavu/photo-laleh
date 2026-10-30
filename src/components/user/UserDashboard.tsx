@@ -478,14 +478,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         {announcementsCardNode}
       </div>
 
-      {/* ChatGPT connector — downloadable setup file */}
-      <ChatGptConnectorCard />
-
-      {/* Main Grid: User Info Card (Desktop) + Latest Order Card */}
+      {/* Desktop: user information + ChatGPT connector, side by side (2 columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-start">
-        {/* 2. CARD: USER INFORMATION (Desktop Only) */}
+        {/* CARD: USER INFORMATION (Desktop Only) */}
         <div className="hidden lg:flex flex-col">
           {userInfoCard}
+        </div>
+
+        {/* CARD: ChatGPT connector (collapsible) */}
+        <ChatGptConnectorCard />
+      </div>
+
+      {/* Desktop: announcements + latest order, side by side (2 columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-start">
+        {/* Announcements (desktop column; mobile renders it above) */}
+        <div className="hidden lg:block">
+          {announcementsCardNode}
         </div>
 
         {/* 3. CARD: LATEST ORDER (کارت بازطراحی‌شده و جمع‌وجور آخرین سفارش) */}
@@ -571,11 +579,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
           </div>
         </div>
-      </div>
-
-      {/* 4. Desktop-only: Announcements List Card (کارت اطلاعیه‌ها در دسکتاپ) */}
-      <div className="hidden lg:block">
-        {announcementsCardNode}
       </div>
 
       {/* 5. Quick Services Showcase (خدمات تخصصی آتلیه دیجیتال لاله) */}
