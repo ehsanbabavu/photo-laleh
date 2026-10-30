@@ -431,7 +431,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="استعلام مجوز رسمی از سامانه ملی مجوزها"
-                    className="flex-shrink-0 rounded-2xl bg-white p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
+                    className="block flex-shrink-0 rounded-2xl bg-white p-2 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
                   >
                     <img
                       src={LEGAL_QR_URL}
@@ -458,7 +458,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     type="button"
                     onClick={() => setLicenseOpen(true)}
                     aria-label="بزرگ‌نمایی تصویر پروانه کسب"
-                    className="group relative flex-shrink-0 rounded-2xl bg-white p-1.5 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-zoom-in overflow-hidden"
+                    className="group relative flex flex-shrink-0 rounded-2xl bg-white p-2 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-zoom-in overflow-hidden"
                   >
                     <img
                       src={LICENSE_THUMB_URL}
@@ -468,7 +468,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                       loading="lazy"
                       className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-cover rounded-xl"
                     />
-                    <span className="absolute inset-1.5 rounded-xl bg-slate-900/0 group-hover:bg-slate-900/45 transition-colors flex items-center justify-center">
+                    <span className="absolute inset-2 rounded-xl bg-slate-900/0 group-hover:bg-slate-900/45 transition-colors flex items-center justify-center">
                       <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                     </span>
                   </button>
