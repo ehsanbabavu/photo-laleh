@@ -158,7 +158,10 @@ app.use('/api', async (req: any, res, next) => {
       path !== '/api/db/all' &&
       ADMIN_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'));
     const isWriteOnContent =
-      (path.startsWith('/api/print-types') || path.startsWith('/api/announcements') || path.startsWith('/api/tickets')) &&
+      (path.startsWith('/api/print-types') ||
+        path.startsWith('/api/delivery-methods') ||
+        path.startsWith('/api/announcements') ||
+        path.startsWith('/api/tickets')) &&
       req.method !== 'GET';
 
     if ((adminOnly || isWriteOnContent) && !isAdmin) {
@@ -303,7 +306,18 @@ app.get('/api/public/landing', async (_req, res) => {
       popular: dim.popular
     }));
 
-    res.json({ success: true, printTypes, dimensions });
+    const deliveryMethods = (db.deliveryMethods || [])
+      .filter((method: any) => method && method.isEnabled !== false)
+      .map((method: any) => ({
+        id: method.id,
+        title: method.title,
+        subtitle: method.subtitle,
+        price: Math.max(0, Number(method.price) || 0),
+        eta: method.eta,
+        requiresAddress: method.requiresAddress === true
+      }));
+
+    res.json({ success: true, printTypes, dimensions, deliveryMethods });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'landing data error' });
   }
@@ -383,8 +397,7 @@ function mcpToolsDefinition() {
           designerRetouch: { type: 'boolean', description: 'رتوش طراحی (۵۰٬۰۰۰ تومان)' },
           delivery: {
             type: 'string',
-            enum: ['peyk', 'pishtaz'],
-            description: 'روش ارسال: پیک موتوری یا پست پیشتاز'
+            description: 'شناسه روش تحویل (مثلاً peyk یا pishtaz) — اختیاری'
           }
         },
         required: ['serviceId', 'sizeId'],
@@ -483,8 +496,15 @@ async function mcpCallTool(name: string, rawArgs: any) {
       (args.lamination ? MCP_EXTRA_PRICES.lamination : 0) +
       (args.designerRetouch ? MCP_EXTRA_PRICES.designerRetouch : 0);
     const subtotal = (unitBase + extras) * quantity;
-    const delivery = String(args.delivery || 'pishtaz');
-    const shipping = MCP_SHIPPING_PRICES[delivery] ?? MCP_SHIPPING_PRICES.pishtaz;
+    const methods = (db.deliveryMethods || []).filter((m: any) => m && m.isEnabled !== false);
+    const chosen =
+      methods.find((m: any) => String(m.id) === String(args.delivery || '')) ||
+      methods.find((m: any) => Number(m.price) > 0) ||
+      null;
+    const deliveryLabel = chosen?.title || MCP_SHIPPING_LABELS[String(args.delivery || '')] || 'ارسال';
+    const shipping = chosen
+      ? Math.max(0, Number(chosen.price) || 0)
+      : MCP_SHIPPING_PRICES[String(args.delivery || 'pishtaz')] ?? MCP_SHIPPING_PRICES.pishtaz;
     const total = subtotal + shipping;
 
     return {
@@ -493,7 +513,7 @@ async function mcpCallTool(name: string, rawArgs: any) {
         `• قیمت واحد: ${tomanFa(unitBase)}`,
         extras > 0 ? `• گزینه‌های اضافه: ${tomanFa(extras)} به ازای هر سری` : null,
         `• جمع اقلام: ${tomanFa(subtotal)}`,
-        `• ارسال (${MCP_SHIPPING_LABELS[delivery] || MCP_SHIPPING_LABELS.pishtaz}): ${tomanFa(shipping)}`,
+        `• ارسال (${deliveryLabel}): ${tomanFa(shipping)}`,
         `• مبلغ نهایی تقریبی: ${tomanFa(total)}`,
         'این مبلغ برآورد است؛ مبلغ قطعی در فاکتور سفارش نمایش داده می‌شود.'
       ]
@@ -1849,6 +1869,64 @@ app.post('/api/prompts', async (req, res) => {
 app.get('/api/print-types', async (_req, res) => {
   const db = await readDb();
   res.json(db.printTypes || []);
+});
+
+// --- Transport / delivery methods (managed in the admin «ترابری» panel) ---
+function sanitizeDeliveryMethods(list: any[]) {
+  return (Array.isArray(list) ? list : [])
+    .filter((item) => item && typeof item === 'object' && item.id)
+    .map((item) => ({
+      id: String(item.id),
+      title: String(item.title || '').trim(),
+      subtitle: String(item.subtitle || '').trim(),
+      price: Math.max(0, Number(item.price) || 0),
+      eta: String(item.eta || '').trim(),
+      requiresAddress: item.requiresAddress === true,
+      isEnabled: item.isEnabled !== false
+    }));
+}
+
+app.get('/api/delivery-methods', async (_req, res) => {
+  const db = await readDb();
+  const methods = sanitizeDeliveryMethods(db.deliveryMethods || []);
+  res.json(methods.filter((method) => method.isEnabled));
+});
+
+app.get('/api/delivery-methods/all', async (_req, res) => {
+  const db = await readDb();
+  res.json(sanitizeDeliveryMethods(db.deliveryMethods || []));
+});
+
+app.post('/api/delivery-methods', async (req, res) => {
+  const db = await readDb();
+  const incoming = sanitizeDeliveryMethods([req.body]); 
+  if (incoming.length === 0) {
+    return res.status(400).json({ success: false, error: 'اطلاعات روش تحویل نامعتبر است' });
+  }
+  const method = incoming[0];
+  db.deliveryMethods = Array.isArray(db.deliveryMethods) ? db.deliveryMethods : [];
+  const index = db.deliveryMethods.findIndex((item: any) => item.id === method.id);
+  if (index >= 0) db.deliveryMethods[index] = method;
+  else db.deliveryMethods.push(method);
+  await writeDb(db);
+  res.json({ success: true, method });
+});
+
+app.put('/api/delivery-methods/:id', async (req, res) => {
+  const db = await readDb();
+  const id = req.params.id;
+  db.deliveryMethods = (db.deliveryMethods || []).map((item: any) =>
+    item.id === id ? { ...item, ...req.body, id } : item
+  );
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+app.delete('/api/delivery-methods/:id', async (req, res) => {
+  const db = await readDb();
+  db.deliveryMethods = (db.deliveryMethods || []).filter((item: any) => item.id !== req.params.id);
+  await writeDb(db);
+  res.json({ success: true });
 });
 
 app.post('/api/print-types', async (req, res) => {
