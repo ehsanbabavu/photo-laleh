@@ -132,6 +132,16 @@ export const apiClient = {
     }
   },
 
+  async markAnnouncementRead(announcementId: string) {
+    try {
+      await fetch(`/api/announcements/${encodeURIComponent(announcementId)}/read`, {
+        method: 'POST'
+      });
+    } catch (err) {
+      console.warn('API markAnnouncementRead error:', err);
+    }
+  },
+
   async saveAnnouncements(announcements: Announcement[]) {
     try {
       await fetch('/api/db/sync', {
