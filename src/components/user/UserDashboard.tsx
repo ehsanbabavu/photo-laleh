@@ -4,10 +4,7 @@ import {
   Package,
   Phone,
   Calendar,
-  Lock,
   Edit3,
-  Eye,
-  EyeOff,
   Check,
   Sparkles,
   ChevronDown,
@@ -54,8 +51,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   // Edit mode state for Full Name & Password
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user.name || '');
-  const [editPassword, setEditPassword] = useState(user.password || '123456');
-  const [showPassword, setShowPassword] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -100,16 +95,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setEditError('لطفاً نام و نام خانوادگی را وارد کنید.');
       return;
     }
-    if (!editPassword.trim()) {
-      setEditError('لطفاً رمز عبور را وارد کنید.');
-      return;
-    }
     setEditError('');
 
     const updated: User = {
       ...user,
-      name: editName.trim(),
-      password: editPassword.trim()
+      name: editName.trim()
     };
 
     onUpdateUser?.(updated);
@@ -121,7 +111,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditName(user.name || '');
-    setEditPassword(user.password || '123456');
     setEditError('');
   };
 
@@ -165,7 +154,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               e.stopPropagation();
               setIsProfileOpen(true);
               setEditName(user.name || '');
-              setEditPassword(user.password || '123456');
               setEditError('');
               setIsEditing(true);
             }}
@@ -193,7 +181,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           {saveSuccess && (
             <div className="mb-3.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 animate-fadeIn">
               <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>اطلاعات نام و رمز عبور با موفقیت به‌روزرسانی شد.</span>
+              <span>اطلاعات حساب کاربری با موفقیت به‌روزرسانی شد.</span>
             </div>
           )}
 
@@ -217,31 +205,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <span className="font-black text-slate-900 sm:text-sm">
                   {user.name}
                 </span>
-              </div>
-
-              {/* 2. رمز عبور */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <div className="flex items-center gap-2 text-slate-500">
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>رمز عبور:</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-800 tracking-wider">
-                    {showPassword ? (user.password || '123456') : '••••••••'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                    title={showPassword ? 'مخفی‌سازی رمز' : 'نمایش رمز'}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-3.5 h-3.5" />
-                    ) : (
-                      <Eye className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                </div>
               </div>
 
               {/* 3. شماره موبایل */}
@@ -282,35 +245,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   placeholder="نام و نام خانوادگی"
                   required
                 />
-              </div>
-
-              {/* Edit Password */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-600 block">
-                  رمز عبور:
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    className="w-full text-xs sm:text-sm font-mono font-bold p-2.5 rounded-xl border border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 bg-white text-slate-900 outline-none pl-9 transition-all"
-                    placeholder="رمز عبور جدید"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                    title={showPassword ? 'مخفی‌سازی رمز' : 'نمایش رمز'}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
               </div>
 
               {/* Read-only Mobile */}
