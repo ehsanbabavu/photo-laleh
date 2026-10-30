@@ -235,7 +235,8 @@ const SECRET_SETTING_KEYS = [
   'blupalWebhookSecret',
   'telegramToken',
   'smsApiToken',
-  'backupCronToken'
+  'backupCronToken',
+  'mcpOrderKey'
 ];
 
 /** Removes admin-only fields (internal cost) from print sizes. */
@@ -428,6 +429,54 @@ function mcpToolsDefinition() {
       description:
         'اطلاعات تماس و وضعیت فعالیت آتلیه لاله، لیست خدمات فعال و ارزان‌ترین قیمت شروع سفارش.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+    },
+    {
+      name: 'create_order',
+      title: 'ثبت سفارش جدید',
+      description:
+        'یک سفارش چاپ عکس ثبت می‌کند و در صورت درخواست، لینک پرداخت آنلاین (درگاه بلوپال) را برمی‌گرداند. نیاز به کلید ثبت سفارش دارد (هدر x-mcp-key یا آرگومان accessKey).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          serviceId: { type: 'string', description: 'شناسه خدمت چاپ، مثلاً personnel' },
+          sizeId: { type: 'string', description: 'شناسه سایز چاپ' },
+          quantity: { type: 'integer', minimum: 1, maximum: 100, description: 'تعداد سری (پیش‌فرض ۱)' },
+          fullName: { type: 'string', description: 'نام و نام خانوادگی مشتری' },
+          phone: { type: 'string', description: 'شماره موبایل ۱۱ رقمی مشتری' },
+          deliveryMethod: { type: 'string', description: 'شناسه روش تحویل (مثلاً peyk یا pishtaz)' },
+          province: { type: 'string', description: 'استان (برای ارسال پستی)' },
+          city: { type: 'string', description: 'شهر' },
+          address: { type: 'string', description: 'آدرس کامل پستی' },
+          postalCode: { type: 'string', description: 'کد پستی' },
+          notes: { type: 'string', description: 'توضیح سفارش' },
+          photoUrl: { type: 'string', description: 'آدرس اینترنتی عکس مشتری (اختیاری)' },
+          lamination: { type: 'boolean', description: 'لمینت (۳۵٬۰۰۰ تومان)' },
+          designerRetouch: { type: 'boolean', description: 'رتوش طراحی (۵۰٬۰۰۰ تومان)' },
+          createPaymentLink: {
+            type: 'boolean',
+            description: 'اگر true باشد لینک پرداخت آنلاین هم صادر می‌شود'
+          },
+          accessKey: { type: 'string', description: 'کلید ثبت سفارش (اگر در هدر ارسال نشود)' }
+        },
+        required: ['serviceId', 'sizeId', 'fullName', 'phone'],
+        additionalProperties: false
+      }
+    },
+    {
+      name: 'create_payment_link',
+      title: 'لینک پرداخت سفارش',
+      description:
+        'برای یک سفارش پرداخت‌نشده، لینک پرداخت آنلاین صادر یا بازیابی می‌کند. نیاز به کد رهگیری، چهار رقم آخر موبایل و کلید ثبت سفارش دارد.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          trackingCode: { type: 'string', description: 'کد رهگیری سفارش' },
+          phoneLast4: { type: 'string', description: 'چهار رقم آخر شماره موبایل سفارش' },
+          accessKey: { type: 'string', description: 'کلید ثبت سفارش (اگر در هدر ارسال نشود)' }
+        },
+        required: ['trackingCode', 'phoneLast4'],
+        additionalProperties: false
+      }
     }
   ];
 }
@@ -448,7 +497,7 @@ function mcpFindService(services: any[], serviceId: string) {
   );
 }
 
-async function mcpCallTool(name: string, rawArgs: any) {
+async function mcpCallTool(name: string, rawArgs: any, requestKey = '') {
   const args = rawArgs && typeof rawArgs === 'object' ? rawArgs : {};
   const { db, services, sizes } = await mcpResolveCatalog();
 
@@ -583,6 +632,221 @@ async function mcpCallTool(name: string, rawArgs: any) {
     };
   }
 
+  if (name === 'create_order' || name === 'create_payment_link') {
+    const db2 = await readDb();
+    const configuredKey = String((db2.settings || {}).mcpOrderKey || '').trim();
+    const providedKey = String(requestKey || args.accessKey || '').trim();
+    if (!configuredKey) {
+      return {
+        text: 'ثبت سفارش از طریق افزونه فعال نیست. مدیر باید در پنل «افزونه چت‌جی‌پی‌تی» کلید ثبت سفارش را بسازد.'
+      };
+    }
+    if (!providedKey || !safeTokenEqual(providedKey, configuredKey)) {
+      return { text: 'کلید ثبت سفارش نامعتبر است. هدر x-mcp-key را در تنظیمات کانکتور بررسی کنید.' };
+    }
+
+    const phoneDigits = (value: any) => String(value || '').replace(/\D/g, '');
+
+    if (name === 'create_payment_link') {
+      const code = String(args.trackingCode || '').trim();
+      const last4 = phoneDigits(args.phoneLast4).slice(-4);
+      if (!code || last4.length !== 4) return { text: 'کد رهگیری و چهار رقم آخر موبایل لازم است.' };
+
+      const order = (db2.orders || []).find(
+        (o: any) => String(o.trackingCode || '').toLowerCase() === code.toLowerCase()
+      );
+      if (!order) return { text: `سفارشی با کد «${code}» پیدا نشد.` };
+      if (!phoneDigits(order.customerInfo?.phoneNumber).endsWith(last4)) {
+        return { text: 'کد رهگیری و شماره موبایل با هم مطابقت ندارند.' };
+      }
+      if (order.paymentStatus === 'paid') {
+        return { text: `سفارش ${order.trackingCode} قبلاً پرداخت شده است و نیازی به لینک پرداخت ندارد.` };
+      }
+
+      // Reuse an unexpired link when one already exists
+      const existing = (db2.invoices || []).find(
+        (inv: any) =>
+          inv.orderId === order.id &&
+          inv.status === 'pending' &&
+          inv.paymentUrl &&
+          Number(inv.expiresAt) > Date.now()
+      );
+      if (existing) {
+        return {
+          text: [
+            `لینک پرداخت سفارش ${order.trackingCode}:`,
+            existing.paymentUrl,
+            `مبلغ: ${tomanFa(existing.finalAmount || existing.amount)}`,
+            'این لینک تا ۱۵ دقیقه معتبر است.'
+          ].join('\n')
+        };
+      }
+
+      const issued = await issueInvoiceInternal({
+        amount: Number(order.totalPrice) || 0,
+        orderId: order.id,
+        customerName: order.userName || order.customerInfo?.fullName || '',
+        customerPhone: order.customerInfo?.phoneNumber || '',
+        description: `پرداخت سفارش ${order.trackingCode}`,
+        invoiceDetails: order.invoiceDetails || null
+      });
+      if (!issued.payload?.success || !issued.payload?.paymentUrl) {
+        return {
+          text: `صدور لینک پرداخت انجام نشد: ${issued.payload?.message || issued.payload?.error || 'خطای درگاه'}`
+        };
+      }
+
+      db2.orders = (db2.orders || []).map((o: any) =>
+        o.id === order.id
+          ? { ...o, paymentInvoiceId: issued.payload.invoice?.invoiceId, paymentInvoice: issued.payload.invoice }
+          : o
+      );
+      await writeDb(db2);
+
+      return {
+        text: [
+          `لینک پرداخت سفارش ${order.trackingCode} صادر شد:`,
+          issued.payload.paymentUrl,
+          `مبلغ: ${tomanFa(issued.payload.invoice?.finalAmount || order.totalPrice)}`,
+          'این لینک تا ۱۵ دقیقه معتبر است؛ پس از پرداخت وضعیت سفارش به‌روزرسانی می‌شود.'
+        ].join('\n')
+      };
+    }
+
+    // --- create_order ---
+    const service = mcpFindService(services, String(args.serviceId || ''));
+    if (!service) return { text: `خدمتی با شناسه «${args.serviceId}» پیدا نشد.` };
+    const size = sizes.find((s: any) => String(s.id) === String(args.sizeId));
+    if (!size) return { text: `سایزی با شناسه «${args.sizeId}» پیدا نشد.` };
+
+    const fullName = String(args.fullName || '').trim();
+    const phone = phoneDigits(args.phone);
+    if (!fullName) return { text: 'نام و نام خانوادگی مشتری لازم است.' };
+    if (phone.length < 10) return { text: 'شماره موبایل معتبر نیست.' };
+
+    const methods = (db2.deliveryMethods || []).filter((m: any) => m && m.isEnabled !== false);
+    const method =
+      methods.find((m: any) => String(m.id) === String(args.deliveryMethod || '')) ||
+      methods.find((m: any) => m.requiresAddress) ||
+      methods[0] ||
+      null;
+    if (!method) return { text: 'روش تحویل فعالی تعریف نشده است.' };
+
+    const quantity = Math.min(Math.max(Number(args.quantity) || 1, 1), 100);
+    const unitBase = (Number(service.basePrice) || 0) + (Number(size.basePrice) || 0);
+    const extras =
+      (args.lamination ? MCP_EXTRA_PRICES.lamination : 0) +
+      (args.designerRetouch ? MCP_EXTRA_PRICES.designerRetouch : 0);
+    const subtotal = (unitBase + extras) * quantity;
+    const shipping = Math.max(0, Number(method.price) || 0);
+    const total = subtotal + shipping;
+
+    if (method.requiresAddress && !String(args.address || '').trim()) {
+      return { text: `روش تحویل «${method.title}» نیاز به آدرس پستی دارد؛ آدرس را بفرستید.` };
+    }
+
+    const owner = (db2.users || []).find((u: any) => phoneDigits(u.phone).endsWith(phone.slice(-10)));
+    const trackingCode = 'Laleh-' + Math.floor(10000 + Math.random() * 90000);
+    const orderId = 'ord-' + Date.now();
+
+    const newOrder: any = {
+      id: orderId,
+      trackingCode,
+      userId: owner?.id || '',
+      userName: fullName,
+      date: new Date().toLocaleDateString('fa-IR'),
+      status: 'pending_review',
+      paymentStatus: 'pending',
+      printType: service.id,
+      dimensionId: size.id,
+      materialId: 'silk_paper',
+      quantity,
+      hasLamination: args.lamination === true,
+      designerRetouch: args.designerRetouch === true,
+      deliveryMethod: method.id,
+      uploadedImage: String(args.photoUrl || ''),
+      uploadedImages: args.photoUrl ? [String(args.photoUrl)] : [],
+      aiEffects: {
+        colorized: false,
+        bgMode: 'original',
+        memorialRibbon: false,
+        weddingFilter: 'natural',
+        autoEnhance: true
+      },
+      customerInfo: {
+        fullName,
+        phoneNumber: phone,
+        province: String(args.province || ''),
+        city: String(args.city || ''),
+        address: String(args.address || ''),
+        postalCode: String(args.postalCode || ''),
+        notes: String(args.notes || '')
+      },
+      totalPrice: total,
+      discountAmount: 0,
+      walletCreditUsed: 0,
+      invoiceDetails: {
+        printTypeTitle: service.title,
+        dimensionTitle: size.title,
+        materialTitle: 'کاغذ گلاسه',
+        quantity,
+        unitBasePrice: unitBase,
+        extrasPrice: extras,
+        subtotal,
+        shippingCost: shipping,
+        deliveryMethod: method.id,
+        discountAmount: 0,
+        walletCreditUsed: 0,
+        finalTotal: total,
+        finalTotalRial: total * 10,
+        customerFullName: fullName,
+        customerPhone: phone,
+        customerAddress: `${args.province || ''} ${args.city || ''} ${args.address || ''}`.trim(),
+        createdAtFa: new Date().toLocaleDateString('fa-IR')
+      },
+      source: 'chatgpt-connector'
+    };
+
+    db2.orders = [newOrder, ...(db2.orders || [])];
+    await writeDb(db2);
+
+    const lines = [
+      `سفارش با کد رهگیری ${trackingCode} ثبت شد.`,
+      `• خدمت: ${service.title} — ${size.title} × ${quantity}`,
+      `• روش تحویل: ${method.title}`,
+      `• مبلغ سفارش: ${tomanFa(total)}`,
+      `• پیگیری: کد ${trackingCode} با چهار رقم آخر موبایل ${phone.slice(-4)}`
+    ];
+
+    if (args.createPaymentLink === true && total > 0) {
+      const issued = await issueInvoiceInternal({
+        amount: total,
+        orderId,
+        customerName: fullName,
+        customerPhone: phone,
+        description: `پرداخت سفارش ${trackingCode}`,
+        invoiceDetails: newOrder.invoiceDetails
+      });
+      if (issued.payload?.success && issued.payload?.paymentUrl) {
+        const db3 = await readDb();
+        db3.orders = (db3.orders || []).map((o: any) =>
+          o.id === orderId
+            ? { ...o, paymentInvoiceId: issued.payload.invoice?.invoiceId, paymentInvoice: issued.payload.invoice }
+            : o
+        );
+        await writeDb(db3);
+        lines.push('', '💳 لینک پرداخت آنلاین:', issued.payload.paymentUrl, 'اعتبار لینک: ۱۵ دقیقه');
+      } else {
+        lines.push(
+          '',
+          `لینک پرداخت صادر نشد: ${issued.payload?.message || issued.payload?.error || 'خطای درگاه پرداخت'}`
+        );
+      }
+    }
+
+    return { text: lines.join('\n') };
+  }
+
   throw new Error(`ابزار ناشناخته: ${name}`);
 }
 
@@ -636,7 +900,8 @@ app.post('/api/mcp', async (req: any, res) => {
       } else if (method === 'tools/call') {
         const toolName = String(params.name || '');
         try {
-          const output = await mcpCallTool(toolName, params.arguments);
+          const headerKey = String(req.headers['x-mcp-key'] || req.headers['x-api-key'] || '');
+          const output = await mcpCallTool(toolName, params.arguments, headerKey);
           replies.push({
             jsonrpc: '2.0',
             id,
@@ -843,10 +1108,25 @@ app.get('/api/chatgpt-connector', async (req: any, res) => {
     '',
     ...manifest.examples.map((example: string) => `- ${example}`),
     '',
+    '## ثبت سفارش و لینک پرداخت',
+    '',
+    'ابزارهای `create_order` و `create_payment_link` سفارش ثبت می‌کنند و لینک پرداخت',
+    'می‌سازند. این دو ابزار فقط با «کلید ثبت سفارش» کار می‌کنند.',
+    'کلید را از پنل ادمین → افزونه چت‌جی‌پی‌تی → «کلید ثبت سفارش افزونه» بساز و در',
+    'بخش Headers کانکتور ChatGPT این هدر را اضافه کن:',
+    '',
+    '```',
+    'x-mcp-key: <کلید ثبت سفارش>',
+    '```',
+    '',
+    'نمونه گفتگو: «یک چاپ عکس پرسنلی سایز ۳×۴ برای سارا رضایی با شماره ۰۹۱۲۳۴۵۶۷۸۹',
+    'ثبت کن و لینک پرداخت بده.»',
+    '',
     '## نکته امنیتی',
     '',
     'پیگیری سفارش فقط با «کد رهگیری + چهار رقم آخر شماره موبایل» انجام می‌شود و',
     'نام، آدرس، شماره کامل و اطلاعات پرداخت مشتری هرگز به مدل داده نمی‌شود.',
+    'کلید ثبت سفارش داخل این بسته قرار ندارد و باید از پنل ادمین گرفته شود.',
     '',
     `تاریخ ساخت این بسته: ${new Date().toISOString()}`,
     ''
@@ -2279,7 +2559,7 @@ function digitsOnly(value: any): string {
 }
 
 // Create Invoice
-app.post('/api/blupal/create-invoice', async (req, res) => {
+const handleCreateBluPalInvoice = async (req: any, res: any) => {
   try {
     const db = await readDb();
     const settings = db.settings || {};
@@ -2450,7 +2730,33 @@ app.post('/api/blupal/create-invoice', async (req, res) => {
     console.error('Error creating BluPal invoice:', err);
     res.status(500).json({ success: false, error: 'internal_error', message: err.message || 'Internal error' });
   }
-});
+};
+
+// Registered route + an internal caller that reuses the exact same payment logic
+app.post('/api/blupal/create-invoice', handleCreateBluPalInvoice);
+
+async function issueInvoiceInternal(body: any): Promise<{ httpStatus: number; payload: any }> {
+  const captured: { httpStatus: number; payload: any } = { httpStatus: 200, payload: null };
+  const fakeRes: any = {
+    status(code: number) {
+      captured.httpStatus = code;
+      return fakeRes;
+    },
+    json(payload: any) {
+      captured.payload = payload;
+      return fakeRes;
+    },
+    setHeader() {
+      return fakeRes;
+    },
+    end() {
+      return fakeRes;
+    }
+  };
+  await handleCreateBluPalInvoice({ body } as any, fakeRes);
+  return captured;
+}
+
 
 // Check Invoice Status
 app.get('/api/blupal/status/:invoiceId', async (req, res) => {
