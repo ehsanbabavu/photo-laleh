@@ -1522,7 +1522,11 @@ app.get('/api/settings', async (req: any, res) => {
 
 app.post('/api/settings', async (req, res) => {
   const db = await readDb();
-  db.settings = { ...(db.settings || {}), ...req.body };
+  const incoming = { ...(req.body || {}) };
+  // Never store invisible characters in provider tokens
+  if (incoming.eitaaToken !== undefined) incoming.eitaaToken = normalizeEitaaToken(incoming.eitaaToken);
+  if (incoming.telegramToken !== undefined) incoming.telegramToken = String(incoming.telegramToken || '').trim();
+  db.settings = { ...(db.settings || {}), ...incoming };
   await writeDb(db);
   res.json({ success: true, settings: db.settings });
 });
@@ -2367,6 +2371,24 @@ app.post('/api/telegram/send-order', async (req, res) => {
 // ---------------------------------------------------------------------------
 const EITAA_API_BASE = 'https://eitaayar.ir/api';
 
+/**
+ * Eitaayar tokens are pasted from a web panel and very often carry invisible
+ * characters (zero-width space, RTL/LTR marks, BOM, NBSP) or line breaks — those
+ * make the API answer "Unauthorized" even though the token looks correct.
+ */
+function normalizeEitaaToken(raw: any): string {
+  return String(raw ?? '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, '') // zero-width + bidi marks + BOM
+    .replace(/\u00A0/g, ' ') // non-breaking space
+    .replace(/[\s\u180E]+/g, '') // any remaining whitespace (incl. Mongolian vowel separator)
+    .trim();
+}
+
+/** Builds `https://eitaayar.ir/api/<token>/<method>` with a safe token segment. */
+function eitaaUrl(token: any, method: string): string {
+  return `${EITAA_API_BASE}/${encodeURIComponent(normalizeEitaaToken(token))}/${method}`;
+}
+
 function nowFaFull(): string {
   return new Date().toLocaleString('fa-IR', {
     timeZone: 'Asia/Tehran',
@@ -2499,7 +2521,7 @@ async function sendEitaaFile(
     form.append('caption', caption);
     form.append('file', new Blob([file.buffer], { type: file.mime }), filename);
 
-    const response = await fetch(`${EITAA_API_BASE}/${token}/sendFile`, {
+    const response = await fetch(eitaaUrl(token, 'sendFile'), {
       method: 'POST',
       body: form
     });
@@ -2517,7 +2539,7 @@ async function sendEitaaMessage(
   text: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const response = await fetch(`${EITAA_API_BASE}/${token}/sendMessage`, {
+    const response = await fetch(eitaaUrl(token, 'sendMessage'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text })
@@ -2533,19 +2555,41 @@ async function sendEitaaMessage(
 // Eitaa (eitaayar.ir) connection test
 app.post('/api/eitaa/test', async (req, res) => {
   try {
-    const token = String(req.body?.token || '').trim();
+    const token = normalizeEitaaToken(req.body?.token);
     if (!token) {
       return res.json({ success: false, error: 'توکن ایتایار را وارد کنید.' });
     }
-    const response = await fetch(`${EITAA_API_BASE}/${token}/getMe`);
-    const payload: any = await response.json().catch(() => null);
+
+    // eitaayar accepts both GET and POST for most methods — try GET, then POST
+    let status = 0;
+    let payload: any = null;
+    for (const method of ['GET', 'POST'] as const) {
+      try {
+        const response = await fetch(eitaaUrl(token, 'getMe'), { method });
+        status = response.status;
+        payload = await response.json().catch(() => null);
+        if (payload?.ok) break;
+      } catch (err: any) {
+        payload = { ok: false, description: err?.message || 'eitaa network error' };
+      }
+    }
+
     if (payload?.ok) {
       const name = payload?.result?.username || payload?.result?.first_name || 'ربات';
       return res.json({ success: true, message: `اتصال موفق بود — ${name}`, details: payload });
     }
+    const rawToken = String(req.body?.token || '');
     return res.json({
       success: false,
-      error: payload?.description || payload?.result || 'توکن نامعتبر است یا دسترسی ندارد.'
+      error:
+        payload?.description ||
+        (typeof payload?.result === 'string' ? payload.result : '') ||
+        `توکن نامعتبر است یا دسترسی ندارد (HTTP ${status})`,
+      // Diagnostics only: never echo the token itself
+      tokenLength: token.length,
+      cleanedInvisibleChars: rawToken !== token && rawToken.trim() !== token,
+      httpStatus: status,
+      details: payload
     });
   } catch (err: any) {
     res.json({ success: false, error: err?.message || 'خطا در ارتباط با ایتایار' });
