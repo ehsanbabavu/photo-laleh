@@ -90,6 +90,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/register',
   '/api/auth/eitaa',
   '/api/auth/telegram',
+  '/api/auth/telegram/pending',
   '/api/auth/otp/request',
   '/api/auth/password/otp',
   '/api/auth/password/reset',
@@ -802,9 +803,16 @@ async function messengerSignup(
   provider: 'eitaa' | 'telegram'
 ) {
   try {
+    const phone = normalizePhone(req.body?.phone ?? '');
     const rawId = String(req.body?.userId ?? req.body?.eitaaId ?? req.body?.telegramId ?? '').trim();
-    if (!/^\d{4,20}$/.test(rawId)) {
-      return res.status(400).json({ success: false, error: `شناسه ${provider === 'eitaa' ? 'ایتا' : 'تلگرام'} معتبر نیست` });
+    const hasPhone = /^09\d{9}$/.test(phone);
+    const hasMessengerId = /^\d{4,20}$/.test(rawId);
+
+    if (!hasPhone && !hasMessengerId) {
+      return res.status(400).json({
+        success: false,
+        error: `شماره موبایل را به اشتراک بگذارید`
+      });
     }
     if (await hitRateLimit(`${provider}-auth:${clientIp(req)}`, 12, 10 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'درخواست‌های ثبت‌نام بیش از حد مجاز است' });
@@ -813,11 +821,24 @@ async function messengerSignup(
     const db = await readDb();
     const field = provider === 'eitaa' ? 'eitaaId' : 'telegramId';
     const incomingName = String(req.body?.name || '').trim();
-    const existing = (db.users || []).find((u: any) => String(u[field] || '') === rawId);
+
+    // Identity is the shared mobile number; the messenger id is attached to it
+    let existing = hasPhone
+      ? (db.users || []).find((u: any) => normalizePhone(u.phone) === phone)
+      : null;
+    if (!existing && hasMessengerId) {
+      existing = (db.users || []).find((u: any) => String(u[field] || '') === rawId);
+    }
 
     if (existing) {
       if (existing.role === 'admin') {
         return res.status(403).json({ success: false, error: 'این شناسه مربوط به مدیر است' });
+      }
+      // Keep the messenger id on the account so order notifications can reach it
+      if (hasMessengerId && String(existing[field] || '') !== rawId) {
+        existing = { ...existing, [field]: rawId };
+        db.users = (db.users || []).map((u: any) => (u.id === existing.id ? existing : u));
+        await writeDb(db);
       }
       const token = await createSession(existing.id, undefined, sessionMeta(req));
       if (token) setSessionCookie(res, token);
@@ -826,9 +847,9 @@ async function messengerSignup(
 
     const newUser: any = {
       id: 'usr-' + Date.now(),
-      name: incomingName || `کاربر ${provider === 'eitaa' ? 'ایتا' : 'تلگرام'} ${rawId}`,
-      phone: '',
-      [field]: rawId,
+      name: incomingName || `کاربر ${provider === 'eitaa' ? 'ایتا' : 'تلگرام'}`,
+      phone: hasPhone ? phone : '',
+      ...(hasMessengerId ? { [field]: rawId } : {}),
       role: 'user',
       category: 'customer',
       createdAt: new Date().toLocaleDateString('fa-IR'),
@@ -3153,16 +3174,67 @@ app.post('/api/partner-invoices/:id/status', async (req, res) => {
 // Telegram Webhook Handler for Inline Buttons & Callbacks
 app.post('/api/telegram/webhook', async (req, res) => {
   try {
-    const update = req.body;
-    if (update && update.callback_query) {
-      const db = await readDb();
-      const token = db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
+    const update = req.body || {};
+    const db = await readDb();
+    const token = db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
+
+    if (update.callback_query) {
       await handleTelegramCallbackQuery(update.callback_query, token);
     }
+
+    // Phone number shared from the mini app (WebApp.requestContact)
+    const message = update.message;
+    const contact = message?.contact || update.message?.contact;
+    const fromId = String(message?.from?.id || '');
+    if (contact?.phone_number && fromId) {
+      const phone = normalizePhone(String(contact.phone_number).replace(/^\+?98/, '0'));
+      if (/^09\d{9}$/.test(phone)) {
+        const pending = { ...((db.settings || {}).pendingPhones || {}) };
+        pending[fromId] = { phone, at: Date.now() };
+        // keep only recent entries (10 minutes)
+        Object.keys(pending).forEach((key) => {
+          if (Date.now() - Number(pending[key]?.at || 0) > 10 * 60 * 1000) delete pending[key];
+        });
+        db.settings = { ...(db.settings || {}), pendingPhones: pending };
+        await writeDb(db);
+
+        if (token) {
+          await sendTelegramMessage(
+            token,
+            fromId,
+            '✅ شماره شما دریافت شد. برای تکمیل ثبت‌نام به صفحه آتلیه برگردید.'
+          );
+        }
+      }
+    }
+
     res.json({ ok: true });
   } catch (err) {
     console.error('Telegram webhook error:', err);
     res.json({ ok: true });
+  }
+});
+
+// The mini app polls this after requestContact() to collect the shared phone
+app.get('/api/auth/telegram/pending', async (req: any, res) => {
+  try {
+    const id = String(req.query?.id || '').trim();
+    if (!/^\d{4,20}$/.test(id)) {
+      return res.status(400).json({ success: false, error: 'شناسه نامعتبر است' });
+    }
+    const db = await readDb();
+    const entry = (db.settings?.pendingPhones || {})[id];
+    if (!entry?.phone || Date.now() - Number(entry.at || 0) > 10 * 60 * 1000) {
+      return res.json({ success: true, phone: null });
+    }
+    // One-time read
+    const pending = { ...((db.settings || {}).pendingPhones || {}) };
+    delete pending[id];
+    db.settings = { ...(db.settings || {}), pendingPhones: pending };
+    await writeDb(db);
+    res.json({ success: true, phone: entry.phone });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'server error' });
   }
 });
 
