@@ -174,14 +174,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   useEffect(() => {
     if (autoLoginRef.current) return;
 
-    // Eitaa: no account lookup API — ask for the phone right away
+    // Eitaa: identity is the Eitaa id only — the phone number is never requested here
     if (provider === 'eitaa') {
-      if (autoAskedRef.current) return;
-      const app = webApp();
-      if (!app?.requestContact) return;
-      autoAskedRef.current = true;
-      const timer = window.setTimeout(() => void requestPhone(), 700);
-      return () => window.clearTimeout(timer);
+      return;
     }
 
     const { initData, signinToken } = resolveIdentity();
@@ -369,6 +364,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       return;
     }
 
+    // Eitaa: only the Eitaa id is used, the phone number is never asked
+    if (provider === 'eitaa') {
+      if (!messengerId) {
+        setError('شناسه ایتا شناسایی نشد. صفحه را از داخل برنامک ایتا باز کنید.');
+        return;
+      }
+      await submitPhone('');
+      return;
+    }
+
     if (needsManualPhone) {
       const phone = normalizePhoneDigits(manualPhone);
       if (!/^09\d{9}$/.test(phone)) {
@@ -430,7 +435,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             </div>
           )}
 
-          {needsManualPhone && (
+          {provider === 'telegram' && needsManualPhone && (
             <div className="mb-3 rounded-2xl bg-white/95 border border-slate-200 px-3 py-2.5">
               <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 mb-1">
                 <Phone className="w-3.5 h-3.5 text-emerald-600" />
@@ -470,7 +475,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
             {provider === 'telegram'
               ? 'ورود با شماره موبایل ثبت‌شده در ربات یا شناسه تلگرام'
-              : copy.note}
+              : 'ورود مستقیم با شناسه ایتا — بدون شماره موبایل'}
           </p>
         </div>
       </div>
