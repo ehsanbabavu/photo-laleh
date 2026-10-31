@@ -89,6 +89,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/eitaa',
+  '/api/auth/telegram',
   '/api/auth/otp/request',
   '/api/auth/password/otp',
   '/api/auth/password/reset',
@@ -794,24 +795,29 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ success: true, user: sanitizeUser(user) });
 });
 
-// Eitaa mini-app sign-up: the Eitaa user id is the identity, no password needed
-app.post('/api/auth/eitaa', async (req: any, res) => {
+// Messenger mini-app sign-up (Eitaa / Telegram): the messenger user id is the identity
+async function messengerSignup(
+  req: any,
+  res: any,
+  provider: 'eitaa' | 'telegram'
+) {
   try {
-    const rawId = String(req.body?.eitaaId ?? '').trim();
+    const rawId = String(req.body?.userId ?? req.body?.eitaaId ?? req.body?.telegramId ?? '').trim();
     if (!/^\d{4,20}$/.test(rawId)) {
-      return res.status(400).json({ success: false, error: 'شناسه ایتا معتبر نیست' });
+      return res.status(400).json({ success: false, error: `شناسه ${provider === 'eitaa' ? 'ایتا' : 'تلگرام'} معتبر نیست` });
     }
-    if (await hitRateLimit(`eitaa-auth:${clientIp(req)}`, 12, 10 * 60 * 1000)) {
+    if (await hitRateLimit(`${provider}-auth:${clientIp(req)}`, 12, 10 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'درخواست‌های ثبت‌نام بیش از حد مجاز است' });
     }
 
     const db = await readDb();
-    const eitaaName = String(req.body?.name || '').trim();
-    const existing = (db.users || []).find((u: any) => String(u.eitaaId || '') === rawId);
+    const field = provider === 'eitaa' ? 'eitaaId' : 'telegramId';
+    const incomingName = String(req.body?.name || '').trim();
+    const existing = (db.users || []).find((u: any) => String(u[field] || '') === rawId);
 
     if (existing) {
       if (existing.role === 'admin') {
-        return res.status(403).json({ success: false, error: 'این شناسه ایتا مربوط به مدیر است' });
+        return res.status(403).json({ success: false, error: 'این شناسه مربوط به مدیر است' });
       }
       const token = await createSession(existing.id, undefined, sessionMeta(req));
       if (token) setSessionCookie(res, token);
@@ -820,15 +826,15 @@ app.post('/api/auth/eitaa', async (req: any, res) => {
 
     const newUser: any = {
       id: 'usr-' + Date.now(),
-      name: eitaaName || `کاربر ایتا ${rawId}`,
+      name: incomingName || `کاربر ${provider === 'eitaa' ? 'ایتا' : 'تلگرام'} ${rawId}`,
       phone: '',
-      eitaaId: rawId,
+      [field]: rawId,
       role: 'user',
       category: 'customer',
       createdAt: new Date().toLocaleDateString('fa-IR'),
       walletBalance: 100000,
       hasUsedFirstOrderGift: false,
-      registeredVia: 'eitaa'
+      registeredVia: provider
     };
 
     db.users = [...(db.users || []), newUser];
@@ -840,7 +846,10 @@ app.post('/api/auth/eitaa', async (req: any, res) => {
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
   }
-});
+}
+
+app.post('/api/auth/eitaa', (req: any, res) => messengerSignup(req, res, 'eitaa'));
+app.post('/api/auth/telegram', (req: any, res) => messengerSignup(req, res, 'telegram'));
 
 // Send a one-time code with the api.ir SMS service
 async function sendOtpSms(phone: string): Promise<{ ok: boolean; error?: string }> {
