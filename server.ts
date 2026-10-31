@@ -1247,8 +1247,25 @@ app.post('/api/orders', async (req, res) => {
     });
   }
 
+  // Notify Eitaa-registered customers once, right after a successful order
+  let eitaaNotified: { attempted: boolean; ok: boolean; error?: string } = { attempted: false, ok: false };
+  if (isNew) {
+    const ownerId = String(newOrder.userId || req.currentUser?.id || '');
+    const owner = ownerId ? (db.users || []).find((u: any) => u.id === ownerId) : null;
+    eitaaNotified = await notifyEitaaOrderCreated(db, newOrder, owner);
+    if (eitaaNotified.ok) {
+      const at = new Date().toISOString();
+      db.orders = (db.orders || []).map((o: any) => (o.id === newOrder.id ? { ...o, eitaaNotifiedAt: at } : o));
+    }
+  }
+
   await writeDb(db);
-  res.json({ success: true, order: newOrder, user: updatedUser ? sanitizeUser(updatedUser) : null });
+  res.json({
+    success: true,
+    order: newOrder,
+    user: updatedUser ? sanitizeUser(updatedUser) : null,
+    eitaaNotified: eitaaNotified.attempted ? eitaaNotified.ok : null
+  });
 });
 
 app.put('/api/orders/:id', async (req, res) => {
@@ -2601,6 +2618,55 @@ async function sendEitaaMessage(
     return { ok: false, error: result?.description || result?.result || `HTTP ${response.status}` };
   } catch (err: any) {
     return { ok: false, error: err?.message || 'eitaa network error' };
+  }
+}
+
+/** Formats a Toman amount with Persian digits. */
+function tomanLabel(value: any): string {
+  return `${new Intl.NumberFormat('fa-IR').format(Math.round(Number(value) || 0))} تومان`;
+}
+
+/**
+ * Sends «order registered» + tracking code to a customer who signed up with
+ * their Eitaa id. Never blocks or breaks the order itself.
+ */
+async function notifyEitaaOrderCreated(db: any, order: any, user: any) {
+  const eitaaId = String(user?.eitaaId || '').trim();
+  if (!eitaaId) return { attempted: false, ok: false as boolean };
+  const token = String((db.settings || {}).eitaaToken || process.env.EITAA_TOKEN || '').trim();
+  if (!token) return { attempted: false, ok: false as boolean };
+
+  const details = order?.invoiceDetails || {};
+  const statusLabel = {
+    pending_review: 'در انتظار بررسی',
+    ai_processing: 'در حال پردازش تصویر',
+    printing: 'در حال چاپ',
+    ready_to_ship: 'آماده ارسال',
+    delivered: 'تحویل شده'
+  }[String(order?.status || 'pending_review')] || 'در انتظار بررسی';
+
+  const text = [
+    '✅ سفارش شما با موفقیت ثبت شد',
+    '',
+    `🔖 کد پیگیری: ${order?.trackingCode || order?.id || '-'}`,
+    details.printTypeTitle
+      ? `🖼 ${details.printTypeTitle}${details.dimensionTitle ? ` — ${details.dimensionTitle}` : ''}`
+      : null,
+    `🔢 تعداد: ${order?.quantity || 1} سری`,
+    `💳 مبلغ: ${tomanLabel(order?.totalPrice)}`,
+    `📦 وضعیت: ${statusLabel}`,
+    '',
+    'برای پیگیری، وارد پنل کاربری → سفارشات شوید.',
+    'آتلیه دیجیتال لاله'
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  try {
+    const result = await sendEitaaMessage(token, eitaaId, text);
+    return { attempted: true, ok: result.ok, error: result.error };
+  } catch (err: any) {
+    return { attempted: true, ok: false, error: err?.message || 'eitaa error' };
   }
 }
 
