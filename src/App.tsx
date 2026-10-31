@@ -27,7 +27,7 @@ import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings'
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
 import { AdminTransport } from './components/admin/AdminTransport';
-import { EitaaLanding } from './components/EitaaLanding';
+import { EitaaLanding, TelegramLanding } from './components/EitaaLanding';
 import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
@@ -68,8 +68,15 @@ export default function App() {
 
   // Active view + tabs are derived from the URL so a refresh keeps the page
   const initialRoute = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { view: 'user' as const, tab: 'dashboard' };
-  const [isEitaaPage, setIsEitaaPage] = useState<boolean>(
-    typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/eitaa'
+  // Public messenger sign-up screens: /eitaa and /telegram
+  const messengerPageFromPath = (path: string): 'eitaa' | 'telegram' | null => {
+    const clean = (path || '').replace(/\/+$/, '');
+    if (clean === '/eitaa') return 'eitaa';
+    if (clean === '/telegram') return 'telegram';
+    return null;
+  };
+  const [messengerPage, setMessengerPage] = useState<'eitaa' | 'telegram' | null>(() =>
+    typeof window !== 'undefined' ? messengerPageFromPath(window.location.pathname) : null
   );
   const [activeView, setActiveView] = useState<'admin' | 'user'>(initialRoute.view);
   const [adminTab, setAdminTab] = useState<AdminTab>(
@@ -197,17 +204,17 @@ export default function App() {
 
   // Keep the address bar in sync with the selected page
   React.useEffect(() => {
-    if (isAuthChecking || !currentUser || isEitaaPage) return;
+    if (isAuthChecking || !currentUser || messengerPage) return;
     const target = routeToPath(activeView, activeView === 'admin' ? adminTab : userTab);
     if (window.location.pathname !== target) {
       window.history.pushState({}, '', target);
     }
-  }, [activeView, adminTab, userTab, currentUser, isAuthChecking, isEitaaPage]);
+  }, [activeView, adminTab, userTab, currentUser, isAuthChecking, messengerPage]);
 
   // Browser back / forward
   React.useEffect(() => {
     const onPopState = () => {
-      setIsEitaaPage(window.location.pathname.replace(/\/+$/, '') === '/eitaa');
+      setMessengerPage(messengerPageFromPath(window.location.pathname));
       const route = parseRoute(window.location.pathname);
       if (route.view === 'admin') {
         setAdminTab(route.tab as AdminTab);
@@ -828,19 +835,20 @@ export default function App() {
     });
   }, []);
 
-  // Eitaa mini-app sign-up page (/eitaa) — one screen, one action
-  if (isEitaaPage) {
-    return (
-      <EitaaLanding
-        onEnter={(user) => {
-          setCurrentUser(user as User);
-          setIsEitaaPage(false);
-          setShowAuth(false);
-          setActiveView('user');
-          setUserTab('dashboard');
-          window.history.pushState({}, '', '/user/dashboard');
-        }}
-      />
+  // Messenger sign-up pages (/eitaa and /telegram) — one screen, one action
+  if (messengerPage) {
+    const handleEnter = (user: User) => {
+      setCurrentUser(user);
+      setMessengerPage(null);
+      setShowAuth(false);
+      setActiveView('user');
+      setUserTab('dashboard');
+      window.history.pushState({}, '', '/user/dashboard');
+    };
+    return messengerPage === 'telegram' ? (
+      <TelegramLanding onEnter={handleEnter} />
+    ) : (
+      <EitaaLanding onEnter={handleEnter} />
     );
   }
 
