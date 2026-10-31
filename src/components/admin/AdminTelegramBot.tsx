@@ -35,7 +35,17 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [eitaaTokenValue, setEitaaTokenValue] = useState(eitaaToken);
   const [isTestingEitaa, setIsTestingEitaa] = useState(false);
-  const [eitaaResult, setEitaaResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [eitaaResult, setEitaaResult] = useState<{
+    success: boolean;
+    message: string;
+    diagnostics?: {
+      httpStatus?: number;
+      tokenLength?: number;
+      hasColon?: boolean;
+      cleanedInvisibleChars?: boolean;
+      attempts?: { url: string; http: number; description: string }[];
+    };
+  } | null>(null);
 
   const handleTest = async () => {
     setTestResult(null);
@@ -221,6 +231,23 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
           </div>
         )}
 
+        {eitaaResult && !eitaaResult.success && eitaaResult.diagnostics && (
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[10px] text-slate-600 space-y-1" dir="ltr">
+            <p className="font-mono">
+              http={String(eitaaResult.diagnostics.httpStatus ?? '—')} • len=
+              {String(eitaaResult.diagnostics.tokenLength ?? '—')} • colon=
+              {String(eitaaResult.diagnostics.hasColon ?? '—')} • cleaned=
+              {String(eitaaResult.diagnostics.cleanedInvisibleChars ?? '—')}
+            </p>
+            {Array.isArray(eitaaResult.diagnostics.attempts) &&
+              eitaaResult.diagnostics.attempts.map((attempt, index) => (
+                <p key={index} className="font-mono truncate">
+                  {attempt.http || 'ERR'} — {attempt.description || '—'}
+                </p>
+              ))}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-4 border-t border-slate-100">
           <button
             type="button"
@@ -241,7 +268,16 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
                 const data: any = await res.json().catch(() => null);
                 setEitaaResult({
                   success: Boolean(data?.success),
-                  message: data?.success ? data?.message || 'اتصال موفق بود' : data?.error || 'تست اتصال ناموفق بود'
+                  message: data?.success ? data?.message || 'اتصال موفق بود' : data?.error || 'تست اتصال ناموفق بود',
+                  diagnostics: data?.success
+                    ? undefined
+                    : {
+                        httpStatus: data?.httpStatus,
+                        tokenLength: data?.tokenLength,
+                        hasColon: data?.hasColon,
+                        cleanedInvisibleChars: data?.cleanedInvisibleChars,
+                        attempts: Array.isArray(data?.attempts) ? data.attempts : undefined
+                      }
                 });
               } catch {
                 setEitaaResult({ success: false, message: 'خطا در تست اتصال' });
