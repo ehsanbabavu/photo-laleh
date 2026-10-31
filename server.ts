@@ -2384,9 +2384,18 @@ function normalizeEitaaToken(raw: any): string {
     .trim();
 }
 
-/** Builds `https://eitaayar.ir/api/<token>/<method>` with a safe token segment. */
+/**
+ * Builds `https://eitaayar.ir/api/<token>/<method>`.
+ * Only characters that really break a URL path are escaped — eitaayar compares
+ * the raw path segment, so a token like `bot123:ABC` must keep its colon.
+ */
+function eitaaPathToken(token: any): string {
+  const clean = normalizeEitaaToken(token).replace(/^["'`]+|["'`]+$/g, '');
+  return clean.replace(/[%\/?#\s]/g, (ch) => encodeURIComponent(ch));
+}
+
 function eitaaUrl(token: any, method: string): string {
-  return `${EITAA_API_BASE}/${encodeURIComponent(normalizeEitaaToken(token))}/${method}`;
+  return `${EITAA_API_BASE}/${eitaaPathToken(token)}/${method}`;
 }
 
 function nowFaFull(): string {
@@ -2560,18 +2569,44 @@ app.post('/api/eitaa/test', async (req, res) => {
       return res.json({ success: false, error: 'توکن ایتایار را وارد کنید.' });
     }
 
-    // eitaayar accepts both GET and POST for most methods — try GET, then POST
+    // Try the common variants: raw path (colon kept) / fully-encoded, GET / POST
+    const escapes: string[] = [
+      `${EITAA_API_BASE}/${eitaaPathToken(token)}/getMe`,
+      `${EITAA_API_BASE}/${encodeURIComponent(normalizeEitaaToken(token))}/getMe`
+    ];
+    const attempts: { url: string; http: number; description: string }[] = [];
+    const maskUrl = (url: string) =>
+      url
+        .split(normalizeEitaaToken(token)).join('***')
+        .split(encodeURIComponent(normalizeEitaaToken(token))).join('***');
     let status = 0;
     let payload: any = null;
-    for (const method of ['GET', 'POST'] as const) {
-      try {
-        const response = await fetch(eitaaUrl(token, 'getMe'), { method });
-        status = response.status;
-        payload = await response.json().catch(() => null);
-        if (payload?.ok) break;
-      } catch (err: any) {
-        payload = { ok: false, description: err?.message || 'eitaa network error' };
+
+    for (const url of escapes) {
+      for (const method of ['GET', 'POST'] as const) {
+        try {
+          const response = await fetch(url, { method });
+          status = response.status;
+          const body: any = await response.json().catch(() => null);
+          attempts.push({
+            url: maskUrl(url),
+            http: response.status,
+            description: String(body?.description || body?.error_code || '')
+          });
+          if (body?.ok) {
+            payload = body;
+            break;
+          }
+          if (!payload) payload = body;
+        } catch (err: any) {
+          attempts.push({
+            url: maskUrl(url),
+            http: 0,
+            description: err?.message || 'network error'
+          });
+        }
       }
+      if (payload?.ok) break;
     }
 
     if (payload?.ok) {
@@ -2587,8 +2622,11 @@ app.post('/api/eitaa/test', async (req, res) => {
         `توکن نامعتبر است یا دسترسی ندارد (HTTP ${status})`,
       // Diagnostics only: never echo the token itself
       tokenLength: token.length,
+      tokenPreview: `${token.slice(0, 4)}…${token.slice(-2)}`,
+      hasColon: token.includes(':'),
       cleanedInvisibleChars: rawToken !== token && rawToken.trim() !== token,
       httpStatus: status,
+      attempts,
       details: payload
     });
   } catch (err: any) {
