@@ -952,7 +952,16 @@ app.post('/api/auth/telegram/session', async (req: any, res) => {
     }
 
     if (!telegramId) {
-      return res.status(401).json({ success: false, error: 'شناسه تلگرام قابل تشخیص نیست' });
+      return res.status(401).json({
+        success: false,
+        error: 'شناسه تلگرام قابل تشخیص نیست',
+        diagnostics: {
+          hasInitData: Boolean(initData),
+          initDataValid: Boolean(initData && botToken && verifyTelegramInitData(initData, botToken).ok),
+          hasBotToken: Boolean(botToken),
+          hasSigninToken: Boolean(String(req.body?.signinToken || req.query?.t || '').trim())
+        }
+      });
     }
 
     let user = (db.users || []).find((u: any) => String(u.telegramId || '') === telegramId);
