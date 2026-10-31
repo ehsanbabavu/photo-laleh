@@ -91,6 +91,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/eitaa',
   '/api/auth/telegram',
   '/api/auth/telegram/pending',
+  '/api/auth/telegram/session',
   '/api/auth/otp/request',
   '/api/auth/password/otp',
   '/api/auth/password/reset',
@@ -869,6 +870,116 @@ async function messengerSignup(
     res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
   }
 }
+
+/** Verifies Telegram WebApp initData against the bot token (official algorithm). */
+function verifyTelegramInitData(initData: string, botToken: string): { ok: boolean; userId?: string; name?: string } {
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash') || '';
+    if (!hash) return { ok: false };
+    params.delete('hash');
+    const dataCheckString = [...params.entries()]
+      .map(([key, value]) => `${key}=${value}`)
+      .sort()
+      .join('\n');
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+    const computed = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    if (computed !== hash) return { ok: false };
+
+    const userRaw = params.get('user');
+    if (!userRaw) return { ok: false };
+    const user = JSON.parse(userRaw);
+    if (!user?.id) return { ok: false };
+    return {
+      ok: true,
+      userId: String(user.id),
+      name: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Creates a short-lived one-time token that identifies a Telegram user inside the mini app. */
+async function issueTelegramSigninToken(telegramId: string): Promise<string> {
+  const db = await readDb();
+  const token = crypto.randomBytes(18).toString('hex');
+  const tokens = { ...((db.settings || {}).telegramSigninTokens || {}) };
+  Object.keys(tokens).forEach((key) => {
+    if (Date.now() - Number(tokens[key]?.at || 0) > 30 * 60 * 1000) delete tokens[key];
+  });
+  tokens[token] = { telegramId: String(telegramId), at: Date.now() };
+  db.settings = { ...(db.settings || {}), telegramSigninTokens: tokens };
+  await writeDb(db);
+  return token;
+}
+
+async function resolveTelegramSigninToken(token: string): Promise<string | null> {
+  const db = await readDb();
+  const entry = (db.settings?.telegramSigninTokens || {})[token];
+  if (!entry?.telegramId) return null;
+  if (Date.now() - Number(entry.at || 0) > 30 * 60 * 1000) return null;
+  return String(entry.telegramId);
+}
+
+// Identity for the mini app: verified initData, or a one-time token from the bot
+app.post('/api/auth/telegram/session', async (req: any, res) => {
+  try {
+    const db = await readDb();
+    const botToken = String(db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+
+    let telegramId = '';
+    let name = '';
+
+    const initData = String(req.body?.initData || '').trim();
+    if (initData && botToken) {
+      const verified = verifyTelegramInitData(initData, botToken);
+      if (verified.ok) {
+        telegramId = verified.userId || '';
+        name = verified.name || '';
+      }
+    }
+    if (!telegramId) {
+      const signin = String(req.body?.signinToken || req.query?.t || '').trim();
+      if (signin) {
+        const resolved = await resolveTelegramSigninToken(signin);
+        if (resolved) telegramId = resolved;
+      }
+    }
+    if (!telegramId) {
+      const direct = String(req.body?.telegramId || '').trim();
+      if (/^\d{4,20}$/.test(direct)) telegramId = direct;
+    }
+
+    if (!telegramId) {
+      return res.status(401).json({ success: false, error: 'شناسه تلگرام قابل تشخیص نیست' });
+    }
+
+    let user = (db.users || []).find((u: any) => String(u.telegramId || '') === telegramId);
+    if (!user) {
+      user = {
+        id: 'usr-' + Date.now(),
+        name: name || 'کاربر تلگرام',
+        phone: '',
+        telegramId,
+        role: 'user',
+        category: 'customer',
+        createdAt: new Date().toLocaleDateString('fa-IR'),
+        walletBalance: 100000,
+        hasUsedFirstOrderGift: false,
+        registeredVia: 'telegram'
+      };
+      db.users = [...(db.users || []), user];
+      await writeDb(db);
+    }
+
+    const sessionToken = await createSession(user.id, undefined, sessionMeta(req));
+    if (sessionToken) setSessionCookie(res, sessionToken);
+    res.json({ success: true, user: sanitizeUser(user), telegramId });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'server error' });
+  }
+});
 
 app.post('/api/auth/eitaa', (req: any, res) => messengerSignup(req, res, 'eitaa'));
 app.post('/api/auth/telegram', (req: any, res) => messengerSignup(req, res, 'telegram'));
@@ -3242,8 +3353,20 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
     }
   }
 
-  // --- B) Any text (/start …) → ask for the phone with one tap, automatically ---
+  // --- B) Any text (/start …) → sign-in link + phone request (one tap) ---
   if (message.text && botToken) {
+    // A one-time token lets the mini app know who this chat belongs to, even when
+    // Telegram opens the page without WebApp initData.
+    let signinQuery = '';
+    if (fromId) {
+      try {
+        const tokenValue = await issueTelegramSigninToken(fromId);
+        signinQuery = `?t=${tokenValue}`;
+      } catch {
+        /* ignore */
+      }
+    }
+    const miniAppUrl = `${publicBaseUrl(req)}/telegram${signinQuery}`;
     // Telegram never lets a bot read a phone without a user gesture, so the
     // keyboard is shown immediately: one tap sends the number, nothing to type.
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -3254,6 +3377,20 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
         text:
           'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
           'برای ثبت‌نام خودکار و دریافت کد پیگیری سفارش، دکمه «📱 ارسال شماره موبایل» را بزنید.',
+        reply_markup: {
+          inline_keyboard: [[{ text: '🚀 ورود / ثبت‌نام در آتلیه', web_app: { url: miniAppUrl } }]]
+        }
+      })
+    }).catch(() => undefined);
+
+    // Second message: the one-tap phone request (a reply keyboard cannot be
+    // combined with an inline keyboard in the same message).
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: 'برای دریافت کد پیگیری سفارش، شماره موبایل خود را با یک لمس بفرستید 👇',
         reply_markup: {
           keyboard: [[{ text: '📱 ارسال شماره موبایل', request_contact: true }]],
           resize_keyboard: true,
