@@ -2326,9 +2326,7 @@ async function pollTelegramUpdates() {
     if (data.ok && Array.isArray(data.result)) {
       for (const update of data.result) {
         lastTelegramUpdateId = Math.max(lastTelegramUpdateId, update.update_id);
-        if (update.callback_query) {
-          await handleTelegramCallbackQuery(update.callback_query, token);
-        }
+        await handleTelegramUpdate(update, token);
       }
     }
   } catch (err) {
@@ -3172,49 +3170,69 @@ app.post('/api/partner-invoices/:id/status', async (req, res) => {
 });
 
 // Telegram Webhook Handler for Inline Buttons & Callbacks
-app.post('/api/telegram/webhook', async (req, res) => {
-  try {
-    const update = req.body || {};
-    const db = await readDb();
-    const token = db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
+/** Public base URL for links we send from the bot (webhook or polling). */
+function publicBaseUrl(req?: any): string {
+  if (req) {
+    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+    const host = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
+    if (host) return `${proto}://${host}`;
+  }
+  return String(process.env.PUBLIC_BASE_URL || 'https://photo-laleh.vercel.app').replace(/\/+$/, '');
+}
 
-    if (update.callback_query) {
-      await handleTelegramCallbackQuery(update.callback_query, token);
-    }
+/**
+ * One entry point for every Telegram update, used by both the webhook and the
+ * getUpdates poller, so nothing is missed whichever transport is active.
+ */
+async function handleTelegramUpdate(update: any, token: string, req?: any) {
+  if (!update) return;
 
-    const message = update.message;
-    const contact = message?.contact;
-    const fromId = String(message?.from?.id || '');
-    const chatId = String(message?.chat?.id || fromId);
-    const fromName = `${message?.from?.first_name || ''} ${message?.from?.last_name || ''}`.trim();
+  const db = await readDb();
+  const botToken = token || db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '';
 
-    // --- 1) The user shared a phone number with the bot ---
-    if (contact?.phone_number && fromId) {
-      const phone = normalizePhone(String(contact.phone_number).replace(/^\+?98/, '0'));
-      if (/^09\d{9}$/.test(phone)) {
-        // Keep it available for the signup page (one-time, 10 min)
-        const pending = { ...((db.settings || {}).pendingPhones || {}) };
-        pending[fromId] = { phone, at: Date.now() };
-        Object.keys(pending).forEach((key) => {
-          if (Date.now() - Number(pending[key]?.at || 0) > 10 * 60 * 1000) delete pending[key];
-        });
-        db.settings = { ...(db.settings || {}), pendingPhones: pending };
+  if (update.callback_query) {
+    await handleTelegramCallbackQuery(update.callback_query, botToken);
+    return;
+  }
 
-        // …and attach it to the matching customer account (or create one)
-        let owner = (db.users || []).find((u: any) => String(u.telegramId || '') === fromId);
-        if (!owner) {
-          owner = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
-        }
-        if (owner) {
-          const updated = {
-            ...owner,
-            telegramId: fromId,
-            phone: normalizePhone(owner.phone) ? owner.phone : phone,
-            phoneVerifiedAt: new Date().toISOString()
-          };
-          db.users = (db.users || []).map((u: any) => (u.id === owner.id ? updated : u));
-        } else {
-          const created: any = {
+  const message = update.message;
+  if (!message) return;
+
+  const fromId = String(message.from?.id || '');
+  const chatId = String(message.chat?.id || fromId);
+  const fromName = `${message.from?.first_name || ''} ${message.from?.last_name || ''}`.trim();
+  const contact = message.contact;
+  const signupUrl = `${publicBaseUrl(req)}/telegram`;
+
+  // --- A) The user attached a contact (Attach → Contact) or shared it ---
+  if (contact?.phone_number) {
+    const raw = String(contact.phone_number).replace(/[^\d+]/g, '');
+    const phone = normalizePhone(raw.replace(/^\+?98/, '0'));
+    if (/^09\d{9}$/.test(phone)) {
+      // Reserve for the signup page (one-time, 10 minutes)
+      const pending = { ...((db.settings || {}).pendingPhones || {}) };
+      if (fromId) pending[fromId] = { phone, at: Date.now() };
+      Object.keys(pending).forEach((key) => {
+        if (Date.now() - Number(pending[key]?.at || 0) > 10 * 60 * 1000) delete pending[key];
+      });
+      db.settings = { ...(db.settings || {}), pendingPhones: pending };
+
+      // Attach to the matching customer (by telegram id, then by phone)
+      let owner = (db.users || []).find((u: any) => String(u.telegramId || '') === fromId);
+      if (!owner) owner = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+
+      if (owner) {
+        const updated = {
+          ...owner,
+          telegramId: fromId || owner.telegramId,
+          phone: normalizePhone(owner.phone) ? owner.phone : phone,
+          phoneVerifiedAt: new Date().toISOString()
+        };
+        db.users = (db.users || []).map((u: any) => (u.id === owner.id ? updated : u));
+      } else {
+        db.users = [
+          ...(db.users || []),
+          {
             id: 'usr-' + Date.now(),
             name: fromName || 'کاربر تلگرام',
             phone,
@@ -3226,64 +3244,63 @@ app.post('/api/telegram/webhook', async (req, res) => {
             hasUsedFirstOrderGift: false,
             registeredVia: 'telegram',
             phoneVerifiedAt: new Date().toISOString()
-          };
-          db.users = [...(db.users || []), created];
-        }
-        await writeDb(db);
-
-        if (token) {
-          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: '✅ شماره موبایل شما ثبت شد.\nاز این پس می‌توانید سفارش‌ها و کد پیگیری را همین‌جا دریافت کنید.',
-              reply_markup: { remove_keyboard: true }
-            })
-          }).catch(() => undefined);
-        }
+          }
+        ];
       }
-    } else if (message?.text && token) {
-      // --- 2) Any command (/start, /phone …) answers with an in-chat button ---
-      // Inline keyboards cannot request a contact, so the button opens the
-      // mini-app right inside the chat where the phone is shared natively.
-      const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
-      const host = String(req.headers['x-forwarded-host'] || req.get('host') || 'photo-laleh.vercel.app')
-        .split(',')[0]
-        .trim();
-      const signupUrl = `${proto}://${host}/telegram`;
+      await writeDb(db);
 
-      const text =
-        'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
-        'برای ثبت‌نام، دریافت کد پیگیری سفارش و پیگیری وضعیت، دکمه زیر را بزنید.';
-
-      const sendPrompt = async (button: Record<string, unknown>) =>
-        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      if (botToken) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: chatId,
-            text,
-            reply_markup: { inline_keyboard: [[button]] }
+            text:
+              '✅ شماره موبایل شما ثبت شد.\n' +
+              'از این پس سفارش‌ها و کد پیگیری همین‌جا برایتان ارسال می‌شود.',
+            reply_markup: { remove_keyboard: true }
           })
-        })
-          .then(async (response) => ({ ok: response.ok, body: await response.text().catch(() => '') }))
-          .catch(() => ({ ok: false, body: '' }));
-
-      // 1) native in-chat mini app button, 2) in-chat browser link, 3) plain text
-      let sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', web_app: { url: signupUrl } });
-      if (!sent.ok) {
-        sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', url: signupUrl });
-      }
-      if (!sent.ok) {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: `${text}\n\n${signupUrl}` })
         }).catch(() => undefined);
       }
+      return;
     }
+  }
 
+  // --- B) Plain text/commands → in-chat signup button ---
+  if (message.text && botToken) {
+    const text =
+      'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
+      'برای ثبت‌نام، دریافت کد پیگیری سفارش و پیگیری وضعیت، دکمه زیر را بزنید.\n' +
+      'همچنین می‌توانید از منوی 📎 → Contact شماره موبایل خود را بفرستید.';
+
+    const sendPrompt = async (button: Record<string, unknown>) =>
+      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          reply_markup: { inline_keyboard: [[button]] }
+        })
+      })
+        .then(async (response) => ({ ok: response.ok }))
+        .catch(() => ({ ok: false }));
+
+    let sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', web_app: { url: signupUrl } });
+    if (!sent.ok) sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', url: signupUrl });
+    if (!sent.ok) {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: `${text}\n\n${signupUrl}` })
+      }).catch(() => undefined);
+    }
+  }
+}
+
+app.post('/api/telegram/webhook', async (req, res) => {
+  try {
+    await handleTelegramUpdate(req.body || {}, '', req);
     res.json({ ok: true });
   } catch (err) {
     console.error('Telegram webhook error:', err);
