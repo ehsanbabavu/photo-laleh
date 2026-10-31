@@ -103,6 +103,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   const [needsManualPhone, setNeedsManualPhone] = useState(false);
   const [inMessenger, setInMessenger] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const pollRef = useRef<number | null>(null);
@@ -156,18 +157,61 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   }, [provider]);
 
 
-  // Automatic phone request: opening the page inside the messenger triggers the
-  // native «share number» popup right away — no extra tap needed.
+  // Opening the page: if the messenger already knows this user, log them in
+  // silently — the signup screen is only shown when no account exists.
   const autoAskedRef = useRef(false);
+  const autoLoginRef = useRef(false);
+
+  const resolveIdentity = () => {
+    const initData = (webApp() as any)?.initData || '';
+    const signinToken =
+      new URLSearchParams(window.location.search).get('t') ||
+      (webApp() as any)?.initDataUnsafe?.start_param ||
+      '';
+    return { initData: String(initData), signinToken: String(signinToken || '') };
+  };
+
   useEffect(() => {
-    if (autoAskedRef.current) return;
-    const app = webApp();
-    if (!app?.requestContact) return;
-    autoAskedRef.current = true;
-    const timer = window.setTimeout(() => {
-      void requestPhone();
-    }, 700);
-    return () => window.clearTimeout(timer);
+    if (autoLoginRef.current) return;
+
+    // Eitaa: no account lookup API — ask for the phone right away
+    if (provider === 'eitaa') {
+      if (autoAskedRef.current) return;
+      const app = webApp();
+      if (!app?.requestContact) return;
+      autoAskedRef.current = true;
+      const timer = window.setTimeout(() => void requestPhone(), 700);
+      return () => window.clearTimeout(timer);
+    }
+
+    const { initData, signinToken } = resolveIdentity();
+    const hasIdentity = Boolean(initData || signinToken || messengerId);
+    if (!hasIdentity) return;
+
+    autoLoginRef.current = true;
+    setIsAutoLoggingIn(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/telegram/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            initData,
+            signinToken,
+            telegramId: messengerId || undefined,
+            createIfMissing: false
+          })
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data?.user) {
+          onEnter(data.user as User);
+          return;
+        }
+      } catch {
+        /* fall through to the signup screen */
+      }
+      setIsAutoLoggingIn(false);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, messengerId]);
 
@@ -327,6 +371,15 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     }
     await requestPhone();
   };
+
+  if (isAutoLoggingIn) {
+    return (
+      <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center gap-3 bg-[#f7efe6]">
+        <Loader2 className="w-7 h-7 animate-spin text-emerald-600" />
+        <p className="text-xs font-bold text-slate-600">در حال ورود به حساب…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#f7efe6]">
