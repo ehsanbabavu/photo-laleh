@@ -163,7 +163,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     if (autoAskedRef.current) return;
     const app = webApp();
     if (!app?.requestContact) return;
-    if (provider === 'telegram' && !messengerId) return;
     autoAskedRef.current = true;
     const timer = window.setTimeout(() => {
       void requestPhone();
@@ -292,10 +291,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
-        setError(
-          data?.error ||
-            'آیدی تلگرام شناسایی نشد. صفحه را از دکمه «ورود / ثبت‌نام» داخل ربات باز کنید.'
-        );
+        // No Telegram identity available → the shared phone number is the identity
+        setIsSubmitting(false);
+        setNeedsManualPhone(true);
+        await requestPhone();
         return;
       }
       onEnter(data.user as User);
@@ -407,7 +406,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
 
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[10px] leading-5 text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
-            {copy.note}
+            {provider === 'telegram'
+              ? 'ورود با شماره موبایل ثبت‌شده در ربات یا شناسه تلگرام'
+              : copy.note}
           </p>
         </div>
       </div>
