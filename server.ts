@@ -805,7 +805,8 @@ async function messengerSignup(
   provider: 'eitaa' | 'telegram'
 ) {
   try {
-    const phone = normalizePhone(req.body?.phone ?? '');
+    // The Eitaa sign-up page is id-only: ignore any phone it might send.
+    const phone = provider === 'eitaa' ? '' : normalizePhone(req.body?.phone ?? '');
     const rawId = String(req.body?.userId ?? req.body?.eitaaId ?? req.body?.telegramId ?? '').trim();
     const hasPhone = /^09\d{9}$/.test(phone);
     const hasMessengerId = /^\d{4,20}$/.test(rawId);
@@ -813,7 +814,10 @@ async function messengerSignup(
     if (!hasPhone && !hasMessengerId) {
       return res.status(400).json({
         success: false,
-        error: `شماره موبایل را به اشتراک بگذارید`
+        error:
+          provider === 'eitaa'
+            ? 'شناسه ایتا قابل تشخیص نیست. صفحه را از داخل برنامک ایتا باز کنید.'
+            : 'شماره موبایل را به اشتراک بگذارید'
       });
     }
     if (await hitRateLimit(`${provider}-auth:${clientIp(req)}`, 12, 10 * 60 * 1000)) {
