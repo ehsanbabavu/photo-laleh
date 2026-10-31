@@ -35,6 +35,7 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [eitaaTokenValue, setEitaaTokenValue] = useState(eitaaToken);
   const [isTestingEitaa, setIsTestingEitaa] = useState(false);
+  const [eitaaTestChatId, setEitaaTestChatId] = useState('');
   const [eitaaResult, setEitaaResult] = useState<{
     success: boolean;
     message: string;
@@ -205,12 +206,32 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
             value={eitaaTokenValue}
             onChange={(e) => setEitaaTokenValue(e.target.value)}
             dir="ltr"
-            placeholder="bot12345:xxxxxxxx-xxxx-xxxx"
+            placeholder="123456789:AAxxxxxxxxxxxxxxxxxx"
             className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-mono"
           />
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            توکن را از پنل eitaayar.ir بگیرید. سفارش‌ها فقط برای همکارانی ارسال می‌شود که شناسه ایتا
-            دارند.
+            توکن را از پنل <b>eitaayar.ir</b> (بخش برنامه‌ها) بگیرید؛ قالب آن{' '}
+            <span className="font-mono" dir="ltr">123456789:AA…</span> است. ارسال پیام فقط برای
+            کاربرانی ممکن است که برنامه/ربات را استارت کرده باشند.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+            <span>شناسه ایتای تست (اختیاری)</span>
+          </label>
+          <input
+            type="text"
+            value={eitaaTestChatId}
+            onChange={(e) => setEitaaTestChatId(e.target.value)}
+            dir="ltr"
+            placeholder="مثال: 279058397"
+            className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-mono"
+          />
+          <p className="text-[10px] text-slate-500 leading-relaxed">
+            ایتا متد getMe ندارد؛ برای تست واقعی، شناسه ایتای خودت را بگذار تا یک پیام تست برایت
+            ارسال شود.
           </p>
         </div>
 
@@ -263,7 +284,7 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
                 const res = await fetch('/api/eitaa/test', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token: normalizeToken(eitaaTokenValue) })
+                  body: JSON.stringify({ token: normalizeToken(eitaaTokenValue), chatId: eitaaTestChatId.trim() })
                 });
                 const data: any = await res.json().catch(() => null);
                 setEitaaResult({
