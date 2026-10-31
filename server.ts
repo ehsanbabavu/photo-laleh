@@ -2574,17 +2574,20 @@ app.post('/api/eitaa/test', async (req: any, res) => {
       });
     }
 
-    // Chat id: what the admin typed, otherwise the one saved on his own account
-    let chatId = String(req.body?.chatId || '').trim();
-    if (!chatId) {
-      const selfId = String(req.currentUser?.eitaaId || '').trim();
-      if (selfId) chatId = selfId;
-    }
+    // The test chat id is mandatory: Eitaa has no getMe, so only a real message proves the token
+    const chatId = String(req.body?.chatId || '').trim();
     if (!chatId) {
       return res.json({
         success: false,
-        error:
-          'قالب توکن درست است، ولی ایتا متد getMe ندارد؛ برای تست واقعی شناسه ایتای خودت را در فیلد «شناسه تست» وارد کن (یا اول ربات را استارت کن).',
+        error: 'شناسه ایتای تست الزامی است؛ شناسه عددی خودت را در فیلد «شناسه ایتای تست» وارد کن.',
+        tokenLength: token.length,
+        needsChatId: true
+      });
+    }
+    if (!/^\d{4,20}$/.test(chatId)) {
+      return res.json({
+        success: false,
+        error: 'شناسه ایتا باید فقط عدد باشد (مثل 279058397).',
         tokenLength: token.length,
         needsChatId: true
       });
