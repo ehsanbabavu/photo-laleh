@@ -26,8 +26,10 @@ declare global {
     };
     Telegram?: {
       WebApp?: {
+        initData?: string;
         initDataUnsafe?: {
           user?: { id?: number | string; first_name?: string; last_name?: string; username?: string };
+          start_param?: string;
         };
         ready?: () => void;
         expand?: () => void;
@@ -273,11 +275,42 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     setError('برای دریافت خودکار شماره، صفحه را از داخل برنامه باز کنید.');
   };
 
+  /** Telegram: ask the server who this chat belongs to (verified initData or bot token). */
+  const loginWithTelegramIdentity = async () => {
+    setIsSubmitting(true);
+    setError('');
+    const signinToken =
+      new URLSearchParams(window.location.search).get('t') ||
+      window.Telegram?.WebApp?.initDataUnsafe?.start_param ||
+      '';
+    const initData = (window.Telegram?.WebApp as any)?.initData || '';
+    try {
+      const res = await fetch('/api/auth/telegram/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData, signinToken, telegramId: messengerId || undefined })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setError(
+          data?.error ||
+            'آیدی تلگرام شناسایی نشد. صفحه را از دکمه «ورود / ثبت‌نام» داخل ربات باز کنید.'
+        );
+        return;
+      }
+      onEnter(data.user as User);
+    } catch {
+      setError('ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRegister = async () => {
     // Telegram: the identity is the numeric Telegram id (no phone step)
     if (provider === 'telegram') {
       if (!messengerId) {
-        setError('آیدی تلگرام شناسایی نشد. صفحه را از داخل تلگرام باز کنید.');
+        await loginWithTelegramIdentity();
         return;
       }
       await submitPhone('');
