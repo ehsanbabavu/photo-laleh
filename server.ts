@@ -3475,6 +3475,26 @@ async function ensureTelegramWebhook(force = false, baseUrl?: string) {
       }
     }
 
+    // The bot-level menu button opens the mini app the right way (with initData),
+    // which is what makes the automatic login work on every visit.
+    try {
+      const menu = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          menu_button: {
+            type: 'web_app',
+            text: 'آتلیه لاله',
+            web_app: { url: url.replace('/api/telegram/webhook', '/telegram') }
+          }
+        })
+      });
+      const menuBody: any = await menu.json().catch(() => null);
+      diagnostics.push({ call: 'setChatMenuButton', http: menu.status, body: menuBody });
+    } catch (err: any) {
+      diagnostics.push({ call: 'setChatMenuButton', http: 0, body: { error: err?.message } });
+    }
+
     let verifiedUrl = currentUrl;
     let verifyBody: any = null;
     if (force || currentUrl !== url) {
