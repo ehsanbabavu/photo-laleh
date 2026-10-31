@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Loader2, AlertCircle, UserPlus, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Loader2, AlertCircle, UserPlus, ShieldCheck, Phone } from 'lucide-react';
 import { User } from '../types';
 import { TulipIcon } from './TulipIcon';
 import { TelegramIcon } from './BrandIcons';
@@ -13,24 +13,25 @@ declare global {
   interface Window {
     Eitaa?: {
       WebApp?: {
-        initData?: string;
         initDataUnsafe?: {
           user?: { id?: number | string; first_name?: string; last_name?: string; username?: string };
           start_param?: string;
         };
         ready?: () => void;
         expand?: () => void;
+        requestContact?: (
+          callback: (isOk: boolean, data?: { response?: unknown }) => void
+        ) => void;
       };
     };
     Telegram?: {
       WebApp?: {
-        initData?: string;
         initDataUnsafe?: {
           user?: { id?: number | string; first_name?: string; last_name?: string; username?: string };
-          start_param?: string;
         };
         ready?: () => void;
         expand?: () => void;
+        requestContact?: (callback?: (shared: boolean) => void) => void;
       };
     };
   }
@@ -41,41 +42,73 @@ interface SignupScreenProps {
   onEnter: (user: User) => void;
 }
 
-const PROVIDER_COPY: Record<
-  Provider,
-  { label: string; idLabel: string; endpoint: string; sdk: string; note: string; queryKeys: string[] }
-> = {
+const PROVIDER_COPY: Record<Provider, { label: string; endpoint: string; sdk: string; note: string }> = {
   eitaa: {
     label: 'ایتا',
-    idLabel: 'شناسه ایتا',
     endpoint: '/api/auth/eitaa',
     sdk: 'https://developer.eitaa.com/eitaa-web-app.js',
-    note: 'ورود مستقیم با شناسه ایتا — بدون رمز عبور',
-    queryKeys: ['eitaa_id', 'uid']
+    note: 'ثبت‌نام با اشتراک‌گذاری شماره موبایل — بدون رمز عبور'
   },
   telegram: {
     label: 'تلگرام',
-    idLabel: 'آیدی عددی تلگرام',
     endpoint: '/api/auth/telegram',
     sdk: 'https://telegram.org/js/telegram-web-app.js',
-    note: 'ورود مستقیم با آیدی تلگرام — بدون رمز عبور',
-    queryKeys: ['telegram_id', 'uid']
+    note: 'ثبت‌نام با اشتراک‌گذاری شماره موبایل — بدون رمز عبور'
   }
+};
+
+const normalizePhoneDigits = (value: any): string => {
+  const digits = String(value ?? '').replace(/[^\d+]/g, '');
+  if (!digits) return '';
+  let d = digits.replace(/^\+/, '');
+  if (d.startsWith('98')) d = `0${d.slice(2)}`;
+  if (d.startsWith('9') && d.length === 10) d = `0${d}`;
+  return d.replace(/\D/g, '').slice(0, 11);
+};
+
+/** Digs a phone number out of whatever shape the messenger returns. */
+const findPhone = (input: any): string => {
+  if (!input) return '';
+  if (typeof input === 'string') {
+    const candidate = normalizePhoneDigits(input);
+    return /^09\d{9}$/.test(candidate) ? candidate : '';
+  }
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      const found = findPhone(item);
+      if (found) return found;
+    }
+    return '';
+  }
+  if (typeof input === 'object') {
+    for (const key of ['phone', 'phone_number', 'phoneNumber', 'number', 'mobile']) {
+      const found = findPhone((input as any)[key]);
+      if (found) return found;
+    }
+    for (const value of Object.values(input as Record<string, unknown>)) {
+      const found = findPhone(value);
+      if (found) return found;
+    }
+  }
+  return '';
 };
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   const copy = PROVIDER_COPY[provider];
-  const [messengerId, setMessengerId] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [sdkReady, setSdkReady] = useState(false);
+  const [messengerId, setMessengerId] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [needsManualPhone, setNeedsManualPhone] = useState(false);
+  const [inMessenger, setInMessenger] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const pollRef = useRef<number | null>(null);
 
-  // Load the messenger SDK (Eitaa / Telegram mini-app) and read the user id
+  const webApp = () =>
+    provider === 'eitaa' ? window.Eitaa?.WebApp : window.Telegram?.WebApp;
+
   useEffect(() => {
-    const webApp = () =>
-      provider === 'eitaa' ? window.Eitaa?.WebApp : window.Telegram?.WebApp;
-
     const readUser = () => {
       const app = webApp();
       const user = app?.initDataUnsafe?.user;
@@ -83,28 +116,19 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         setMessengerId(String(user.id));
         const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
         if (fullName) setDisplayName(fullName);
-        setSdkReady(true);
-        return true;
-      }
-      const startParam = app?.initDataUnsafe?.start_param;
-      if (startParam && /^\d{4,20}$/.test(startParam)) {
-        setMessengerId(startParam);
-        setSdkReady(true);
-        return true;
+        setInMessenger(true);
+        return;
       }
       const params = new URLSearchParams(window.location.search);
-      for (const key of copy.queryKeys) {
-        const value = params.get(key);
-        if (value && /^\d{4,20}$/.test(value)) {
-          setMessengerId(value);
-          setSdkReady(true);
-          return true;
-        }
+      const fromQuery = params.get(provider === 'eitaa' ? 'eitaa_id' : 'telegram_id');
+      if (fromQuery && /^\d{4,20}$/.test(fromQuery)) {
+        setMessengerId(fromQuery);
+        setInMessenger(true);
       }
-      return false;
     };
 
-    if (readUser()) return;
+    readUser();
+    if (webApp()?.initDataUnsafe?.user?.id) return;
 
     const existing = document.querySelector<HTMLScriptElement>(`script[data-${provider}-sdk]`);
     if (existing) {
@@ -129,20 +153,18 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
 
-  const handleRegister = async () => {
-    setError('');
-    const id = messengerId.trim();
-    if (!/^\d{4,20}$/.test(id)) {
-      setError(`شناسه ${copy.label} معتبر نیست. صفحه را از داخل ${copy.label} باز کنید.`);
-      return;
-    }
+  useEffect(() => () => {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+  }, []);
 
+  const submitPhone = async (phone: string) => {
     setIsSubmitting(true);
+    setError('');
     try {
       const res = await fetch(copy.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: id, name: displayName.trim() })
+        body: JSON.stringify({ phone, name: displayName.trim(), userId: messengerId || undefined })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
@@ -154,7 +176,94 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       setError('ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید.');
     } finally {
       setIsSubmitting(false);
+      setStatus('');
     }
+  };
+
+  /** Telegram: the phone arrives through the bot webhook, so we poll for it. */
+  const waitForTelegramPhone = async () => {
+    setStatus('منتظر تایید شماره…');
+    const deadline = Date.now() + 45_000;
+    await new Promise<void>((resolve) => {
+      pollRef.current = window.setInterval(async () => {
+        try {
+          const res = await fetch(
+            `/api/auth/telegram/pending?id=${encodeURIComponent(messengerId)}`,
+            { cache: 'no-store' }
+          );
+          const data = await res.json().catch(() => null);
+          if (data?.phone) {
+            if (pollRef.current) window.clearInterval(pollRef.current);
+            resolve();
+            await submitPhone(String(data.phone));
+            return;
+          }
+        } catch {
+          /* keep polling */
+        }
+        if (Date.now() > deadline) {
+          if (pollRef.current) window.clearInterval(pollRef.current);
+          resolve();
+          setStatus('');
+          setNeedsManualPhone(true);
+          setError('شماره‌ای دریافت نشد؛ می‌توانید شماره را دستی وارد کنید.');
+        }
+      }, 2500);
+    });
+  };
+
+  const requestPhone = async () => {
+    setError('');
+    const app = webApp();
+
+    if (app?.requestContact) {
+      let phoneFromSdk = '';
+      let finished = false;
+
+      const done = async () => {
+        if (finished) return;
+        finished = true;
+        if (phoneFromSdk) {
+          await submitPhone(phoneFromSdk);
+        } else if (provider === 'telegram' && messengerId) {
+          await waitForTelegramPhone();
+        } else {
+          setNeedsManualPhone(true);
+          setError('شماره دریافت نشد؛ لطفاً شماره موبایل را دستی وارد کنید.');
+        }
+      };
+
+      try {
+        if (provider === 'eitaa') {
+          (app as any).requestContact((isOk: boolean, data?: { response?: unknown }) => {
+            if (isOk) phoneFromSdk = findPhone(data?.response ?? data);
+            void done();
+          });
+          window.setTimeout(() => void done(), 20_000);
+        } else {
+          (app as any).requestContact(() => void done());
+        }
+      } catch {
+        setNeedsManualPhone(true);
+      }
+      return;
+    }
+
+    setNeedsManualPhone(true);
+    setError('برای دریافت خودکار شماره، صفحه را از داخل برنامه باز کنید.');
+  };
+
+  const handleRegister = async () => {
+    if (needsManualPhone) {
+      const phone = normalizePhoneDigits(manualPhone);
+      if (!/^09\d{9}$/.test(phone)) {
+        setError('شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد.');
+        return;
+      }
+      await submitPhone(phone);
+      return;
+    }
+    await requestPhone();
   };
 
   return (
@@ -197,17 +306,18 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             </div>
           )}
 
-          {!sdkReady && (
-            <div className="mb-3 rounded-2xl bg-white/90 border border-slate-200 px-3 py-2.5">
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                {copy.idLabel} (اگر خودکار تشخیص داده نشد)
+          {needsManualPhone && (
+            <div className="mb-3 rounded-2xl bg-white/95 border border-slate-200 px-3 py-2.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 mb-1">
+                <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                شماره موبایل
               </label>
               <input
-                type="text"
+                type="tel"
                 inputMode="numeric"
-                value={messengerId}
-                onChange={(e) => setMessengerId(e.target.value.replace(/\D/g, ''))}
-                placeholder={provider === 'telegram' ? 'مثال: 123456789' : 'مثال: 279058397'}
+                value={manualPhone}
+                onChange={(e) => setManualPhone(normalizePhoneDigits(e.target.value))}
+                placeholder="09xxxxxxxxx"
                 dir="ltr"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-emerald-500"
               />
@@ -225,11 +335,15 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             ) : (
               <UserPlus className="w-5 h-5" />
             )}
-            <span>ثبت نام</span>
+            <span>{needsManualPhone ? 'ادامه ثبت نام' : 'ثبت نام'}</span>
           </button>
 
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-500">
-            <ShieldCheck className="w-3.5 h-3.5" />
+          {status && (
+            <p className="mt-2 text-center text-[11px] font-bold text-emerald-700">{status}</p>
+          )}
+
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[10px] leading-5 text-slate-500">
+            <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
             {copy.note}
           </p>
         </div>
