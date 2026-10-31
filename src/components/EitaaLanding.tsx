@@ -53,7 +53,7 @@ const PROVIDER_COPY: Record<Provider, { label: string; endpoint: string; sdk: st
     label: 'تلگرام',
     endpoint: '/api/auth/telegram',
     sdk: 'https://telegram.org/js/telegram-web-app.js',
-    note: 'ثبت‌نام با اشتراک‌گذاری شماره موبایل — بدون رمز عبور'
+    note: 'ورود مستقیم با آیدی تلگرام — بدون رمز عبور'
   }
 };
 
@@ -161,10 +161,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     setIsSubmitting(true);
     setError('');
     try {
+      const payload: Record<string, string> = { name: displayName.trim() };
+      if (phone) payload.phone = phone;
+      if (messengerId) payload.userId = messengerId;
       const res = await fetch(copy.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, name: displayName.trim(), userId: messengerId || undefined })
+        body: JSON.stringify(payload)
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
@@ -254,6 +257,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   };
 
   const handleRegister = async () => {
+    // Telegram: the identity is the numeric Telegram id (no phone step)
+    if (provider === 'telegram') {
+      if (!messengerId) {
+        setError('آیدی تلگرام شناسایی نشد. صفحه را از داخل تلگرام باز کنید.');
+        return;
+      }
+      await submitPhone('');
+      return;
+    }
+
     if (needsManualPhone) {
       const phone = normalizePhoneDigits(manualPhone);
       if (!/^09\d{9}$/.test(phone)) {
