@@ -15,6 +15,9 @@ export interface User {
   telegramId?: string;
   /** Colleague-only: Eitaa id */
   eitaaId?: string;
+  /** How the account was created: telegram / eitaa self sign-up */
+  registeredVia?: 'telegram' | 'eitaa' | string;
+  phoneVerifiedAt?: string;
   /** Colleague-only: guild / business name (نام صنف) */
   guildName?: string;
   /** Colleague-only: address (آدرس) */
