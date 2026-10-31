@@ -116,6 +116,7 @@ const ADMIN_ONLY_PREFIXES = [
   '/api/print',
   '/api/eitaa',
   '/api/telegram/test',
+  '/api/telegram/setup-webhook',
   '/api/telegram/send-order'
 ];
 
@@ -2307,34 +2308,9 @@ async function handleTelegramCallbackQuery(cb: any, token: string) {
 }
 
 let lastTelegramUpdateId = 0;
-async function pollTelegramUpdates() {
-  try {
-    const db = await readDb();
-    const token = db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
-    if (!token) return;
+// Telegram delivery is webhook-only: no getUpdates polling (avoids 409 conflicts
+// and makes replies instant). The webhook is (re)registered automatically.
 
-    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${lastTelegramUpdateId + 1}&timeout=1`);
-    if (!res.ok) {
-      const errJson: any = await res.json().catch(() => ({}));
-      if (errJson.error_code === 409) {
-        await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`);
-      }
-      return;
-    }
-
-    const data = await res.json();
-    if (data.ok && Array.isArray(data.result)) {
-      for (const update of data.result) {
-        lastTelegramUpdateId = Math.max(lastTelegramUpdateId, update.update_id);
-        await handleTelegramUpdate(update, token);
-      }
-    }
-  } catch (err) {
-    // Ignore polling errors
-  }
-}
-
-setInterval(pollTelegramUpdates, 2000);
 
 // Telegram Send Order API
 app.post('/api/telegram/test', async (req, res) => {
@@ -3298,8 +3274,79 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
   }
 }
 
+/**
+ * Makes sure the bot delivers updates to this deployment's webhook.
+ * Throttled to once per hour (stored on settings) so it can be called safely
+ * from the webhook entry point itself.
+ */
+async function ensureTelegramWebhook(force = false, baseUrl?: string) {
+  const db = await readDb();
+  const token = String(db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  if (!token) return { ok: false, error: 'توکن ربات تلگرام ثبت نشده است' };
+
+  const lastCheck = Number(db.settings?.telegramWebhookCheckedAt || 0);
+  if (!force && Date.now() - lastCheck < 60 * 60 * 1000) return { ok: true, skipped: true };
+
+  const base = String(
+    baseUrl || process.env.PUBLIC_BASE_URL || 'https://photo-laleh.vercel.app'
+  ).replace(/\/+$/, '');
+  const url = `${base}/api/telegram/webhook`;
+
+  try {
+    const info: any = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)
+      .then((r) => r.json())
+      .catch(() => null);
+
+    let setResult: any = null;
+    if (!info?.result || info.result.url !== url) {
+      setResult = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          allowed_updates: ['message', 'callback_query'],
+          drop_pending_updates: false
+        })
+      })
+        .then((r) => r.json())
+        .catch(() => null);
+    }
+
+    const freshDb = await readDb();
+    freshDb.settings = {
+      ...(freshDb.settings || {}),
+      telegramWebhookCheckedAt: Date.now(),
+      telegramWebhookUrl: url
+    };
+    await writeDb(freshDb);
+
+    const alreadyCorrect = info?.result?.url === url;
+    return {
+      ok: alreadyCorrect || setResult?.ok === true,
+      url,
+      changed: !alreadyCorrect,
+      pendingUpdateCount: info?.result?.pending_update_count,
+      lastError: info?.result?.last_error_message,
+      description: setResult?.description
+    };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'خطا در ثبت وبهوک' };
+  }
+}
+
+// Admin action: force (re)register the webhook
+app.post('/api/telegram/setup-webhook', async (req: any, res) => {
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  const host = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
+  const base = host ? `${proto}://${host}` : undefined;
+  const result = await ensureTelegramWebhook(true, base);
+  res.json(result);
+});
+
 app.post('/api/telegram/webhook', async (req, res) => {
   try {
+    // Cheap self-healing check (at most once an hour)
+    void ensureTelegramWebhook(false).catch(() => undefined);
     await handleTelegramUpdate(req.body || {}, '', req);
     res.json({ ok: true });
   } catch (err) {
