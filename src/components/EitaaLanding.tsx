@@ -153,6 +153,23 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
 
+
+  // Automatic phone request: opening the page inside the messenger triggers the
+  // native «share number» popup right away — no extra tap needed.
+  const autoAskedRef = useRef(false);
+  useEffect(() => {
+    if (autoAskedRef.current) return;
+    const app = webApp();
+    if (!app?.requestContact) return;
+    if (provider === 'telegram' && !messengerId) return;
+    autoAskedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void requestPhone();
+    }, 700);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider, messengerId]);
+
   useEffect(() => () => {
     if (pollRef.current) window.clearInterval(pollRef.current);
   }, []);
