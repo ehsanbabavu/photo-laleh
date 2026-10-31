@@ -464,7 +464,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             ) : (
               <UserPlus className="w-5 h-5" />
             )}
-            <span>{needsManualPhone ? 'ادامه ثبت نام' : 'ثبت نام'}</span>
+            <span>
+              {provider === 'eitaa' ? 'ورود' : needsManualPhone ? 'ادامه ثبت نام' : 'ثبت نام'}
+            </span>
           </button>
 
           {status && (
