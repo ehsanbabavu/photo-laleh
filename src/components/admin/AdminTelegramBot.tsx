@@ -34,6 +34,8 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [eitaaTokenValue, setEitaaTokenValue] = useState(eitaaToken);
+  const [isSettingWebhook, setIsSettingWebhook] = useState(false);
+  const [webhookResult, setWebhookResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTestingEitaa, setIsTestingEitaa] = useState(false);
   const [eitaaTestChatId, setEitaaTestChatId] = useState('');
   const [eitaaResult, setEitaaResult] = useState<{
@@ -71,6 +73,35 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
       setTestResult({ success: false, message: 'خطا در تست اتصال' });
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleSetupWebhook = async () => {
+    setWebhookResult(null);
+    if (!botToken.trim()) {
+      setWebhookResult({ success: false, message: 'اول توکن ربات را وارد و ذخیره کن.' });
+      return;
+    }
+    setIsSettingWebhook(true);
+    try {
+      const res = await fetch('/api/telegram/setup-webhook', { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        setWebhookResult({
+          success: true,
+          message: `وبهوک فعال شد: ${data.url || ''}${data.changed ? ' (تازه ثبت شد)' : ' (از قبل درست بود)'}`
+        });
+        showToast('وبهوک تلگرام فعال شد.');
+      } else {
+        setWebhookResult({
+          success: false,
+          message: data?.error || data?.description || 'فعال‌سازی وبهوک ناموفق بود'
+        });
+      }
+    } catch {
+      setWebhookResult({ success: false, message: 'خطا در ارتباط با سرور' });
+    } finally {
+      setIsSettingWebhook(false);
     }
   };
 
@@ -155,7 +186,39 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100 mt-1 pt-4">
+        {webhookResult && (
+          <div
+            className={`flex items-start gap-2 p-2.5 rounded-xl border ${
+              webhookResult.success
+                ? 'bg-emerald-50 border-emerald-200'
+                : 'bg-rose-50 border-rose-200'
+            }`}
+          >
+            {webhookResult.success ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+            )}
+            <p
+              className={`text-[11px] leading-6 break-all ${
+                webhookResult.success ? 'text-emerald-700' : 'text-rose-700'
+              }`}
+            >
+              {webhookResult.message}
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-100 mt-1 pt-4">
+          <button
+            type="button"
+            onClick={handleSetupWebhook}
+            disabled={isSettingWebhook}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 disabled:opacity-60 text-xs font-bold transition-colors cursor-pointer w-full"
+          >
+            {isSettingWebhook ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            <span>فعال‌سازی وبهوک</span>
+          </button>
           <button
             type="button"
             onClick={handleTest}
