@@ -957,6 +957,10 @@ app.post('/api/auth/telegram/session', async (req: any, res) => {
 
     let user = (db.users || []).find((u: any) => String(u.telegramId || '') === telegramId);
     if (!user) {
+      // Auto-login from the mini app must not create accounts silently
+      if (req.body?.createIfMissing === false) {
+        return res.status(404).json({ success: false, exists: false, error: 'حساب تلگرامی یافت نشد' });
+      }
       user = {
         id: 'usr-' + Date.now(),
         name: name || 'کاربر تلگرام',
