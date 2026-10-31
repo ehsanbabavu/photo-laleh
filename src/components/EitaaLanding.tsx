@@ -211,6 +211,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         /* fall through to the signup screen */
       }
       setIsAutoLoggingIn(false);
+      setNeedsManualPhone(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, messengerId]);
@@ -335,9 +336,17 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
-        // No Telegram identity available → the shared phone number is the identity
+        // No Telegram identity available → the phone number stored in the bot is the identity
         setIsSubmitting(false);
         setNeedsManualPhone(true);
+        const reason = data?.diagnostics;
+        if (reason && !reason.hasBotToken) {
+          setError('توکن ربات در پنل تنظیم نشده؛ با شماره موبایل وارد شوید.');
+        } else if (reason?.hasInitData && reason?.initDataValid === false) {
+          setError('شناسه تلگرام تأیید نشد؛ با شماره موبایل ثبت‌شده در ربات وارد شوید.');
+        } else {
+          setError('شناسه تلگرام در دسترس نیست؛ با شماره موبایل ثبت‌شده در ربات وارد شوید.');
+        }
         await requestPhone();
         return;
       }
