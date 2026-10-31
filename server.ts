@@ -2369,7 +2369,10 @@ app.post('/api/telegram/send-order', async (req, res) => {
 // Only production details (size, quantity, material) are shared with the
 // colleague — never the customer's identity or the order price.
 // ---------------------------------------------------------------------------
-const EITAA_API_BASE = 'https://eitaayar.ir/api';
+// Official Eitaa bot API (developer.eitaa.com → Develop → SendMassage):
+//   POST https://eitaayar.ir/api/app/sendMessage   { token, chat_id, text }
+// The token travels in the JSON body — NOT in the URL path.
+const EITAA_API_BASE = 'https://eitaayar.ir/api/app';
 
 /**
  * Eitaayar tokens are pasted from a web panel and very often carry invisible
@@ -2384,18 +2387,8 @@ function normalizeEitaaToken(raw: any): string {
     .trim();
 }
 
-/**
- * Builds `https://eitaayar.ir/api/<token>/<method>`.
- * Only characters that really break a URL path are escaped — eitaayar compares
- * the raw path segment, so a token like `bot123:ABC` must keep its colon.
- */
-function eitaaPathToken(token: any): string {
-  const clean = normalizeEitaaToken(token).replace(/^["'`]+|["'`]+$/g, '');
-  return clean.replace(/[%\/?#\s]/g, (ch) => encodeURIComponent(ch));
-}
-
-function eitaaUrl(token: any, method: string): string {
-  return `${EITAA_API_BASE}/${eitaaPathToken(token)}/${method}`;
+function eitaaTokenValue(token: any): string {
+  return normalizeEitaaToken(token).replace(/^["'`]+|["'`]+$/g, '');
 }
 
 function nowFaFull(): string {
@@ -2526,11 +2519,12 @@ async function sendEitaaFile(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const form = new FormData();
-    form.append('chat_id', chatId);
+    form.append('token', eitaaTokenValue(token));
+    form.append('chat_id', String(chatId));
     form.append('caption', caption);
     form.append('file', new Blob([file.buffer], { type: file.mime }), filename);
 
-    const response = await fetch(eitaaUrl(token, 'sendFile'), {
+    const response = await fetch(`${EITAA_API_BASE}/sendFile`, {
       method: 'POST',
       body: form
     });
@@ -2548,10 +2542,10 @@ async function sendEitaaMessage(
   text: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const response = await fetch(eitaaUrl(token, 'sendMessage'), {
+    const response = await fetch(`${EITAA_API_BASE}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text })
+      body: JSON.stringify({ token: eitaaTokenValue(token), chat_id: chatId, text })
     });
     const result: any = await response.json().catch(() => null);
     if (result?.ok) return { ok: true };
@@ -2561,73 +2555,50 @@ async function sendEitaaMessage(
   }
 }
 
-// Eitaa (eitaayar.ir) connection test
-app.post('/api/eitaa/test', async (req, res) => {
+// Eitaa (eitaayar.ir) connection test — the official API has no getMe, so we
+// validate the token by sending one real message to a chat id.
+app.post('/api/eitaa/test', async (req: any, res) => {
   try {
-    const token = normalizeEitaaToken(req.body?.token);
+    const rawToken = String(req.body?.token || '');
+    const token = eitaaTokenValue(rawToken);
     if (!token) {
       return res.json({ success: false, error: 'توکن ایتایار را وارد کنید.' });
     }
-
-    // Try the common variants: raw path (colon kept) / fully-encoded, GET / POST
-    const escapes: string[] = [
-      `${EITAA_API_BASE}/${eitaaPathToken(token)}/getMe`,
-      `${EITAA_API_BASE}/${encodeURIComponent(normalizeEitaaToken(token))}/getMe`
-    ];
-    const attempts: { url: string; http: number; description: string }[] = [];
-    const maskUrl = (url: string) =>
-      url
-        .split(normalizeEitaaToken(token)).join('***')
-        .split(encodeURIComponent(normalizeEitaaToken(token))).join('***');
-    let status = 0;
-    let payload: any = null;
-
-    for (const url of escapes) {
-      for (const method of ['GET', 'POST'] as const) {
-        try {
-          const response = await fetch(url, { method });
-          status = response.status;
-          const body: any = await response.json().catch(() => null);
-          attempts.push({
-            url: maskUrl(url),
-            http: response.status,
-            description: String(body?.description || body?.error_code || '')
-          });
-          if (body?.ok) {
-            payload = body;
-            break;
-          }
-          if (!payload) payload = body;
-        } catch (err: any) {
-          attempts.push({
-            url: maskUrl(url),
-            http: 0,
-            description: err?.message || 'network error'
-          });
-        }
-      }
-      if (payload?.ok) break;
+    if (!/^\d{5,}:\S+$/.test(token)) {
+      return res.json({
+        success: false,
+        error:
+          'قالب توکن درست نیست؛ توکن برنامه در ایتایار به شکل 123456789:AA... است (شماره، دونقطه، سپس رشته).',
+        tokenLength: token.length,
+        hasColon: token.includes(':')
+      });
     }
 
-    if (payload?.ok) {
-      const name = payload?.result?.username || payload?.result?.first_name || 'ربات';
-      return res.json({ success: true, message: `اتصال موفق بود — ${name}`, details: payload });
+    // Chat id: what the admin typed, otherwise the one saved on his own account
+    let chatId = String(req.body?.chatId || '').trim();
+    if (!chatId) {
+      const selfId = String(req.currentUser?.eitaaId || '').trim();
+      if (selfId) chatId = selfId;
     }
-    const rawToken = String(req.body?.token || '');
+    if (!chatId) {
+      return res.json({
+        success: false,
+        error:
+          'قالب توکن درست است، ولی ایتا متد getMe ندارد؛ برای تست واقعی شناسه ایتای خودت را در فیلد «شناسه تست» وارد کن (یا اول ربات را استارت کن).',
+        tokenLength: token.length,
+        needsChatId: true
+      });
+    }
+
+    const result = await sendEitaaMessage(token, chatId, '✅ تست اتصال ایتا از پنل آتلیه دیجیتال لاله');
+    if (result.ok) {
+      return res.json({ success: true, message: `پیام تست به ${chatId} ارسال شد` });
+    }
     return res.json({
       success: false,
-      error:
-        payload?.description ||
-        (typeof payload?.result === 'string' ? payload.result : '') ||
-        `توکن نامعتبر است یا دسترسی ندارد (HTTP ${status})`,
-      // Diagnostics only: never echo the token itself
+      error: result.error || 'ارسال پیام تست ناموفق بود',
       tokenLength: token.length,
-      tokenPreview: `${token.slice(0, 4)}…${token.slice(-2)}`,
-      hasColon: token.includes(':'),
-      cleanedInvisibleChars: rawToken !== token && rawToken.trim() !== token,
-      httpStatus: status,
-      attempts,
-      details: payload
+      chatId
     });
   } catch (err: any) {
     res.json({ success: false, error: err?.message || 'خطا در ارتباط با ایتایار' });
@@ -2912,7 +2883,8 @@ app.post('/api/print/send-to-partner', async (req, res) => {
       if (!summary.ok) warnings.push(`ارسال متن جزئیات ناموفق بود: ${summary.error || 'خطای نامشخص'}`);
       if (summary.messageId) sentMessageIds.push(summary.messageId);
 
-      if (sentCount === 0) {
+      // Files may be rejected by eitaa; the text summary above still delivers the job
+      if (sentCount === 0 && !summary.ok) {
         return res.status(502).json({
           success: false,
           error: 'send_failed',
