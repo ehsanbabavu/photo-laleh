@@ -1256,15 +1256,22 @@ app.post('/api/orders', async (req, res) => {
     });
   }
 
-  // Notify Eitaa-registered customers once, right after a successful order
+  // Notify messenger-registered customers once, right after a successful order
   let eitaaNotified: { attempted: boolean; ok: boolean; error?: string } = { attempted: false, ok: false };
+  let telegramNotified: { attempted: boolean; ok: boolean; error?: string } = { attempted: false, ok: false };
   if (isNew) {
     const ownerId = String(newOrder.userId || req.currentUser?.id || '');
     const owner = ownerId ? (db.users || []).find((u: any) => u.id === ownerId) : null;
+
     eitaaNotified = await notifyEitaaOrderCreated(db, newOrder, owner);
-    if (eitaaNotified.ok) {
+    telegramNotified = await notifyTelegramOrderCreated(db, newOrder, owner);
+
+    if (eitaaNotified.ok || telegramNotified.ok) {
       const at = new Date().toISOString();
-      db.orders = (db.orders || []).map((o: any) => (o.id === newOrder.id ? { ...o, eitaaNotifiedAt: at } : o));
+      const patch: any = { messengerNotifiedAt: at };
+      if (eitaaNotified.ok) patch.eitaaNotifiedAt = at;
+      if (telegramNotified.ok) patch.telegramNotifiedAt = at;
+      db.orders = (db.orders || []).map((o: any) => (o.id === newOrder.id ? { ...o, ...patch } : o));
     }
   }
 
@@ -1273,7 +1280,8 @@ app.post('/api/orders', async (req, res) => {
     success: true,
     order: newOrder,
     user: updatedUser ? sanitizeUser(updatedUser) : null,
-    eitaaNotified: eitaaNotified.attempted ? eitaaNotified.ok : null
+    eitaaNotified: eitaaNotified.attempted ? eitaaNotified.ok : null,
+    telegramNotified: telegramNotified.attempted ? telegramNotified.ok : null
   });
 });
 
@@ -2635,16 +2643,8 @@ function tomanLabel(value: any): string {
   return `${new Intl.NumberFormat('fa-IR').format(Math.round(Number(value) || 0))} تومان`;
 }
 
-/**
- * Sends «order registered» + tracking code to a customer who signed up with
- * their Eitaa id. Never blocks or breaks the order itself.
- */
-async function notifyEitaaOrderCreated(db: any, order: any, user: any) {
-  const eitaaId = String(user?.eitaaId || '').trim();
-  if (!eitaaId) return { attempted: false, ok: false as boolean };
-  const token = String((db.settings || {}).eitaaToken || process.env.EITAA_TOKEN || '').trim();
-  if (!token) return { attempted: false, ok: false as boolean };
-
+/** Message sent to the customer right after a successful order. */
+function buildOrderCreatedMessage(order: any) {
   const details = order?.invoiceDetails || {};
   const statusLabel = {
     pending_review: 'در انتظار بررسی',
@@ -2654,7 +2654,7 @@ async function notifyEitaaOrderCreated(db: any, order: any, user: any) {
     delivered: 'تحویل شده'
   }[String(order?.status || 'pending_review')] || 'در انتظار بررسی';
 
-  const text = [
+  return [
     '✅ سفارش شما با موفقیت ثبت شد',
     '',
     `🔖 کد پیگیری: ${order?.trackingCode || order?.id || '-'}`,
@@ -2670,12 +2670,35 @@ async function notifyEitaaOrderCreated(db: any, order: any, user: any) {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/** Eitaa delivery for customers who signed up with their Eitaa id. */
+async function notifyEitaaOrderCreated(db: any, order: any, user: any) {
+  const eitaaId = String(user?.eitaaId || '').trim();
+  if (!eitaaId) return { attempted: false, ok: false as boolean, error: undefined as string | undefined };
+  const token = String((db.settings || {}).eitaaToken || process.env.EITAA_TOKEN || '').trim();
+  if (!token) return { attempted: false, ok: false as boolean, error: undefined as string | undefined };
 
   try {
-    const result = await sendEitaaMessage(token, eitaaId, text);
+    const result = await sendEitaaMessage(token, eitaaId, buildOrderCreatedMessage(order));
     return { attempted: true, ok: result.ok, error: result.error };
   } catch (err: any) {
     return { attempted: true, ok: false, error: err?.message || 'eitaa error' };
+  }
+}
+
+/** Telegram delivery for customers who signed up with their Telegram id. */
+async function notifyTelegramOrderCreated(db: any, order: any, user: any) {
+  const telegramId = String(user?.telegramId || '').trim();
+  if (!telegramId) return { attempted: false, ok: false as boolean, error: undefined as string | undefined };
+  const token = String((db.settings || {}).telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  if (!token) return { attempted: false, ok: false as boolean, error: undefined as string | undefined };
+
+  try {
+    const result = await sendTelegramMessage(token, telegramId, buildOrderCreatedMessage(order));
+    return { attempted: true, ok: result.ok, error: result.error };
+  } catch (err: any) {
+    return { attempted: true, ok: false, error: err?.message || 'telegram error' };
   }
 }
 
