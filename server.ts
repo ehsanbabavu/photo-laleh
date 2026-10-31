@@ -3244,22 +3244,44 @@ app.post('/api/telegram/webhook', async (req, res) => {
         }
       }
     } else if (message?.text && token) {
-      // --- 2) Any command (/start, /phone …) offers the share-number button ---
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text:
-            'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
-            'برای ثبت‌نام و دریافت کد پیگیری سفارش، شماره موبایل خود را به اشتراک بگذارید.',
-          reply_markup: {
-            keyboard: [[{ text: '📱 اشتراک‌گذاری شماره موبایل', request_contact: true }]],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          }
+      // --- 2) Any command (/start, /phone …) answers with an in-chat button ---
+      // Inline keyboards cannot request a contact, so the button opens the
+      // mini-app right inside the chat where the phone is shared natively.
+      const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+      const host = String(req.headers['x-forwarded-host'] || req.get('host') || 'photo-laleh.vercel.app')
+        .split(',')[0]
+        .trim();
+      const signupUrl = `${proto}://${host}/telegram`;
+
+      const text =
+        'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
+        'برای ثبت‌نام، دریافت کد پیگیری سفارش و پیگیری وضعیت، دکمه زیر را بزنید.';
+
+      const sendPrompt = async (button: Record<string, unknown>) =>
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text,
+            reply_markup: { inline_keyboard: [[button]] }
+          })
         })
-      }).catch(() => undefined);
+          .then(async (response) => ({ ok: response.ok, body: await response.text().catch(() => '') }))
+          .catch(() => ({ ok: false, body: '' }));
+
+      // 1) native in-chat mini app button, 2) in-chat browser link, 3) plain text
+      let sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', web_app: { url: signupUrl } });
+      if (!sent.ok) {
+        sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', url: signupUrl });
+      }
+      if (!sent.ok) {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: `${text}\n\n${signupUrl}` })
+        }).catch(() => undefined);
+      }
     }
 
     res.json({ ok: true });
