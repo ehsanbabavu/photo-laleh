@@ -88,6 +88,7 @@ app.use(
 const PUBLIC_API_PATHS = new Set([
   '/api/auth/login',
   '/api/auth/register',
+  '/api/auth/eitaa',
   '/api/auth/otp/request',
   '/api/auth/password/otp',
   '/api/auth/password/reset',
@@ -791,6 +792,54 @@ app.post('/api/auth/login', async (req, res) => {
   const token = await createSession(user.id, undefined, sessionMeta(req));
   if (token) setSessionCookie(res, token);
   res.json({ success: true, user: sanitizeUser(user) });
+});
+
+// Eitaa mini-app sign-up: the Eitaa user id is the identity, no password needed
+app.post('/api/auth/eitaa', async (req: any, res) => {
+  try {
+    const rawId = String(req.body?.eitaaId ?? '').trim();
+    if (!/^\d{4,20}$/.test(rawId)) {
+      return res.status(400).json({ success: false, error: 'شناسه ایتا معتبر نیست' });
+    }
+    if (await hitRateLimit(`eitaa-auth:${clientIp(req)}`, 12, 10 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'درخواست‌های ثبت‌نام بیش از حد مجاز است' });
+    }
+
+    const db = await readDb();
+    const eitaaName = String(req.body?.name || '').trim();
+    const existing = (db.users || []).find((u: any) => String(u.eitaaId || '') === rawId);
+
+    if (existing) {
+      if (existing.role === 'admin') {
+        return res.status(403).json({ success: false, error: 'این شناسه ایتا مربوط به مدیر است' });
+      }
+      const token = await createSession(existing.id, undefined, sessionMeta(req));
+      if (token) setSessionCookie(res, token);
+      return res.json({ success: true, user: sanitizeUser(existing), isNew: false });
+    }
+
+    const newUser: any = {
+      id: 'usr-' + Date.now(),
+      name: eitaaName || `کاربر ایتا ${rawId}`,
+      phone: '',
+      eitaaId: rawId,
+      role: 'user',
+      category: 'customer',
+      createdAt: new Date().toLocaleDateString('fa-IR'),
+      walletBalance: 100000,
+      hasUsedFirstOrderGift: false,
+      registeredVia: 'eitaa'
+    };
+
+    db.users = [...(db.users || []), newUser];
+    await writeDb(db);
+
+    const token = await createSession(newUser.id, undefined, sessionMeta(req));
+    if (token) setSessionCookie(res, token);
+    res.json({ success: true, user: sanitizeUser(newUser), isNew: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+  }
 });
 
 // Send a one-time code with the api.ir SMS service
