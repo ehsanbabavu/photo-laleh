@@ -334,7 +334,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {userCategory(user) === 'colleague' ? (
+                      {(
                         <div className="space-y-1">
                           {user.telegramId ? (
                             <span className="flex items-center gap-1 text-[10px] font-mono text-sky-700" dir="ltr">
@@ -366,9 +366,12 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                               <span className="truncate">{user.address}</span>
                             </span>
                           )}
+                          {user.registeredVia && !user.telegramId && !user.eitaaId && (
+                            <span className="text-[10px] text-slate-500">
+                              ثبت‌نام از {user.registeredVia === 'telegram' ? 'تلگرام' : 'ایتا'}
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-[10px] text-slate-400">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-slate-700">
