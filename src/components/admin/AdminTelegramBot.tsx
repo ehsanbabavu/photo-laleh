@@ -35,7 +35,13 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [eitaaTokenValue, setEitaaTokenValue] = useState(eitaaToken);
   const [isSettingWebhook, setIsSettingWebhook] = useState(false);
-  const [webhookResult, setWebhookResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [webhookResult, setWebhookResult] = useState<{
+    success: boolean;
+    message: string;
+    diagnostics?: { call: string; http: number; body: any }[];
+    currentUrl?: string;
+    pendingUpdateCount?: number;
+  } | null>(null);
   const [isTestingEitaa, setIsTestingEitaa] = useState(false);
   const [eitaaTestChatId, setEitaaTestChatId] = useState('');
   const [eitaaResult, setEitaaResult] = useState<{
@@ -95,7 +101,10 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
       } else {
         setWebhookResult({
           success: false,
-          message: data?.error || data?.description || 'فعال‌سازی وبهوک ناموفق بود'
+          message: data?.error || data?.description || 'فعال‌سازی وبهوک ناموفق بود',
+          diagnostics: Array.isArray(data?.diagnostics) ? data.diagnostics : undefined,
+          currentUrl: data?.currentUrl,
+          pendingUpdateCount: data?.pendingUpdateCount
         });
       }
     } catch {
@@ -206,6 +215,20 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
             >
               {webhookResult.message}
             </p>
+          </div>
+        )}
+
+        {webhookResult && !webhookResult.success && Array.isArray(webhookResult.diagnostics) && (
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[10px] text-slate-600 space-y-1" dir="ltr">
+            {webhookResult.currentUrl && (
+              <p className="font-mono truncate">current: {webhookResult.currentUrl}</p>
+            )}
+            {webhookResult.diagnostics.map((item, index) => (
+              <p key={index} className="font-mono break-all">
+                {item.call} [{item.http || 'ERR'}] —{' '}
+                {typeof item.body === 'string' ? item.body : JSON.stringify(item.body).slice(0, 160)}
+              </p>
+            ))}
           </div>
         )}
 
