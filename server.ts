@@ -3182,30 +3182,84 @@ app.post('/api/telegram/webhook', async (req, res) => {
       await handleTelegramCallbackQuery(update.callback_query, token);
     }
 
-    // Phone number shared from the mini app (WebApp.requestContact)
     const message = update.message;
-    const contact = message?.contact || update.message?.contact;
+    const contact = message?.contact;
     const fromId = String(message?.from?.id || '');
+    const chatId = String(message?.chat?.id || fromId);
+    const fromName = `${message?.from?.first_name || ''} ${message?.from?.last_name || ''}`.trim();
+
+    // --- 1) The user shared a phone number with the bot ---
     if (contact?.phone_number && fromId) {
       const phone = normalizePhone(String(contact.phone_number).replace(/^\+?98/, '0'));
       if (/^09\d{9}$/.test(phone)) {
+        // Keep it available for the signup page (one-time, 10 min)
         const pending = { ...((db.settings || {}).pendingPhones || {}) };
         pending[fromId] = { phone, at: Date.now() };
-        // keep only recent entries (10 minutes)
         Object.keys(pending).forEach((key) => {
           if (Date.now() - Number(pending[key]?.at || 0) > 10 * 60 * 1000) delete pending[key];
         });
         db.settings = { ...(db.settings || {}), pendingPhones: pending };
+
+        // …and attach it to the matching customer account (or create one)
+        let owner = (db.users || []).find((u: any) => String(u.telegramId || '') === fromId);
+        if (!owner) {
+          owner = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+        }
+        if (owner) {
+          const updated = {
+            ...owner,
+            telegramId: fromId,
+            phone: normalizePhone(owner.phone) ? owner.phone : phone,
+            phoneVerifiedAt: new Date().toISOString()
+          };
+          db.users = (db.users || []).map((u: any) => (u.id === owner.id ? updated : u));
+        } else {
+          const created: any = {
+            id: 'usr-' + Date.now(),
+            name: fromName || 'کاربر تلگرام',
+            phone,
+            telegramId: fromId,
+            role: 'user',
+            category: 'customer',
+            createdAt: new Date().toLocaleDateString('fa-IR'),
+            walletBalance: 100000,
+            hasUsedFirstOrderGift: false,
+            registeredVia: 'telegram',
+            phoneVerifiedAt: new Date().toISOString()
+          };
+          db.users = [...(db.users || []), created];
+        }
         await writeDb(db);
 
         if (token) {
-          await sendTelegramMessage(
-            token,
-            fromId,
-            '✅ شماره شما دریافت شد. برای تکمیل ثبت‌نام به صفحه آتلیه برگردید.'
-          );
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: '✅ شماره موبایل شما ثبت شد.\nاز این پس می‌توانید سفارش‌ها و کد پیگیری را همین‌جا دریافت کنید.',
+              reply_markup: { remove_keyboard: true }
+            })
+          }).catch(() => undefined);
         }
       }
+    } else if (message?.text && token) {
+      // --- 2) Any command (/start, /phone …) offers the share-number button ---
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text:
+            'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
+            'برای ثبت‌نام و دریافت کد پیگیری سفارش، شماره موبایل خود را به اشتراک بگذارید.',
+          reply_markup: {
+            keyboard: [[{ text: '📱 اشتراک‌گذاری شماره موبایل', request_contact: true }]],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        })
+      }).catch(() => undefined);
     }
 
     res.json({ ok: true });
