@@ -219,7 +219,7 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
             <MessageSquare className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-            <span>شناسه ایتای تست (اختیاری)</span>
+            <span>شناسه ایتای تست *</span>
           </label>
           <input
             type="text"
@@ -227,6 +227,7 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
             onChange={(e) => setEitaaTestChatId(e.target.value)}
             dir="ltr"
             placeholder="مثال: 279058397"
+            required
             className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-mono"
           />
           <p className="text-[10px] text-slate-500 leading-relaxed">
@@ -277,6 +278,14 @@ export const AdminTelegramBot: React.FC<AdminTelegramBotProps> = ({
               setEitaaResult(null);
               if (!eitaaTokenValue.trim()) {
                 setEitaaResult({ success: false, message: 'توکن ایتایار را وارد کنید.' });
+                return;
+              }
+              if (!eitaaTestChatId.trim()) {
+                setEitaaResult({ success: false, message: 'شناسه ایتای تست الزامی است.' });
+                return;
+              }
+              if (!/^\d{4,20}$/.test(eitaaTestChatId.trim())) {
+                setEitaaResult({ success: false, message: 'شناسه ایتا باید فقط عدد باشد.' });
                 return;
               }
               setIsTestingEitaa(true);
