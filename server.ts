@@ -3242,106 +3242,27 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
     }
   }
 
-  // --- B) Plain text/commands → in-chat signup button ---
+  // --- B) Any text (/start …) → ask for the phone with one tap, automatically ---
   if (message.text && botToken) {
-    const text =
-      'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
-      'برای ثبت‌نام، دریافت کد پیگیری سفارش و پیگیری وضعیت، دکمه زیر را بزنید.\n' +
-      'همچنین می‌توانید از منوی 📎 → Contact شماره موبایل خود را بفرستید.';
-
-    const sendPrompt = async (button: Record<string, unknown>) =>
-      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          reply_markup: { inline_keyboard: [[button]] }
-        })
+    // Telegram never lets a bot read a phone without a user gesture, so the
+    // keyboard is shown immediately: one tap sends the number, nothing to type.
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text:
+          'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.\n' +
+          'برای ثبت‌نام خودکار و دریافت کد پیگیری سفارش، دکمه «📱 ارسال شماره موبایل» را بزنید.',
+        reply_markup: {
+          keyboard: [[{ text: '📱 ارسال شماره موبایل', request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
       })
-        .then(async (response) => ({ ok: response.ok }))
-        .catch(() => ({ ok: false }));
-
-    let sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', web_app: { url: signupUrl } });
-    if (!sent.ok) sent = await sendPrompt({ text: '📱 ثبت‌نام و اشتراک‌گذاری شماره', url: signupUrl });
-    if (!sent.ok) {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: `${text}\n\n${signupUrl}` })
-      }).catch(() => undefined);
-    }
+    }).catch(() => undefined);
   }
 }
-
-/**
- * Makes sure the bot delivers updates to this deployment's webhook.
- * Throttled to once per hour (stored on settings) so it can be called safely
- * from the webhook entry point itself.
- */
-async function ensureTelegramWebhook(force = false, baseUrl?: string) {
-  const db = await readDb();
-  const token = String(db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
-  if (!token) return { ok: false, error: 'توکن ربات تلگرام ثبت نشده است' };
-
-  const lastCheck = Number(db.settings?.telegramWebhookCheckedAt || 0);
-  if (!force && Date.now() - lastCheck < 60 * 60 * 1000) return { ok: true, skipped: true };
-
-  const base = String(
-    baseUrl || process.env.PUBLIC_BASE_URL || 'https://photo-laleh.vercel.app'
-  ).replace(/\/+$/, '');
-  const url = `${base}/api/telegram/webhook`;
-
-  try {
-    const info: any = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)
-      .then((r) => r.json())
-      .catch(() => null);
-
-    let setResult: any = null;
-    if (!info?.result || info.result.url !== url) {
-      setResult = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          allowed_updates: ['message', 'callback_query'],
-          drop_pending_updates: false
-        })
-      })
-        .then((r) => r.json())
-        .catch(() => null);
-    }
-
-    const freshDb = await readDb();
-    freshDb.settings = {
-      ...(freshDb.settings || {}),
-      telegramWebhookCheckedAt: Date.now(),
-      telegramWebhookUrl: url
-    };
-    await writeDb(freshDb);
-
-    const alreadyCorrect = info?.result?.url === url;
-    return {
-      ok: alreadyCorrect || setResult?.ok === true,
-      url,
-      changed: !alreadyCorrect,
-      pendingUpdateCount: info?.result?.pending_update_count,
-      lastError: info?.result?.last_error_message,
-      description: setResult?.description
-    };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || 'خطا در ثبت وبهوک' };
-  }
-}
-
-// Admin action: force (re)register the webhook
-app.post('/api/telegram/setup-webhook', async (req: any, res) => {
-  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
-  const host = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
-  const base = host ? `${proto}://${host}` : undefined;
-  const result = await ensureTelegramWebhook(true, base);
-  res.json(result);
-});
 
 app.post('/api/telegram/webhook', async (req, res) => {
   try {
