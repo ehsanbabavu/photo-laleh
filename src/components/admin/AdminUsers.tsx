@@ -440,7 +440,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                   ) : null}
                 </div>
 
-                {userCategory(user) === 'colleague' && (user.telegramId || user.eitaaId) && (
+                {(user.telegramId || user.eitaaId) && (
                   <div className="flex items-center gap-2 flex-wrap text-[10px] font-mono">
                     {user.telegramId && (
                       <span className="inline-flex items-center gap-1 text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md" dir="ltr">
@@ -455,6 +455,12 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       </span>
                     )}
                   </div>
+                )}
+
+                {!user.telegramId && !user.eitaaId && user.registeredVia && (
+                  <p className="text-[10px] text-slate-500">
+                    ثبت‌نام از {user.registeredVia === 'telegram' ? 'تلگرام' : 'ایتا'}
+                  </p>
                 )}
 
                 {userCategory(user) === 'colleague' && (user.guildName || user.address) && (
