@@ -27,6 +27,7 @@ import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings'
 import { AdminUsers } from './components/admin/AdminUsers';
 import { AdminBackup } from './components/admin/AdminBackup';
 import { AdminTransport } from './components/admin/AdminTransport';
+import { EitaaLanding } from './components/EitaaLanding';
 import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
 import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
 import { AdminSessions } from './components/admin/AdminSessions';
@@ -67,6 +68,9 @@ export default function App() {
 
   // Active view + tabs are derived from the URL so a refresh keeps the page
   const initialRoute = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { view: 'user' as const, tab: 'dashboard' };
+  const [isEitaaPage, setIsEitaaPage] = useState<boolean>(
+    typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/eitaa'
+  );
   const [activeView, setActiveView] = useState<'admin' | 'user'>(initialRoute.view);
   const [adminTab, setAdminTab] = useState<AdminTab>(
     initialRoute.view === 'admin' ? (initialRoute.tab as AdminTab) : 'dashboard'
@@ -193,16 +197,17 @@ export default function App() {
 
   // Keep the address bar in sync with the selected page
   React.useEffect(() => {
-    if (isAuthChecking || !currentUser) return;
+    if (isAuthChecking || !currentUser || isEitaaPage) return;
     const target = routeToPath(activeView, activeView === 'admin' ? adminTab : userTab);
     if (window.location.pathname !== target) {
       window.history.pushState({}, '', target);
     }
-  }, [activeView, adminTab, userTab, currentUser, isAuthChecking]);
+  }, [activeView, adminTab, userTab, currentUser, isAuthChecking, isEitaaPage]);
 
   // Browser back / forward
   React.useEffect(() => {
     const onPopState = () => {
+      setIsEitaaPage(window.location.pathname.replace(/\/+$/, '') === '/eitaa');
       const route = parseRoute(window.location.pathname);
       if (route.view === 'admin') {
         setAdminTab(route.tab as AdminTab);
@@ -822,6 +827,22 @@ export default function App() {
       return { ...prev, [ticketId]: updatedAt };
     });
   }, []);
+
+  // Eitaa mini-app sign-up page (/eitaa) — one screen, one action
+  if (isEitaaPage) {
+    return (
+      <EitaaLanding
+        onEnter={(user) => {
+          setCurrentUser(user as User);
+          setIsEitaaPage(false);
+          setShowAuth(false);
+          setActiveView('user');
+          setUserTab('dashboard');
+          window.history.pushState({}, '', '/user/dashboard');
+        }}
+      />
+    );
+  }
 
   // If not logged in -> Show Login & Register page on main page
   if (isAuthChecking) {
