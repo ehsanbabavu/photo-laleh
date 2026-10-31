@@ -3264,6 +3264,124 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
   }
 }
 
+/**
+ * Makes sure Telegram delivers updates to this deployment's webhook and reports
+ * exactly what Telegram answered (used by the panel button).
+ */
+async function ensureTelegramWebhook(force = false, baseUrl?: string) {
+  const db = await readDb();
+  const token = String(db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  if (!token) {
+    return { ok: false, error: 'توکن ربات تلگرام ثبت نشده است — اول توکن را وارد و ذخیره کن.' };
+  }
+  if (!/^\d{5,}:[\w-]{20,}$/.test(token)) {
+    return {
+      ok: false,
+      error: 'قالب توکن تلگرام درست نیست (باید شبیه 123456789:AA… باشد).',
+      tokenPreview: `${token.slice(0, 6)}…`
+    };
+  }
+
+  const lastCheck = Number(db.settings?.telegramWebhookCheckedAt || 0);
+  if (!force && Date.now() - lastCheck < 60 * 60 * 1000) return { ok: true, skipped: true };
+
+  const base = String(baseUrl || process.env.PUBLIC_BASE_URL || 'https://photo-laleh.vercel.app').replace(
+    /\/+$/,
+    ''
+  );
+  const url = `${base}/api/telegram/webhook`;
+  const diagnostics: any[] = [];
+
+  try {
+    let infoBody: any = null;
+    try {
+      const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+      infoBody = await infoRes.json().catch(() => null);
+      diagnostics.push({ call: 'getWebhookInfo', http: infoRes.status, body: infoBody });
+    } catch (err: any) {
+      diagnostics.push({ call: 'getWebhookInfo', http: 0, body: { error: err?.message } });
+    }
+
+    const currentUrl = infoBody?.result?.url || '';
+    let setBody: any = null;
+    let setStatus = 0;
+
+    if (force || currentUrl !== url) {
+      try {
+        const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            allowed_updates: ['message', 'callback_query'],
+            drop_pending_updates: false
+          })
+        });
+        setStatus = setRes.status;
+        setBody = await setRes.json().catch(() => null);
+        diagnostics.push({ call: 'setWebhook', http: setStatus, body: setBody });
+      } catch (err: any) {
+        diagnostics.push({ call: 'setWebhook', http: 0, body: { error: err?.message } });
+      }
+    }
+
+    let verifiedUrl = currentUrl;
+    let verifyBody: any = null;
+    if (force || currentUrl !== url) {
+      try {
+        const verifyRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+        verifyBody = await verifyRes.json().catch(() => null);
+        verifiedUrl = verifyBody?.result?.url || '';
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const ok = verifiedUrl === url;
+    const freshDb = await readDb();
+    freshDb.settings = {
+      ...(freshDb.settings || {}),
+      telegramWebhookCheckedAt: Date.now(),
+      telegramWebhookUrl: verifiedUrl
+    };
+    await writeDb(freshDb);
+
+    const telegramError =
+      setBody?.description ||
+      infoBody?.description ||
+      verifyBody?.description ||
+      (setStatus ? `HTTP ${setStatus}` : '');
+
+    return {
+      ok,
+      url,
+      currentUrl: verifiedUrl,
+      changed: Boolean(setBody?.ok),
+      pendingUpdateCount:
+        verifyBody?.result?.pending_update_count ?? infoBody?.result?.pending_update_count,
+      lastError:
+        verifyBody?.result?.last_error_message || infoBody?.result?.last_error_message || telegramError,
+      error: ok ? undefined : telegramError || 'وبهوک ثبت نشد',
+      diagnostics
+    };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'خطا در ثبت وبهوک', diagnostics };
+  }
+}
+
+// Admin action: force (re)register the webhook and return Telegram's answer
+app.post('/api/telegram/setup-webhook', async (req: any, res) => {
+  try {
+    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+    const host = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
+    const base = host ? `${proto}://${host}` : undefined;
+    const result = await ensureTelegramWebhook(true, base);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'server error' });
+  }
+});
+
 app.post('/api/telegram/webhook', async (req, res) => {
   try {
     // Cheap self-healing check (at most once an hour)
