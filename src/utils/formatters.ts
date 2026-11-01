@@ -26,6 +26,34 @@ export const formatRialDirect = (amountInRial: number | string | null | undefine
   return `${formatNumber(amountInRial)} ریال`;
 };
 
+/** تاریخ و ساعت کامل سفارش به شمسی: «۱۴۰۴/۰۸/۱۰ - ۱۵:۱۸» */
+export const formatOrderDateTime = (
+  iso?: string | null,
+  fallbackDate?: string | null
+): string => {
+  if (iso) {
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) {
+      try {
+        const datePart = new Intl.DateTimeFormat('fa-IR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).format(d);
+        const timePart = new Intl.DateTimeFormat('fa-IR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(d);
+        return `${datePart} - ${timePart}`;
+      } catch {
+        /* fall through to the plain date */
+      }
+    }
+  }
+  return fallbackDate || '';
+};
+
 export const getStatusBadge = (status: string): { label: string; color: string } => {
   switch (status) {
     case 'pending_review':
