@@ -82,13 +82,9 @@
       }
     </script>
 
-    <!-- Google Fonts Vazirmatn (All weights 100 to 900) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    
-    <!-- CDN Fallback for Vazir Font -->
-    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    <!-- Vazirmatn is self-hosted: the npm package CSS is bundled by Vite and the
+         woff2 files are served from this same origin (/assets/*.woff2), so no
+         external font CDN (blocked/slow inside Iran) is needed. -->
   </head>
   <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-sky-500 selection:text-white min-h-screen">
     <div id="root"></div>
