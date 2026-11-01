@@ -48,5 +48,5 @@ export const LEGAL_QR_URL = `${BLOB}/legal-qr-EJJINUPKrVZHBDYHa2yv1Uu6ZYsgwo.png
 export const LEGAL_TRACK_URL = 'https://qr.mojavez.ir/track/8678392';
 
 /** Business licence (پروانه کسب): thumbnail next to the QR + full size for the lightbox. */
-export const LICENSE_THUMB_URL = `${BLOB}/license-thumb-q72LqDhMKEDaTLaC6nd8KPTPG7m7Jo.jpg`;
-export const LICENSE_IMAGE_URL = `${BLOB}/license-6x0usfFXtOXj3wFypLcUcrvGcHiGVE.jpg`;
+export const LICENSE_THUMB_URL = '/license-thumb.svg';
+export const LICENSE_IMAGE_URL = '/license.svg';
