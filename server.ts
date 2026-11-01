@@ -92,6 +92,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/telegram',
   '/api/auth/telegram/pending',
   '/api/auth/telegram/session',
+  '/api/auth/telegram/config',
   '/api/auth/otp/request',
   '/api/auth/password/otp',
   '/api/auth/password/reset',
@@ -925,6 +926,47 @@ async function resolveTelegramSigninToken(token: string): Promise<string | null>
   if (Date.now() - Number(entry.at || 0) > 30 * 60 * 1000) return null;
   return String(entry.telegramId);
 }
+
+/**
+ * Public config for the Telegram login page.
+ * The page can only know who the visitor is when Telegram opens it as a mini app.
+ * Outside Telegram (plain browser, link opened from another app) there is no id at
+ * all, so the page needs the bot's @username to send the visitor through the bot —
+ * the bot then hands back a one-time sign-in token (?t=…) that identifies the chat.
+ */
+app.get('/api/auth/telegram/config', async (req: any, res) => {
+  try {
+    const db = await readDb();
+    const botToken = String(db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+    let username = String((db.settings as any)?.telegramBotUsername || '')
+      .trim()
+      .replace(/^@/, '');
+
+    if (!username && botToken) {
+      try {
+        const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+        const me: any = await meRes.json().catch(() => null);
+        if (me?.ok && me?.result?.username) {
+          username = String(me.result.username);
+          db.settings = { ...(db.settings || {}), telegramBotUsername: username };
+          await writeDb(db);
+        }
+      } catch {
+        /* getMe is best-effort; the page still offers the phone fallback */
+      }
+    }
+
+    res.json({
+      success: true,
+      botUsername: username,
+      // Opening this link makes the bot reply with a fresh mini-app button (?t=token)
+      botLoginUrl: username ? `https://t.me/${username}?start=login` : '',
+      miniAppUrl: `${publicBaseUrl(req)}/telegram`
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'server error' });
+  }
+});
 
 // Identity for the mini app: verified initData, or a one-time token from the bot
 app.post('/api/auth/telegram/session', async (req: any, res) => {
