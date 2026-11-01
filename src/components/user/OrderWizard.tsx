@@ -246,6 +246,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       userId: user.id,
       userName: draft.customerInfo.fullName || user.name,
       date: new Date().toLocaleDateString('fa-IR'),
+      createdAt: new Date().toISOString(),
       status: 'pending_review',
       aiStatus: 'processing',
       aiPromptUsed: promptToUse,
