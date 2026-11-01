@@ -7,7 +7,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { Order, User } from '../../types';
-import { formatPrice, formatOrderDateTime } from '../../utils/formatters';
+import { formatPrice, formatOrderDateTime, deriveOrderCreatedAt } from '../../utils/formatters';
 
 interface UserOrdersProps {
   orders: Order[];
@@ -73,7 +73,7 @@ export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNew
                   <span className="text-slate-400 font-sans text-[11px]">تاریخ ثبت:</span>
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{formatOrderDateTime(order.createdAt, order.date)}</span>
+                    <span>{formatOrderDateTime(deriveOrderCreatedAt(order), order.date)}</span>
                   </div>
                 </div>
 
