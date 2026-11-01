@@ -3,9 +3,8 @@ import { Loader2, AlertCircle, UserPlus, ShieldCheck, Phone } from 'lucide-react
 import { User } from '../types';
 import { TelegramIcon } from './BrandIcons';
 
-/** Default campaign artwork (used by the Telegram screen). */
-const CAMPAIGN_BG =
-  'https://p6rt5frbosoaqkcy.public.blob.vercel-storage.com/eitaa/eitaa-bg-Y8v18GIL7x6d52WUkfTti2go2uOFxm.jpg';
+/** Default campaign artwork (used by the Telegram screen) — served from our own origin. */
+const CAMPAIGN_BG = '/telegram-bg.svg';
 
 /** Eitaa login artwork: «خاطره‌ای که رنگ گرفت» (portrait poster, shipped in /public). */
 const EITAA_BG = '/eitaa-bg.svg';
