@@ -1388,6 +1388,11 @@ app.post('/api/orders', async (req, res) => {
   const newOrder = req.body || {};
   const existingIdx = (db.orders || []).findIndex((o: any) => o.id === newOrder.id);
   const isNew = existingIdx < 0;
+  // Date + exact time of the order (authoritative, set once on creation)
+  if (isNew) {
+    if (!newOrder.createdAt) newOrder.createdAt = new Date().toISOString();
+    if (!newOrder.date) newOrder.date = new Date().toLocaleDateString('fa-IR');
+  }
   if (!isNew) {
     db.orders[existingIdx] = newOrder;
   } else {
