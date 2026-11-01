@@ -148,6 +148,8 @@ export interface Order extends OrderDraft {
   userId: string;
   userName: string;
   date: string;
+  /** ISO timestamp of the moment the order was created (date + time shown to admins) */
+  createdAt?: string;
   status: 'pending_review' | 'ai_processing' | 'printing' | 'ready_to_ship' | 'delivered';
   totalPrice: number;
   paymentStatus: 'paid' | 'pending';
