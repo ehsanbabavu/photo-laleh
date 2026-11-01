@@ -442,6 +442,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                       className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
                     />
                   </a>
+                  <a
+                    href={LEGAL_TRACK_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-center text-[11px] sm:text-sm font-bold text-slate-700 hover:text-emerald-700 transition-colors max-w-[9rem] sm:max-w-[11rem] leading-6"
+                  >
+                    مجوز رسمی از سامانه ملی مجوزها
+                  </a>
                 </div>
 
                 {/* Business licence image */}
@@ -488,6 +496,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                       loading="lazy"
                       className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
                     />
+                  </a>
+                  <a
+                    referrerPolicy="origin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    href="https://trustseal.enamad.ir/?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
+                    className="text-center text-[11px] sm:text-sm font-bold text-slate-700 hover:text-emerald-700 transition-colors max-w-[9rem] sm:max-w-[11rem] leading-6"
+                  >
+                    نماد اعتماد الکترونیکی
                   </a>
                 </div>
               </div>
