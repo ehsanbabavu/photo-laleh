@@ -423,7 +423,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             <div className="pointer-events-none absolute -bottom-24 -right-16 w-56 h-56 rounded-full bg-sky-100/60 blur-3xl" />
 
             <div className="relative flex flex-col items-center justify-center gap-4">
-              <div className="grid grid-cols-2 items-start justify-center gap-3 sm:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 items-start justify-center gap-3 sm:gap-6">
                 {/* QR code */}
                 <div className="flex flex-col items-center gap-2">
                   <a
@@ -475,6 +475,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   <p className="text-center text-[11px] sm:text-sm font-bold text-slate-700 max-w-[9rem] sm:max-w-[11rem] leading-6">
                     مجوز رسمی اتحادیه عکاسان
                   </p>
+                </div>
+
+                {/* Enamad trust seal */}
+                <div className="col-span-2 sm:col-span-1 flex flex-col items-center gap-2">
+                  <a
+                    referrerPolicy="origin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    href="https://trustseal.enamad.ir/?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
+                    aria-label="نماد اعتماد الکترونیکی (اینماد)"
+                    className="block flex-shrink-0 rounded-2xl bg-white p-2 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
+                  >
+                    <img
+                      referrerPolicy="origin"
+                      src="https://trustseal.enamad.ir/logo.aspx?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
+                      alt="نماد اعتماد الکترونیکی (اینماد)"
+                      width={168}
+                      height={168}
+                      loading="lazy"
+                      className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
+                    />
+                  </a>
+                  <a
+                    referrerPolicy="origin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    href="https://trustseal.enamad.ir/?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
+                    className="text-center text-[11px] sm:text-sm font-bold text-slate-700 hover:text-emerald-700 underline decoration-emerald-300 decoration-2 underline-offset-[6px] transition-colors max-w-[9rem] sm:max-w-[11rem] leading-6"
+                  >
+                    نماد اعتماد الکترونیکی
+                  </a>
                 </div>
               </div>
             </div>
