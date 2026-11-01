@@ -138,6 +138,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [licenseOpen, setLicenseOpen] = useState(false);
+  // Enamad seal may take up to 24h to become active; hide the card gracefully if it never loads.
+  const [sealVisible, setSealVisible] = useState(true);
 
   // Close the licence lightbox with Esc and lock background scrolling while open
   useEffect(() => {
@@ -477,7 +479,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   </p>
                 </div>
 
-                {/* Enamad trust seal */}
+                {/* Enamad trust seal (hidden if the seal image is not available yet) */}
+                {sealVisible && (
                 <div className="col-span-2 sm:col-span-1 flex flex-col items-center gap-2">
                   <a
                     referrerPolicy="origin"
@@ -494,6 +497,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                       width={168}
                       height={168}
                       loading="lazy"
+                      onError={() => setSealVisible(false)}
                       className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
                     />
                   </a>
@@ -507,6 +511,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     نماد اعتماد الکترونیکی
                   </a>
                 </div>
+                )}
               </div>
             </div>
           </div>
