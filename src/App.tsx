@@ -11,36 +11,39 @@ import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
 import { LandingPage } from './components/LandingPage';
 import { AdminSidebar, AdminTab } from './components/admin/AdminSidebar';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { AdminAnnouncements } from './components/admin/AdminAnnouncements';
-import { ChatGPTConnect } from './components/admin/ChatGPTConnect';
-import { AdminOrders } from './components/admin/AdminOrders';
-import { PrintTypeManager } from './components/admin/PrintTypeManager';
-import { AdminSizesManager } from './components/admin/AdminSizesManager';
-import { AdminPartnerInvoices } from './components/admin/AdminPartnerInvoices';
-import { AdminCostRequests } from './components/admin/AdminCostRequests';
-import { PromptsManager } from './components/admin/PromptsManager';
-import { AdminTickets } from './components/admin/AdminTickets';
-import { AdminTelegramBot } from './components/admin/AdminTelegramBot';
-import { AdminBluPalSettings } from './components/admin/AdminBluPalSettings';
-import { AdminDatabaseSettings } from './components/admin/AdminDatabaseSettings';
-import { AdminUsers } from './components/admin/AdminUsers';
-import { AdminBackup } from './components/admin/AdminBackup';
-import { AdminTransport } from './components/admin/AdminTransport';
 import { EitaaLanding, TelegramLanding } from './components/EitaaLanding';
-import { AdminBackupSchedule } from './components/admin/AdminBackupSchedule';
-import { AdminSmsSettings } from './components/admin/AdminSmsSettings';
-import { AdminSessions } from './components/admin/AdminSessions';
-import { AdminAudit } from './components/admin/AdminAudit';
+// Heavy, logged-in-only screens are split into their own chunks so the public
+// pages (landing + /eitaa + /telegram) stay small and load fast.
+const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminAnnouncements = React.lazy(() => import('./components/admin/AdminAnnouncements').then((m) => ({ default: m.AdminAnnouncements })));
+const ChatGPTConnect = React.lazy(() => import('./components/admin/ChatGPTConnect').then((m) => ({ default: m.ChatGPTConnect })));
+const AdminOrders = React.lazy(() => import('./components/admin/AdminOrders').then((m) => ({ default: m.AdminOrders })));
+const PrintTypeManager = React.lazy(() => import('./components/admin/PrintTypeManager').then((m) => ({ default: m.PrintTypeManager })));
+const AdminSizesManager = React.lazy(() => import('./components/admin/AdminSizesManager').then((m) => ({ default: m.AdminSizesManager })));
+const AdminPartnerInvoices = React.lazy(() => import('./components/admin/AdminPartnerInvoices').then((m) => ({ default: m.AdminPartnerInvoices })));
+const AdminCostRequests = React.lazy(() => import('./components/admin/AdminCostRequests').then((m) => ({ default: m.AdminCostRequests })));
+const PromptsManager = React.lazy(() => import('./components/admin/PromptsManager').then((m) => ({ default: m.PromptsManager })));
+const AdminTickets = React.lazy(() => import('./components/admin/AdminTickets').then((m) => ({ default: m.AdminTickets })));
+const AdminTelegramBot = React.lazy(() => import('./components/admin/AdminTelegramBot').then((m) => ({ default: m.AdminTelegramBot })));
+const AdminBluPalSettings = React.lazy(() => import('./components/admin/AdminBluPalSettings').then((m) => ({ default: m.AdminBluPalSettings })));
+const AdminDatabaseSettings = React.lazy(() => import('./components/admin/AdminDatabaseSettings').then((m) => ({ default: m.AdminDatabaseSettings })));
+const AdminUsers = React.lazy(() => import('./components/admin/AdminUsers').then((m) => ({ default: m.AdminUsers })));
+const AdminBackup = React.lazy(() => import('./components/admin/AdminBackup').then((m) => ({ default: m.AdminBackup })));
+const AdminTransport = React.lazy(() => import('./components/admin/AdminTransport').then((m) => ({ default: m.AdminTransport })));
+const AdminBackupSchedule = React.lazy(() => import('./components/admin/AdminBackupSchedule').then((m) => ({ default: m.AdminBackupSchedule })));
+const AdminSmsSettings = React.lazy(() => import('./components/admin/AdminSmsSettings').then((m) => ({ default: m.AdminSmsSettings })));
+const AdminSessions = React.lazy(() => import('./components/admin/AdminSessions').then((m) => ({ default: m.AdminSessions })));
+const AdminAudit = React.lazy(() => import('./components/admin/AdminAudit').then((m) => ({ default: m.AdminAudit })));
+const OrderWizard = React.lazy(() => import('./components/user/OrderWizard').then((m) => ({ default: m.OrderWizard })));
+const UserOrders = React.lazy(() => import('./components/user/UserOrders').then((m) => ({ default: m.UserOrders })));
+const UserTickets = React.lazy(() => import('./components/user/UserTickets').then((m) => ({ default: m.UserTickets })));
+const PartnerOrders = React.lazy(() => import('./components/user/PartnerOrders').then((m) => ({ default: m.PartnerOrders })));
+const PartnerPriceList = React.lazy(() => import('./components/user/PartnerPriceList').then((m) => ({ default: m.PartnerPriceList })));
+const UserDashboard = React.lazy(() => import('./components/user/UserDashboard').then((m) => ({ default: m.UserDashboard })));
+
 import { parseRoute, routeToPath } from './utils/router';
 import { SESSION_IDLE_MS, IDLE_CHECK_INTERVAL_MS, HEARTBEAT_INTERVAL_MS, ACTIVITY_EVENTS } from './utils/session';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
-import { OrderWizard } from './components/user/OrderWizard';
-import { UserOrders } from './components/user/UserOrders';
-import { UserTickets } from './components/user/UserTickets';
-import { PartnerOrders } from './components/user/PartnerOrders';
-import { PartnerPriceList } from './components/user/PartnerPriceList';
-import { UserDashboard } from './components/user/UserDashboard';
 import { aiQueueManager, QueueStateInfo } from './utils/aiQueueManager';
 import {
   CheckCircle2,
@@ -903,6 +906,13 @@ export default function App() {
   });
 
   return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50">
+          <div className="w-6 h-6 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-sky-500 selection:text-white pt-[56px] sm:pt-[72px] lg:pt-0">
       {/* Toast Notification Alert */}
       {toastMessage && (
@@ -1307,5 +1317,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </React.Suspense>
   );
 }
