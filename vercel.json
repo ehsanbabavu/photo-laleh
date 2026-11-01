@@ -8,6 +8,19 @@
       "maxDuration": 30
     }
   },
+  "redirects": [
+    {
+      "source": "/((?!api/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "photo-laleh.ir"
+        }
+      ],
+      "destination": "https://www.photo-laleh.ir/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
