@@ -115,7 +115,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   const [inMessenger, setInMessenger] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
-  const [autoPauseLeft, setAutoPauseLeft] = useState(0);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [botUsername, setBotUsername] = useState(TELEGRAM_BOT_USERNAME);
@@ -203,15 +202,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     autoLoginRef.current = true;
     let cancelled = false;
     setIsAutoLoggingIn(true);
-    setAutoPauseLeft(Math.ceil(AUTO_LOGIN_PAUSE_MS / 1000));
-
-    const tick = window.setInterval(() => {
-      if (cancelled) return;
-      setAutoPauseLeft((left) => (left > 1 ? left - 1 : 1));
-    }, 1000);
 
     const timer = window.setTimeout(async () => {
-      window.clearInterval(tick);
       if (cancelled) return;
 
       const { initData, signinToken } = resolveIdentity();
@@ -220,7 +212,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       const hasIdentity = Boolean(initData || signinToken || telegramId);
       if (!hasIdentity) {
         setIsAutoLoggingIn(false);
-        setAutoPauseLeft(0);
         return;
       }
 
@@ -266,7 +257,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         /* fall through to the signup screen */
       }
       setIsAutoLoggingIn(false);
-      setAutoPauseLeft(0);
       // A missing account is fine — we still know the Telegram id, so let the user
       // register straight away instead of asking for a phone number.
       if (!telegramId) setNeedsManualPhone(true);
@@ -275,7 +265,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
-      window.clearInterval(tick);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
@@ -472,20 +461,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     await requestPhone();
   };
 
-  if (isAutoLoggingIn) {
-    return (
-      <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center gap-3 bg-[#f7efe6]">
-        <Loader2 className="w-7 h-7 animate-spin text-emerald-600" />
-        <p className="text-xs font-bold text-slate-600">در حال ورود به حساب…</p>
-        {autoPauseLeft > 0 && (
-          <p className="text-[11px] font-black text-slate-400 tabular-nums">
-            {new Intl.NumberFormat('fa-IR').format(autoPauseLeft)} ثانیه
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#f7efe6]">
       <div
@@ -519,6 +494,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
           className="px-4 pb-5"
           style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
         >
+          {isAutoLoggingIn && (
+            <div className="mb-3 flex items-center justify-center gap-2 rounded-2xl bg-white/95 border border-slate-200 px-3 py-3 shadow-sm">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+              <p className="text-[11px] font-bold text-slate-600">در حال بررسی حساب…</p>
+            </div>
+          )}
+
           {error && (
             <div className="mb-3 flex items-start gap-2 rounded-2xl bg-rose-50/95 border border-rose-200 px-3 py-2.5">
               <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
@@ -526,7 +508,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             </div>
           )}
 
-          {provider === 'telegram' && !messengerId && (
+          {!isAutoLoggingIn && provider === 'telegram' && !messengerId && (
             <div className="mb-3 rounded-2xl bg-white/95 border border-sky-200 px-3 py-3">
               <p className="flex items-center gap-1.5 text-[11px] font-black text-slate-700">
                 <span className="w-5 h-5 rounded-full bg-[#229ED9] text-white flex items-center justify-center flex-shrink-0">
@@ -550,7 +532,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             </div>
           )}
 
-          {provider === 'telegram' && needsManualPhone && (
+          {!isAutoLoggingIn && provider === 'telegram' && needsManualPhone && (
             <div className="mb-3 rounded-2xl bg-white/95 border border-slate-200 px-3 py-2.5">
               <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 mb-1">
                 <Phone className="w-3.5 h-3.5 text-emerald-600" />
@@ -571,7 +553,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
           <button
             type="button"
             onClick={handleRegister}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isAutoLoggingIn}
             className="w-full h-14 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-[0.995] disabled:opacity-70 text-white text-sm font-black shadow-lg shadow-teal-700/25 transition-all cursor-pointer"
           >
             {isSubmitting ? (
@@ -580,7 +562,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
               <UserPlus className="w-5 h-5" />
             )}
             <span>
-              {provider === 'eitaa' ? 'ورود' : needsManualPhone ? 'ادامه ثبت نام' : 'ثبت نام'}
+              {isAutoLoggingIn
+                ? 'لطفاً کمی صبر کنید…'
+                : provider === 'eitaa'
+                ? 'ورود'
+                : needsManualPhone
+                ? 'ادامه ثبت نام'
+                : 'ثبت نام'}
             </span>
           </button>
 
