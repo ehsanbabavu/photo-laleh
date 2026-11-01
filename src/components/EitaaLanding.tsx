@@ -106,6 +106,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [botLoginUrl, setBotLoginUrl] = useState('');
   const pollRef = useRef<number | null>(null);
 
   const webApp = () =>
@@ -199,6 +200,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         });
         const data = await res.json().catch(() => null);
         if (res.ok && data?.success && data?.user) {
+          // Do not keep the one-time sign-in token in the address bar / history
+          if (new URLSearchParams(window.location.search).has('t')) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
           onEnter(data.user as User);
           return;
         }
@@ -210,6 +215,23 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, messengerId]);
+
+  // Root fix for "no user id": when Telegram did not open this page as a mini app
+  // nothing can identify the visitor, so we need the bot's deep link to send them
+  // through the bot, which then returns a one-time sign-in token (?t=…).
+  useEffect(() => {
+    if (provider !== 'telegram') return;
+    let cancelled = false;
+    fetch('/api/auth/telegram/config', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data?.botLoginUrl) setBotLoginUrl(String(data.botLoginUrl));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [provider]);
 
   useEffect(() => () => {
     if (pollRef.current) window.clearInterval(pollRef.current);
@@ -432,6 +454,36 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
             <div className="mb-3 flex items-start gap-2 rounded-2xl bg-rose-50/95 border border-rose-200 px-3 py-2.5">
               <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
               <p className="text-[11px] leading-6 text-rose-700">{error}</p>
+            </div>
+          )}
+
+          {provider === 'telegram' && !messengerId && (
+            <div className="mb-3 rounded-2xl bg-white/95 border border-sky-200 px-3 py-3">
+              <p className="flex items-center gap-1.5 text-[11px] font-black text-slate-700">
+                <span className="w-5 h-5 rounded-full bg-[#229ED9] text-white flex items-center justify-center flex-shrink-0">
+                  <TelegramIcon className="w-3 h-3" />
+                </span>
+                شناسه تلگرام شما در دسترس نیست
+              </p>
+              <p className="mt-1.5 text-[10px] leading-5 text-slate-500">
+                برای ورود خودکار، صفحه باید از داخل ربات تلگرام باز شود. روی دکمه زیر بزنید؛ ربات
+                لینک ورود اختصاصی شما را می‌فرستد.
+              </p>
+              {botLoginUrl ? (
+                <a
+                  href={botLoginUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex w-full h-11 items-center justify-center gap-2 rounded-xl bg-[#229ED9] hover:bg-[#1e8fc4] text-white text-xs font-black transition-colors"
+                >
+                  <TelegramIcon className="w-4 h-4" />
+                  ورود از طریق ربات تلگرام
+                </a>
+              ) : (
+                <p className="mt-2 text-[10px] font-bold text-amber-700">
+                  نام کاربری ربات در پنل ثبت نشده است؛ از پنل مدیریت، تست اتصال ربات را بزنید.
+                </p>
+              )}
             </div>
           )}
 
