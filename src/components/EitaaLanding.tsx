@@ -115,6 +115,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   const [inMessenger, setInMessenger] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
+  const [autoPauseLeft, setAutoPauseLeft] = useState(0);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [botUsername, setBotUsername] = useState(TELEGRAM_BOT_USERNAME);
@@ -183,6 +184,14 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     return { initData: String(initData), signinToken: String(signinToken || '') };
   };
 
+  // Keep the newest identity value available to the delayed timer without
+  // restarting the countdown every time a piece of identity arrives.
+  const messengerIdRef = useRef(messengerId);
+  messengerIdRef.current = messengerId;
+
+  /** How long the mini app waits before it tries to sign the visitor in. */
+  const AUTO_LOGIN_PAUSE_MS = 10_000;
+
   useEffect(() => {
     if (autoLoginRef.current) return;
 
@@ -191,13 +200,48 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       return;
     }
 
-    const { initData, signinToken } = resolveIdentity();
-    const hasIdentity = Boolean(initData || signinToken || messengerId);
-    if (!hasIdentity) return;
-
     autoLoginRef.current = true;
+    let cancelled = false;
     setIsAutoLoggingIn(true);
-    (async () => {
+    setAutoPauseLeft(Math.ceil(AUTO_LOGIN_PAUSE_MS / 1000));
+
+    const tick = window.setInterval(() => {
+      if (cancelled) return;
+      setAutoPauseLeft((left) => (left > 1 ? left - 1 : 1));
+    }, 1000);
+
+    const timer = window.setTimeout(async () => {
+      window.clearInterval(tick);
+      if (cancelled) return;
+
+      const { initData, signinToken } = resolveIdentity();
+      const telegramId = messengerIdRef.current || '';
+      // "login only when a phone number or a Telegram id exists"
+      const hasIdentity = Boolean(initData || signinToken || telegramId);
+      if (!hasIdentity) {
+        setIsAutoLoggingIn(false);
+        setAutoPauseLeft(0);
+        return;
+      }
+
+      // The bot may already hold the phone number for this chat: it is the strongest
+      // identity we can use, so prefer it when it is there.
+      if (provider === 'telegram' && telegramId) {
+        try {
+          const pendingRes = await fetch(
+            `/api/auth/telegram/pending?id=${encodeURIComponent(telegramId)}`,
+            { cache: 'no-store' }
+          );
+          const pending = await pendingRes.json().catch(() => null);
+          if (!cancelled && pending?.phone) {
+            await submitPhone(String(pending.phone));
+            return;
+          }
+        } catch {
+          /* fall through to the id/token sign-in */
+        }
+      }
+
       try {
         const res = await fetch('/api/auth/telegram/session', {
           method: 'POST',
@@ -205,7 +249,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
           body: JSON.stringify({
             initData,
             signinToken,
-            telegramId: messengerId || undefined,
+            telegramId: telegramId || undefined,
             createIfMissing: false
           })
         });
@@ -222,12 +266,19 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         /* fall through to the signup screen */
       }
       setIsAutoLoggingIn(false);
+      setAutoPauseLeft(0);
       // A missing account is fine — we still know the Telegram id, so let the user
       // register straight away instead of asking for a phone number.
-      if (!messengerId) setNeedsManualPhone(true);
-    })();
+      if (!telegramId) setNeedsManualPhone(true);
+    }, AUTO_LOGIN_PAUSE_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      window.clearInterval(tick);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, messengerId]);
+  }, [provider]);
 
   // Root fix for "no user id": when Telegram did not open this page as a mini app
   // nothing can identify the visitor, so we need the bot's deep link to send them
@@ -426,6 +477,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center gap-3 bg-[#f7efe6]">
         <Loader2 className="w-7 h-7 animate-spin text-emerald-600" />
         <p className="text-xs font-bold text-slate-600">در حال ورود به حساب…</p>
+        {autoPauseLeft > 0 && (
+          <p className="text-[11px] font-black text-slate-400 tabular-nums">
+            {new Intl.NumberFormat('fa-IR').format(autoPauseLeft)} ثانیه
+          </p>
+        )}
       </div>
     );
   }
