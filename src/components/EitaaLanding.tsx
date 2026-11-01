@@ -474,7 +474,14 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#f7efe6]">
       <div
         className="absolute inset-0 bg-cover bg-top bg-no-repeat"
-        style={{ backgroundImage: `url(${BACKGROUND_BY_PROVIDER[provider]})` }}
+        style={{
+          backgroundImage: `url(${BACKGROUND_BY_PROVIDER[provider]})`,
+          // Eitaa artwork sits a little higher so the headline clears the login card.
+          // The extra scale hides the edge the shift would otherwise expose.
+          ...(provider === 'eitaa'
+            ? { transform: 'translateY(-5%) scale(1.08)', transformOrigin: 'top center' }
+            : {})
+        }}
         aria-hidden="true"
       />
       <div
