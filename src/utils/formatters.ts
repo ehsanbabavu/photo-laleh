@@ -26,6 +26,27 @@ export const formatRialDirect = (amountInRial: number | string | null | undefine
   return `${formatNumber(amountInRial)} ریال`;
 };
 
+/**
+ * Best-known creation timestamp of an order.
+ * Older orders have no `createdAt`, but their id is `ord-<epoch ms>`, so the exact
+ * moment they were placed can be recovered from it.
+ */
+export const deriveOrderCreatedAt = (order: {
+  createdAt?: string | null;
+  id?: string | null;
+}): string | undefined => {
+  if (order?.createdAt) return order.createdAt;
+  const match = /^ord-(\d{10,})$/.exec(String(order?.id || ''));
+  if (match) {
+    const stamp = Number(match[1]);
+    if (Number.isFinite(stamp)) {
+      const d = new Date(stamp);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  return undefined;
+};
+
 /** تاریخ و ساعت کامل سفارش به شمسی: «۱۴۰۴/۰۸/۱۰ - ۱۵:۱۸» */
 export const formatOrderDateTime = (
   iso?: string | null,
