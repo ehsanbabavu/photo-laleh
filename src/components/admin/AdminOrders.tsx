@@ -14,10 +14,11 @@ import {
   FileImage,
   RefreshCw,
   Info,
-  Send
+  Send,
+  Clock
 } from 'lucide-react';
 import { Order } from '../../types';
-import { formatPrice, getStatusBadge } from '../../utils/formatters';
+import { formatPrice, getStatusBadge, formatOrderDateTime } from '../../utils/formatters';
 import { generateNinePackSheet, downloadImage } from '../../utils/sheetGenerator';
 import { QueueStateInfo } from '../../utils/aiQueueManager';
 import { PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
@@ -419,6 +420,12 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         <Phone className="w-3 h-3 text-slate-400" />
                         <span className="font-mono">{order.customerInfo?.phoneNumber}</span>
                       </span>
+                    </div>
+
+                    {/* Date + time the order was placed */}
+                    <div className="flex items-center gap-1 pt-0.5 text-[10px] sm:text-[11px] font-bold text-slate-500">
+                      <Clock className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                      <span>{formatOrderDateTime(order.createdAt, order.date)}</span>
                     </div>
 
                     {/* Image status indicators */}
