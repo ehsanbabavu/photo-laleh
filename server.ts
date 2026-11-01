@@ -956,11 +956,18 @@ app.get('/api/auth/telegram/config', async (req: any, res) => {
       }
     }
 
+    // Last-resort fallback: the login page must always get a working deep link.
+    if (!username) {
+      username = String(process.env.TELEGRAM_BOT_USERNAME || 'photo_laleh_bot')
+        .trim()
+        .replace(/^@/, '');
+    }
+
     res.json({
       success: true,
       botUsername: username,
       // Opening this link makes the bot reply with a fresh mini-app button (?t=token)
-      botLoginUrl: username ? `https://t.me/${username}?start=login` : '',
+      botLoginUrl: `https://t.me/${username}?start=login`,
       miniAppUrl: `${publicBaseUrl(req)}/telegram`
     });
   } catch (err: any) {
