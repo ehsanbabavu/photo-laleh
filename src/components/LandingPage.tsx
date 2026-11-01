@@ -468,7 +468,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                       width={168}
                       height={168}
                       loading="lazy"
-                      className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-cover rounded-xl"
+                      className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain rounded-xl bg-white"
                     />
                     <span className="absolute inset-2 rounded-xl bg-slate-900/0 group-hover:bg-slate-900/45 transition-colors flex items-center justify-center">
                       <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
