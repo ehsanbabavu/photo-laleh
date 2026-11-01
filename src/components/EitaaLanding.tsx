@@ -3,8 +3,18 @@ import { Loader2, AlertCircle, UserPlus, ShieldCheck, Phone } from 'lucide-react
 import { User } from '../types';
 import { TelegramIcon } from './BrandIcons';
 
+/** Default campaign artwork (used by the Telegram screen). */
 const CAMPAIGN_BG =
   'https://p6rt5frbosoaqkcy.public.blob.vercel-storage.com/eitaa/eitaa-bg-Y8v18GIL7x6d52WUkfTti2go2uOFxm.jpg';
+
+/** Eitaa login artwork: «خاطره‌ای که رنگ گرفت» (portrait poster, shipped in /public). */
+const EITAA_BG = '/eitaa-bg.svg';
+
+/** Background artwork for the login page of each messenger. */
+const BACKGROUND_BY_PROVIDER: Record<Provider, string> = {
+  eitaa: EITAA_BG,
+  telegram: CAMPAIGN_BG
+};
 
 type Provider = 'eitaa' | 'telegram';
 
@@ -464,7 +474,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#f7efe6]">
       <div
         className="absolute inset-0 bg-cover bg-top bg-no-repeat"
-        style={{ backgroundImage: `url(${CAMPAIGN_BG})` }}
+        style={{ backgroundImage: `url(${BACKGROUND_BY_PROVIDER[provider]})` }}
         aria-hidden="true"
       />
       <div
