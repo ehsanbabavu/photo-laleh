@@ -44,6 +44,17 @@ interface SignupScreenProps {
   onEnter: (user: User) => void;
 }
 
+/**
+ * Telegram bot that owns this login flow. Used as a hard fallback so the login
+ * button never disappears, even when /api/auth/telegram/config is slow or the
+ * panel has no cached bot username yet.
+ */
+const TELEGRAM_BOT_USERNAME = 'photo_laleh_bot';
+const telegramBotLoginUrl = (username?: string) => {
+  const clean = String(username || TELEGRAM_BOT_USERNAME).trim().replace(/^@/, '');
+  return `https://t.me/${clean}?start=login`;
+};
+
 const PROVIDER_COPY: Record<Provider, { label: string; endpoint: string; sdk: string; note: string }> = {
   eitaa: {
     label: 'ایتا',
@@ -106,7 +117,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [botLoginUrl, setBotLoginUrl] = useState('');
+  const [botUsername, setBotUsername] = useState(TELEGRAM_BOT_USERNAME);
   const pollRef = useRef<number | null>(null);
 
   const webApp = () =>
@@ -211,7 +222,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         /* fall through to the signup screen */
       }
       setIsAutoLoggingIn(false);
-      setNeedsManualPhone(true);
+      // A missing account is fine — we still know the Telegram id, so let the user
+      // register straight away instead of asking for a phone number.
+      if (!messengerId) setNeedsManualPhone(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, messengerId]);
@@ -225,7 +238,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
     fetch('/api/auth/telegram/config', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled && data?.botLoginUrl) setBotLoginUrl(String(data.botLoginUrl));
+        if (!cancelled && data?.botUsername) setBotUsername(String(data.botUsername));
       })
       .catch(() => undefined);
     return () => {
@@ -469,21 +482,15 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
                 برای ورود خودکار، صفحه باید از داخل ربات تلگرام باز شود. روی دکمه زیر بزنید؛ ربات
                 لینک ورود اختصاصی شما را می‌فرستد.
               </p>
-              {botLoginUrl ? (
-                <a
-                  href={botLoginUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 flex w-full h-11 items-center justify-center gap-2 rounded-xl bg-[#229ED9] hover:bg-[#1e8fc4] text-white text-xs font-black transition-colors"
-                >
-                  <TelegramIcon className="w-4 h-4" />
-                  ورود از طریق ربات تلگرام
-                </a>
-              ) : (
-                <p className="mt-2 text-[10px] font-bold text-amber-700">
-                  نام کاربری ربات در پنل ثبت نشده است؛ از پنل مدیریت، تست اتصال ربات را بزنید.
-                </p>
-              )}
+              <a
+                href={telegramBotLoginUrl(botUsername)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 flex w-full h-11 items-center justify-center gap-2 rounded-xl bg-[#229ED9] hover:bg-[#1e8fc4] text-white text-xs font-black transition-colors"
+              >
+                <TelegramIcon className="w-4 h-4" />
+                ورود از طریق ربات تلگرام
+              </a>
             </div>
           )}
 
