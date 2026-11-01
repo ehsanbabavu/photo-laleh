@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, AlertCircle, UserPlus, ShieldCheck, Phone } from 'lucide-react';
 import { User } from '../types';
-import { TulipIcon } from './TulipIcon';
 import { TelegramIcon } from './BrandIcons';
 
 const CAMPAIGN_BG =
@@ -474,20 +473,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       />
 
       <div className="relative flex min-h-[100dvh] flex-col">
-        <div className="flex items-center justify-center gap-2 pt-5">
-          <div className="w-9 h-9 rounded-2xl bg-white/85 border border-white/70 shadow-sm flex items-center justify-center p-1.5">
-            <TulipIcon className="w-full h-full object-contain" />
-          </div>
-          <span className="text-sm font-black text-slate-800 drop-shadow-sm">
-            آتلیه دیجیتال <span className="text-red-600">لاله</span>
-          </span>
-          {provider === 'telegram' && (
-            <span className="w-6 h-6 rounded-full bg-[#229ED9] text-white flex items-center justify-center shadow-sm">
-              <TelegramIcon className="w-3.5 h-3.5" />
-            </span>
-          )}
-        </div>
-
         <div className="flex-1" />
 
         <div
