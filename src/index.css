@@ -4,6 +4,9 @@
 @theme {
   --font-sans: 'Vazirmatn', 'Vazir', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Vazirmatn', 'Vazir', monospace;
+  /* Tablet breakpoint (640px). Many tablets report a CSS viewport narrower than
+     768px, so the desktop layout has to start earlier than Tailwind's `md`. */
+  --breakpoint-tab: 40rem;
 }
 
 :root {
