@@ -491,16 +491,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     rel="noopener noreferrer"
                     href="https://trustseal.enamad.ir/?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
                     aria-label="نماد اعتماد الکترونیکی (اینماد)"
-                    className="block flex-shrink-0 rounded-2xl bg-white p-2 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all"
+                    className="block flex-shrink-0 rounded-2xl overflow-hidden bg-white p-2 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer"
                   >
                     <img
                       referrerPolicy="origin"
                       src="https://trustseal.enamad.ir/logo.aspx?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
                       alt="نماد اعتماد الکترونیکی (اینماد)"
+                      code="NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
                       width={168}
                       height={168}
                       loading="lazy"
-                      className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain"
+                      className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain cursor-pointer"
                     />
                   </a>
                   <a
