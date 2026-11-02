@@ -216,7 +216,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             : 'bg-transparent'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="h-16 sm:h-[72px] flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center p-1.5 overflow-hidden">
@@ -230,7 +230,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            <nav className="hidden lg:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1">
               <button
                 onClick={() => goTo('#licenses')}
                 className="group inline-flex items-center gap-1.5 px-3 py-1.5 me-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 text-[11px] font-black transition-colors cursor-pointer"
@@ -271,11 +271,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           />
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+          <div className="grid md:grid-cols-12 gap-10 md:gap-8 items-center">
             {/* Copy */}
-            <div className="lg:col-span-6 animate-landing-up">
-              <h1 className="text-3xl sm:text-4xl lg:text-[3.25rem] font-black leading-[1.25] tracking-tight">
+            <div className="md:col-span-6 animate-landing-up">
+              <h1 className="text-3xl sm:text-4xl md:text-[2.6rem] lg:text-[3.25rem] font-black leading-[1.25] tracking-tight">
                 خاطره‌هایت را
                 <span className="relative inline-block mx-1.5">
                   <span className="relative z-10 bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 bg-clip-text text-transparent">
@@ -327,8 +327,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </div>
 
             {/* Visual */}
-            <div className="lg:col-span-6 relative animate-landing-up-delayed">
-              <div className="relative mx-auto max-w-md lg:max-w-none">
+            <div className="md:col-span-6 relative animate-landing-up-delayed">
+              <div className="relative mx-auto max-w-md md:max-w-none">
                 <div className="absolute -inset-3 bg-gradient-to-tr from-sky-200/60 via-teal-200/40 to-emerald-200/60 rounded-[2.2rem] blur-xl" />
 
                 <div className="relative rounded-[2rem] bg-white border border-slate-200 shadow-2xl shadow-slate-300/40 p-3 sm:p-4">
@@ -395,7 +395,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= TRUST STRIP ================= */}
       <section className="relative border-y border-slate-200 bg-white/70 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-5">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { icon: ScanFace, text: 'روتوش و بازسازی چهره' },
@@ -417,7 +417,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= LICENCES ================= */}
       <section id="licenses" className="relative py-14 sm:py-20 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-xl shadow-slate-200/40 p-6 sm:p-10">
             <div className="pointer-events-none absolute -top-20 -left-20 w-56 h-56 rounded-full bg-emerald-100/70 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-24 -right-16 w-56 h-56 rounded-full bg-sky-100/60 blur-3xl" />
@@ -541,13 +541,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= SERVICES ================= */}
       <section id="services" className="relative py-16 sm:py-24 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-black text-sky-700">
               <Palette className="w-3.5 h-3.5" />
               خدمات آتلیه
             </span>
-            <h2 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-black leading-snug">
+            <h2 className="mt-3 text-2xl sm:text-3xl md:text-4xl font-black leading-snug">
               هر عکس، یک سرویس اختصاصی
             </h2>
             <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
@@ -562,7 +562,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               <p className="text-xs text-slate-500 mt-1">به‌زودی خدمات آتلیه در این بخش نمایش داده می‌شود.</p>
             </div>
           ) : (
-          <div className="mt-9 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className="mt-9 grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             {printTypes.map((service) => (
               <article
                 key={service.id}
@@ -626,13 +626,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= FEATURES ================= */}
       <section id="features" className="relative py-16 sm:py-24 bg-white border-y border-slate-200 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="text-center max-w-2xl mx-auto">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-black text-emerald-700">
               <Sparkles className="w-3.5 h-3.5" />
               چرا آتلیه لاله
             </span>
-            <h2 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-black leading-snug">
+            <h2 className="mt-3 text-2xl sm:text-3xl md:text-4xl font-black leading-snug">
               کیفیت استودیویی، تجربه دیجیتال
             </h2>
             <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
@@ -640,7 +640,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </p>
           </div>
 
-          <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className="mt-10 grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             {FEATURES.map((feature) => {
               const Icon = feature.icon;
               return (
@@ -664,14 +664,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= STEPS ================= */}
       <section id="steps" className="relative py-16 sm:py-24 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-12 gap-10 items-start">
-            <div className="lg:col-span-5 lg:sticky lg:top-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+          <div className="grid md:grid-cols-12 gap-10 items-start">
+            <div className="md:col-span-5 md:sticky md:top-28">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-[11px] font-black text-teal-700">
                 <Clock className="w-3.5 h-3.5" />
                 فرآیند سفارش
               </span>
-              <h2 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-black leading-snug">
+              <h2 className="mt-3 text-2xl sm:text-3xl md:text-4xl font-black leading-snug">
                 از عکس تا قاب، در ۵ قدم
               </h2>
               <p className="mt-3 text-sm sm:text-base text-slate-600 leading-8">
@@ -695,7 +695,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </button>
             </div>
 
-            <div className="lg:col-span-7">
+            <div className="md:col-span-7">
               <div className="space-y-3">
                 {STEPS.map((step, index) => (
                   <div
@@ -719,14 +719,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= SIZES ================= */}
       <section id="sizes" className="relative py-16 sm:py-24 bg-white border-y border-slate-200 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div className="max-w-2xl">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
                 <Ruler className="w-3.5 h-3.5" />
                 سایزهای چاپ
               </span>
-              <h2 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-black leading-snug">
+              <h2 className="mt-3 text-2xl sm:text-3xl md:text-4xl font-black leading-snug">
                 از کارت‌پستالی تا تابلو دیواری
               </h2>
               <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
@@ -747,7 +747,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               سایزهای چاپ به‌زودی از پنل مدیریت اضافه می‌شوند.
             </div>
           ) : (
-          <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {dimensions.map((dimension) => (
               <div
                 key={dimension.id}
@@ -781,9 +781,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -bottom-24 right-1/4 w-80 h-80 rounded-full bg-emerald-300/20 blur-3xl" />
         </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="rounded-[2rem] bg-gradient-to-l from-sky-700 via-teal-700 to-emerald-700 text-white p-6 sm:p-10 shadow-2xl shadow-teal-900/20">
-            <div className="grid lg:grid-cols-2 gap-8 items-center">
+            <div className="grid md:grid-cols-2 gap-8 items-center">
               <div>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-black text-white">
                   <Users className="w-3.5 h-3.5" />
@@ -852,7 +852,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= FAQ ================= */}
       <section id="faq" className="relative py-16 sm:py-24 bg-white border-t border-slate-200 scroll-mt-24">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="text-center">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-black text-sky-700">
               <MessageCircle className="w-3.5 h-3.5" />
@@ -896,11 +896,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
       {/* ================= FOOTER ================= */}
       <footer className="bg-slate-900 text-slate-300 pt-12 pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14 items-start text-center lg:text-right">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-14 items-start text-center md:text-right">
             {/* ستون راست (دسکتاپ): لوگو و نام سایت */}
-            <div className="flex flex-col items-center lg:items-start">
-              <div className="flex items-center justify-center lg:justify-start gap-2.5">
+            <div className="flex flex-col items-center md:items-start">
+              <div className="flex items-center justify-center md:justify-start gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center p-1.5 overflow-hidden">
                   <TulipIcon className="w-full h-full object-contain" />
                 </div>
@@ -913,11 +913,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </div>
 
             {/* ستون چپ (دسکتاپ): ارتباط با ما */}
-            <div className="w-full max-w-xl mx-auto lg:mx-0">
+            <div className="w-full max-w-xl mx-auto md:mx-0">
               <p className="text-[11px] font-black tracking-wide text-white/60 mb-3">ارتباط با ما</p>
 
               {/* Messenger bots + phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-2.5 text-right">
+              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3 gap-2.5 text-right">
                 <a
                   href="https://t.me/photo_laleh_bot"
                   target="_blank"
