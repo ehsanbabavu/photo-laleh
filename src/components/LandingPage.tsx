@@ -130,7 +130,7 @@ const NAV_LINKS = [
   { href: '#faq', label: 'سوالات' }
 ];
 
-export /**
+/**
  * Enamad trust seal. The image is served by trustseal.enamad.ir, a host inside Iran
  * that is slow and sometimes drops a request, so the tag is loaded eagerly and the
  * browser retries it a couple of times instead of leaving an empty card.
@@ -139,7 +139,7 @@ const ENAMAD_SEAL_SRC =
   'https://trustseal.enamad.ir/logo.aspx?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48';
 const ENAMAD_SEAL_MAX_RETRIES = 3;
 
-const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [scrolled, setScrolled] = useState(false);
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
