@@ -278,7 +278,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               <h1 className="text-3xl sm:text-4xl tab:text-[2rem] md:text-[2.6rem] lg:text-[3.25rem] font-black leading-[1.25] tracking-tight">
                 خاطره‌هایت را
                 <span className="relative inline-block mx-1.5">
-                  <span className="relative z-10 bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 bg-clip-text text-transparent">
+                  <span className="relative z-10 bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(to left, #0284c7, #0d9488, #059669)' }}>
                     زنده
                   </span>
                   <span className="absolute inset-x-0 bottom-1 h-3 bg-emerald-200/60 rounded-full -z-0" />
@@ -307,7 +307,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               <div className="mt-7 flex items-center">
                 <button
                   onClick={onLogin}
-                  className="flex w-full sm:inline-flex sm:w-auto items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-black text-white bg-gradient-to-l from-sky-600 via-teal-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 shadow-xl shadow-sky-600/25 active:scale-[0.98] transition-all cursor-pointer"
+                  style={{ backgroundImage: 'linear-gradient(to left, #0284c7, #0d9488, #059669)' }}
+                  className="flex w-full sm:inline-flex sm:w-auto items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-black text-white hover:brightness-110 shadow-xl shadow-sky-600/25 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   ورود و ثبت نام
                 </button>
@@ -693,7 +694,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
               <button
                 onClick={onLogin}
-                className="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-black text-white bg-gradient-to-l from-sky-600 to-emerald-600 shadow-lg shadow-sky-600/20 hover:from-sky-700 hover:to-emerald-700 transition-all cursor-pointer"
+                style={{ backgroundImage: 'linear-gradient(to left, #0284c7, #0d9488, #059669)' }}
+                className="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-black text-white shadow-lg shadow-sky-600/20 hover:brightness-110 transition-all cursor-pointer"
               >
                 شروع کنید
                 <ArrowLeft className="w-4 h-4" />
