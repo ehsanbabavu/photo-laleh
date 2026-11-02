@@ -1,31 +1,5 @@
 import React, { useState } from 'react';
-import {
-  LayoutDashboard,
-  BotMessageSquare,
-  Printer,
-  Palette,
-  Truck,
-  LogOut,
-  ExternalLink,
-  ChevronLeft,
-  User as UserIcon,
-  LifeBuoy,
-  Sparkles,
-  Volume2,
-  Send,
-  CreditCard,
-  Database,
-  Users,
-  Settings,
-  ChevronDown,
-  HardDrive,
-  MessageSquare,
-  ShieldCheck,
-  Activity,
-  Maximize2,
-  Receipt,
-  Wallet
-} from 'lucide-react';
+import { LayoutDashboard, BotMessageSquare, Printer, Palette, Truck, LogOut, ExternalLink, ChevronLeft, User as UserIcon, LifeBuoy, Sparkles, Volume2, Send, CreditCard, Database, Users, Settings, ChevronDown, HardDrive, MessageSquare, ShieldCheck, Activity, Maximize2, Receipt, Wallet, Frame } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
 
@@ -33,6 +7,7 @@ export type AdminTab =
   | 'dashboard'
   | 'print_types'
   | 'print_sizes'
+  | 'canvas_sizes'
   | 'transport'
   | 'partner_invoices'
   | 'cost_requests'
@@ -126,6 +101,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const printItems = [
     { id: 'print_types' as AdminTab, label: 'مدیریت انواع چاپ', icon: Palette },
     { id: 'print_sizes' as AdminTab, label: 'مدیریت سایز', icon: Maximize2 },
+    { id: 'canvas_sizes' as AdminTab, label: 'سایز تخته شاسی', icon: Frame },
     { id: 'transport' as AdminTab, label: 'ترابری', icon: Truck },
     { id: 'partner_invoices' as AdminTab, label: 'فاکتورهای صادر شده', icon: Receipt },
     { id: 'cost_requests' as AdminTab, label: 'بازبینی قیمت همکاران', icon: Wallet },
