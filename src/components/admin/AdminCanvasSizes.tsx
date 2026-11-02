@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Frame,
   Plus,
@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Check,
   Loader2,
-  TrendingUp,
   Ruler,
   Wallet,
   BadgeDollarSign
@@ -74,17 +73,6 @@ export const AdminCanvasSizes: React.FC<Props> = ({ showToast }) => {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const totals = useMemo(() => {
-    const count = rows.length;
-    const avgProfit = count
-      ? Math.round(
-          rows.reduce((sum, row) => sum + (priceOf(row.customerPrice) - priceOf(row.costPrice)), 0) /
-            count
-        )
-      : 0;
-    return { count, avgProfit };
-  }, [rows]);
 
   const openCreate = () => {
     setForm({ ...emptyForm });
@@ -185,7 +173,7 @@ export const AdminCanvasSizes: React.FC<Props> = ({ showToast }) => {
               <h1 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
                 سایز تخته شاسی
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono">
-                  {formatNumber(totals.count)} سایز
+                  {formatNumber(rows.length)} سایز
                 </span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
@@ -195,10 +183,6 @@ export const AdminCanvasSizes: React.FC<Props> = ({ showToast }) => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-800 flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5" />
-              میانگین سود: {formatPrice(totals.avgProfit)}
-            </div>
             <button
               type="button"
               onClick={openCreate}
