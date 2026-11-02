@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>اندازه صفحه</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+        background: #0f172a;
+        color: #fff;
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 560px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 20px;
+        padding: 24px;
+        text-align: center;
+      }
+      h1 { font-size: 18px; margin: 0 0 6px; }
+      p.sub { color: #94a3b8; font-size: 13px; margin: 0 0 20px; }
+      .big { font-size: 64px; font-weight: 900; color: #34d399; line-height: 1.1; }
+      .unit { font-size: 16px; color: #94a3b8; font-weight: 700; }
+      table { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 14px; }
+      td { padding: 8px 6px; border-top: 1px solid #334155; text-align: right; }
+      td:first-child { color: #94a3b8; width: 46%; }
+      td:last-child { font-weight: 800; direction: ltr; text-align: left; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>عرض پنجره مرورگر شما</h1>
+      <p class="sub">این عدد تعیین می‌کند سایت در چه حالتی (موبایل / تبلت / دسکتاپ) نمایش داده شود</p>
+      <div class="big"><span id="w">—</span> <span class="unit">px</span></div>
+      <table>
+        <tr><td>عرض پنجره (innerWidth)</td><td id="iw">—</td></tr>
+        <tr><td>عرض صفحه (screen.width)</td><td id="sw">—</td></tr>
+        <tr><td>نسبت پیکسل دستگاه</td><td id="dpr">—</td></tr>
+        <tr><td>ارتفاع پنجره</td><td id="ih">—</td></tr>
+      </table>
+    </div>
+    <script>
+      const show = () => {
+        document.getElementById('w').textContent = window.innerWidth;
+        document.getElementById('iw').textContent = window.innerWidth + ' px';
+        document.getElementById('sw').textContent = window.screen.width + ' px';
+        document.getElementById('ih').textContent = window.innerHeight + ' px';
+        document.getElementById('dpr').textContent = window.devicePixelRatio;
+      };
+      show();
+      window.addEventListener('resize', show);
+    </script>
+  </body>
+</html>
