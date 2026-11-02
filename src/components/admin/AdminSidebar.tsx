@@ -109,7 +109,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   ];
 
   const isPrintActive = printItems.some((item) => item.id === currentTab);
-  const [printOpen, setPrintOpen] = useState(isPrintActive);
+  // Open by default: these are the day-to-day screens (types, sizes, transport…)
+  const [printOpen, setPrintOpen] = useState(true);
 
   const settingsItems = [
     {
