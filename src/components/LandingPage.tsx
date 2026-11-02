@@ -488,7 +488,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   <a
                     referrerPolicy="origin"
                     target="_blank"
-                    rel="noopener noreferrer"
                     href="https://trustseal.enamad.ir/?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
                     aria-label="نماد اعتماد الکترونیکی (اینماد)"
                     className="block flex-shrink-0 rounded-2xl overflow-hidden bg-white p-2 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer"
@@ -507,7 +506,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   <a
                     referrerPolicy="origin"
                     target="_blank"
-                    rel="noopener noreferrer"
                     href="https://trustseal.enamad.ir/?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
                     className="text-center text-[11px] sm:text-sm font-bold text-slate-700 hover:text-emerald-700 transition-colors max-w-[9rem] sm:max-w-[11rem] leading-6"
                   >
