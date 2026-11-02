@@ -9,3 +9,8 @@ public/slide-*opt.jpg
 *.tsbuildinfo
 server.bundle.mjs
 package-lock.json
+
+# Generated at build time by scripts/generate-favicons.mjs
+public/logo-square.png
+public/apple-touch-icon.png
+public/favicon-48.png
