@@ -20,6 +20,7 @@ const ChatGPTConnect = React.lazy(() => import('./components/admin/ChatGPTConnec
 const AdminOrders = React.lazy(() => import('./components/admin/AdminOrders').then((m) => ({ default: m.AdminOrders })));
 const PrintTypeManager = React.lazy(() => import('./components/admin/PrintTypeManager').then((m) => ({ default: m.PrintTypeManager })));
 const AdminSizesManager = React.lazy(() => import('./components/admin/AdminSizesManager').then((m) => ({ default: m.AdminSizesManager })));
+const AdminCanvasSizes = React.lazy(() => import('./components/admin/AdminCanvasSizes').then((m) => ({ default: m.AdminCanvasSizes })));
 const AdminPartnerInvoices = React.lazy(() => import('./components/admin/AdminPartnerInvoices').then((m) => ({ default: m.AdminPartnerInvoices })));
 const AdminCostRequests = React.lazy(() => import('./components/admin/AdminCostRequests').then((m) => ({ default: m.AdminCostRequests })));
 const PromptsManager = React.lazy(() => import('./components/admin/PromptsManager').then((m) => ({ default: m.PromptsManager })));
@@ -998,6 +999,8 @@ export default function App() {
                   onResetDimensions={handleResetDimensions}
                 />
               )}
+
+              {adminTab === 'canvas_sizes' && <AdminCanvasSizes showToast={showToast} />}
 
               {adminTab === 'partner_invoices' && (
                 <AdminPartnerInvoices
