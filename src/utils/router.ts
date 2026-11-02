@@ -4,6 +4,7 @@ export const ADMIN_TABS = [
   'dashboard',
   'announcements',
   'print_types',
+  'canvas_sizes',
   'prompts_manager',
   'orders',
   'tickets',
