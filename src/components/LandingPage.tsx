@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sparkles,
   ArrowLeft,
@@ -130,7 +130,16 @@ const NAV_LINKS = [
   { href: '#faq', label: 'سوالات' }
 ];
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
+export /**
+ * Enamad trust seal. The image is served by trustseal.enamad.ir, a host inside Iran
+ * that is slow and sometimes drops a request, so the tag is loaded eagerly and the
+ * browser retries it a couple of times instead of leaving an empty card.
+ */
+const ENAMAD_SEAL_SRC =
+  'https://trustseal.enamad.ir/logo.aspx?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48';
+const ENAMAD_SEAL_MAX_RETRIES = 3;
+
+const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [scrolled, setScrolled] = useState(false);
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
@@ -138,6 +147,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [licenseOpen, setLicenseOpen] = useState(false);
+  const [sealSrc, setSealSrc] = useState(ENAMAD_SEAL_SRC);
+  const sealRetries = useRef(0);
 
   // Close the licence lightbox with Esc and lock background scrolling while open
   useEffect(() => {
@@ -204,6 +215,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const goTo = (href: string) => {
     const target = document.querySelector(href);
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  /** The seal host occasionally times out; retry a few times with a fresh URL. */
+  const handleSealError = () => {
+    if (sealRetries.current >= ENAMAD_SEAL_MAX_RETRIES) return;
+    sealRetries.current += 1;
+    const attempt = sealRetries.current;
+    window.setTimeout(() => {
+      setSealSrc(`${ENAMAD_SEAL_SRC}&retry=${attempt}-${Math.floor(Date.now() / 1000)}`);
+    }, 800 * attempt);
   };
 
   return (
@@ -495,12 +516,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   >
                     <img
                       referrerPolicy="origin"
-                      src="https://trustseal.enamad.ir/logo.aspx?id=8462938&Code=NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
+                      src={sealSrc}
                       alt="نماد اعتماد الکترونیکی (اینماد)"
                       code="NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
                       width={168}
                       height={168}
-                      loading="lazy"
+                      loading="eager"
+                      decoding="async"
+                      onError={handleSealError}
                       className="w-28 h-28 sm:w-[168px] sm:h-[168px] object-contain cursor-pointer"
                     />
                   </a>
