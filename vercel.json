@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "buildCommand": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.bundle.mjs",
+  "buildCommand": "node scripts/generate-favicons.mjs && vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.bundle.mjs",
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "functions": {
