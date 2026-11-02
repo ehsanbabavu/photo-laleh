@@ -288,6 +288,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 روی کاغذ چاپش کن
               </h1>
 
+              {/* The line Google shows under the title — kept as visible text too,
+                  because search engines often quote the page instead of the meta tag. */}
+              <p className="mt-3 sm:mt-4 text-sm sm:text-base font-black text-emerald-700 leading-8 max-w-xl">
+                از نوزادی تا پیری ما برات چاپش می‌کنیم
+              </p>
+
               <p className="mt-4 sm:mt-5 text-sm sm:text-base text-slate-600 leading-8 max-w-xl">
                 آتلیه دیجیتال لاله با نیم قرن تجربه، از گذشته تا به امروز شاهد ثبت لحظات
                 خاطره‌انگیزی بوده است و با گذشت زمان از فناوری‌های به‌روز جهت چاپ با کیفیت عکس‌ها
