@@ -35,11 +35,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Customers who signed in through the Telegram / Eitaa mini app have no password
-  // to manage here, so the header keeps them signed in — no logout shortcut.
-  const isMessengerAccount =
-    user?.registeredVia === 'telegram' || user?.registeredVia === 'eitaa';
-
   const toggleDrawer = () => {
     setDrawerOpen(!drawerOpen);
   };
@@ -201,17 +196,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   )}
 
-                  {/* Logout button — hidden for messenger (mini app) accounts */}
-                  {!isMessengerAccount && (
-                    <button
-                      onClick={onLogout}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                      title="خروج از حساب"
-                      aria-label="خروج"
-                    >
-                      <LogOut className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={onLogout}
+                    className="w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                    title="خروج از حساب"
+                    aria-label="خروج از حساب"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </>
               )}
             </div>
