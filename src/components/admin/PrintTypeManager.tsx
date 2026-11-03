@@ -40,7 +40,6 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
   // Form states
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
-  const [basePrice, setBasePrice] = useState<number>(85000);
   const [description, setDescription] = useState('');
   const [features, setFeatures] = useState<string[]>(['']);
   const [cardBgImage, setCardBgImage] = useState<string | null>(null);
@@ -67,7 +66,6 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     setEditingItem(item);
     setTitle(item.title);
     setSubtitle(item.subtitle);
-    setBasePrice(item.basePrice);
     setDescription(item.description);
     setFeatures(item.features && item.features.length > 0 ? [...item.features] : ['']);
     setCardBgImage(item.cardBgImage || null);
@@ -128,11 +126,6 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
       return;
     }
 
-    if (!basePrice || basePrice < 0) {
-      setFormError('لطفاً مبلغ معتبر به تومان وارد کنید.');
-      return;
-    }
-
     const cleanFeatures = features.map((f) => f.trim()).filter(Boolean);
     if (cleanFeatures.length === 0) {
       cleanFeatures.push('چاپ باکیفیت و استاندارد استودیویی');
@@ -143,7 +136,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         id: 'pt_' + Date.now(),
         title: title.trim(),
         subtitle: subtitle.trim(),
-        basePrice: Number(basePrice),
+        basePrice: Number(editingItem?.basePrice) || 0,
         description: description.trim() || 'ارائه خدمات تخصصی چاپ با بالاترین کیفیت رنگ و ماندگاری در استودیو.',
         features: cleanFeatures,
         sampleImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
@@ -157,7 +150,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         ...editingItem,
         title: title.trim(),
         subtitle: subtitle.trim(),
-        basePrice: Number(basePrice),
+        basePrice: Number(editingItem?.basePrice) || 0,
         description: description.trim(),
         features: cleanFeatures,
         cardBgImage: cardBgImage || undefined,
@@ -262,13 +255,6 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
               {/* Subtitle */}
               <p className="text-xs text-sky-700 font-bold mb-2.5 mr-8">{item.subtitle}</p>
 
-              {/* Price Box */}
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between text-xs mb-3">
-                <span className="text-slate-600 font-medium text-xs">قیمت پایه:</span>
-                <span className="font-black text-slate-900 font-mono text-xs sm:text-sm bg-gradient-to-l from-sky-700 to-emerald-700 bg-clip-text text-transparent">
-                  {formatPrice(item.basePrice)}
-                </span>
-              </div>
 
               {/* Assigned print sizes (managed in «مدیریت سایز») */}
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 mb-3 space-y-1.5">
@@ -426,23 +412,6 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                   value={subtitle}
                   onChange={(e) => setSubtitle(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500"
-                />
-              </div>
-
-              {/* Base Price */}
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">
-                  مبلغ پایه چاپ (تومان) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  step={1000}
-                  placeholder="85000"
-                  value={basePrice}
-                  onChange={(e) => setBasePrice(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 text-left dir-ltr"
                 />
               </div>
 
