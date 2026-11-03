@@ -313,6 +313,35 @@ export async function ensurePrintTypeCatalog(db: Db) {
     .catch(() => undefined);
 }
 
+/**
+ * «تبدیل سیاه سفید به رنگی» was retired from the catalog. Delete it from databases
+ * that were seeded before that, once.
+ */
+const RETIRED_PRINT_TYPE_IDS = ['bw_to_color'];
+
+export async function ensureRetiredPrintTypesRemoved(db: Db) {
+  const meta = db.collection('meta');
+  const done = await meta.findOne({ _id: 'retired_print_types_v1' as any });
+  if (done) return;
+  await db
+    .collection('printTypes')
+    .deleteMany({ id: { $in: RETIRED_PRINT_TYPE_IDS } })
+    .catch(() => undefined);
+  await meta
+    .insertOne({ _id: 'retired_print_types_v1' as any, at: new Date().toISOString() })
+    .catch(() => undefined);
+}
+
+/** Belt and braces: hide the retired services from every read. */
+function dropRetiredPrintTypes(state: any) {
+  if (Array.isArray(state?.printTypes)) {
+    state.printTypes = state.printTypes.filter(
+      (type: any) => !RETIRED_PRINT_TYPE_IDS.includes(String(type?.id))
+    );
+  }
+  return state;
+}
+
 /** Existing databases have no transport methods yet → add the built-in ones once. */
 export async function ensureDeliveryMethodCatalog(db: Db) {
   const existing = await db
@@ -343,6 +372,7 @@ async function ensureSeeded(db: Db) {
     await ensurePrintTypeCatalog(db);
     await ensureSizeCatalog(db);
     await ensureDeliveryMethodCatalog(db);
+    await ensureRetiredPrintTypesRemoved(db);
     return;
   }
 
@@ -382,7 +412,7 @@ export async function readDb(): Promise<any> {
   // Not configured yet: serve the seed so the panel (and the admin page that
   // lets you set the connection URL) still works.
   if (!db) {
-    stateCache = stateCache || cloneSeed();
+    stateCache = dropRetiredPrintTypes(stateCache || cloneSeed());
     return stateCache;
   }
 
@@ -390,7 +420,7 @@ export async function readDb(): Promise<any> {
   // returned here is mutated in place by the Express layer; `signatures` keeps
   // a snapshot of what is actually stored so writeDb() can diff against it.
   await ensureSeeded(db);
-  stateCache = await loadState(db);
+  stateCache = dropRetiredPrintTypes(await loadState(db));
   signatures = buildSignatures(stateCache);
   return stateCache;
 }
