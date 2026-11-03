@@ -165,7 +165,6 @@ app.use('/api', async (req: any, res, next) => {
     const isAnnouncementRead = /^\/api\/announcements\/[^/]+\/read$/.test(path);
     const isWriteOnContent =
       (path.startsWith('/api/print-types') ||
-        path.startsWith('/api/canvas-sizes') ||
         path.startsWith('/api/delivery-methods') ||
         path.startsWith('/api/announcements') ||
         path.startsWith('/api/tickets')) &&
@@ -248,7 +247,7 @@ function sanitizeDimensions(dimensions: any) {
   if (!Array.isArray(dimensions)) return [];
   return dimensions.map((dim: any) => {
     if (!dim || typeof dim !== 'object') return dim;
-    const { costPrice, costNote, ...rest } = dim;
+    const { costPrice, costNote, frameCostPrice, ...rest } = dim;
     return rest;
   });
 }
@@ -1586,82 +1585,6 @@ function sanitizeDeliveryMethods(list: any[]) {
       isEnabled: item.isEnabled !== false
     }));
 }
-
-// ---------------------------------------------------------------------------
-// «سایز تخته شاسی» — board/canvas sizes with the cost price and the customer price
-// ---------------------------------------------------------------------------
-
-function sanitizeCanvasSizes(input: any): any[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .map((row: any) => {
-      const toPrice = (value: any) => {
-        const num = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
-        return Number.isFinite(num) ? Math.max(0, Math.round(num)) : 0;
-      };
-      return {
-        id: String(row?.id || '').trim(),
-        title: String(row?.title || '').trim(),
-        dimensionsCm: String(row?.dimensionsCm || '').trim(),
-        costPrice: toPrice(row?.costPrice),
-        customerPrice: toPrice(row?.customerPrice),
-        note: String(row?.note || '').trim(),
-        createdAt: String(row?.createdAt || '')
-      };
-    })
-    .filter((row) => row.id && row.title);
-}
-
-function currentCanvasSizes(db: any): any[] {
-  return sanitizeCanvasSizes(Array.isArray(db?.canvasSizes) ? db.canvasSizes : []);
-}
-
-app.get('/api/canvas-sizes', async (_req, res) => {
-  const db = await readDb();
-  res.json({ success: true, items: currentCanvasSizes(db) });
-});
-
-app.post('/api/canvas-sizes', async (req, res) => {
-  const db = await readDb();
-  const incoming = sanitizeCanvasSizes([req.body]);
-  if (incoming.length === 0) {
-    return res.status(400).json({ success: false, error: 'اطلاعات سایز نامعتبر است' });
-  }
-  const row = incoming[0];
-  db.canvasSizes = Array.isArray(db.canvasSizes) ? db.canvasSizes : [];
-  const index = db.canvasSizes.findIndex((item: any) => String(item?.id) === row.id);
-  if (index >= 0) {
-    db.canvasSizes[index] = { ...db.canvasSizes[index], ...row };
-  } else {
-    db.canvasSizes.push({ ...row, createdAt: row.createdAt || new Date().toISOString() });
-  }
-  await writeDb(db);
-  res.json({ success: true, items: currentCanvasSizes(db) });
-});
-
-app.put('/api/canvas-sizes/:id', async (req, res) => {
-  const db = await readDb();
-  const id = String(req.params.id || '');
-  const incoming = sanitizeCanvasSizes([{ ...(req.body || {}), id }]);
-  if (incoming.length === 0) {
-    return res.status(400).json({ success: false, error: 'اطلاعات سایز نامعتبر است' });
-  }
-  db.canvasSizes = (Array.isArray(db.canvasSizes) ? db.canvasSizes : []).map((item: any) =>
-    String(item?.id) === id ? { ...item, ...incoming[0], id } : item
-  );
-  await writeDb(db);
-  res.json({ success: true, items: currentCanvasSizes(db) });
-});
-
-app.delete('/api/canvas-sizes/:id', async (req, res) => {
-  const db = await readDb();
-  const id = String(req.params.id || '');
-  db.canvasSizes = (Array.isArray(db.canvasSizes) ? db.canvasSizes : []).filter(
-    (item: any) => String(item?.id) !== id
-  );
-  await writeDb(db);
-  res.json({ success: true, items: currentCanvasSizes(db) });
-});
 
 app.get('/api/delivery-methods', async (_req, res) => {
   const db = await readDb();
