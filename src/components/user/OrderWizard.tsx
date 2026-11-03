@@ -284,7 +284,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       date: new Date().toLocaleDateString('fa-IR'),
       createdAt: new Date().toISOString(),
       status: 'pending_review',
-      aiStatus: 'processing',
+      aiStatus: 'pending',
       aiPromptUsed: promptToUse,
       // Order total follows the issued invoice amount, not a second local re-calculation
       totalPrice: paidToman,
