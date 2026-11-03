@@ -38,13 +38,23 @@ export const StepPrintType: React.FC<StepPrintTypeProps> = ({
 
   const itemsToRender = (printTypes && printTypes.length > 0 ? printTypes : PRINT_TYPES)
     .filter((item) => item.isEnabled !== false);
+  const selectedPrintTypeId = itemsToRender.some((item) => item.id === draft.printType)
+    ? draft.printType
+    : itemsToRender[0]?.id;
+
+  const handleNext = () => {
+    if (selectedPrintTypeId && selectedPrintTypeId !== draft.printType) {
+      handleSelectPrintType(selectedPrintTypeId);
+    }
+    onNext();
+  };
 
   return (
     <div className="space-y-5">
       {/* Dynamic Print Types Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
         {itemsToRender.map((item) => {
-          const isSelected = draft.printType === item.id;
+          const isSelected = selectedPrintTypeId === item.id;
           return (
             <div
               key={item.id}
@@ -138,7 +148,7 @@ export const StepPrintType: React.FC<StepPrintTypeProps> = ({
       <div className="flex items-center justify-end pt-3">
         <button
           type="button"
-          onClick={onNext}
+          onClick={handleNext}
           className="w-full sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
         >
           <span>مرحله بعد</span>
