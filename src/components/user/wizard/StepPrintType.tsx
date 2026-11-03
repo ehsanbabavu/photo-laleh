@@ -85,14 +85,6 @@ export const StepPrintType: React.FC<StepPrintTypeProps> = ({
 
                 <p className="text-[11px] sm:text-xs text-sky-700 font-bold mb-2 truncate">{item.subtitle}</p>
 
-                {/* Price directly underneath the title and subtitle */}
-                <div className="p-2 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 font-medium text-[11px] sm:text-xs">قیمت پایه:</span>
-                  <span className="font-black text-slate-900 font-mono text-xs sm:text-sm bg-gradient-to-l from-sky-700 to-emerald-700 bg-clip-text text-transparent">
-                    {formatPrice(item.basePrice)}
-                  </span>
-                </div>
-
                 {item.serviceFeeEnabled === true && Number(item.serviceFee) > 0 && (
                   <div className="mb-2 p-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-xs">
                     <span className="text-emerald-800 font-bold text-[10px] sm:text-[11px]">هزینه خدمات (برای هر سفارش):</span>
