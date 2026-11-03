@@ -115,6 +115,11 @@ export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNew
                         ? 'عکس مراسم یادبود و ترحیم'
                         : 'عکس نامزدی یا عروسی عمارت'}
                     </h3>
+                    {Number(order.invoiceDetails?.serviceFeeAmount) > 0 && (
+                      <p className="mt-1 text-[10px] text-emerald-700 font-bold">
+                        هزینه خدمات: <span className="font-mono">{formatPrice(order.invoiceDetails?.serviceFeeAmount || 0)}</span>
+                      </p>
+                    )}
                     {isInQueue && (
                       <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-bold border border-amber-200 inline-block mt-1">
                         در صف نوبت پردازش هوش مصنوعی (فاصله ۱ دقیقه بین سفارش‌ها)

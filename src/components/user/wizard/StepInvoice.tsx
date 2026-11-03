@@ -61,8 +61,10 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
   const unitBase = dimension.basePrice + framePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
+  const serviceFeeAmount =
+    printType.serviceFeeEnabled === true ? Math.max(0, Number(printType.serviceFee) || 0) : 0;
   const shippingCost = Math.max(0, Number(selectedMethod?.price) || 0);
-  const grossTotal = Math.max(0, subtotal + shippingCost);
+  const grossTotal = Math.max(0, subtotal + serviceFeeAmount + shippingCost);
 
   // Wallet credit: usable once, and consumed completely by the order that uses it
   const userWallet = typeof user?.walletBalance === 'number' ? user.walletBalance : 0;
@@ -100,6 +102,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
       unitBasePrice: unitBase,
       extrasPrice: unitExtras,
       subtotal,
+      serviceFeeAmount,
       shippingCost,
       deliveryMethod: selectedMethod?.id || draft.deliveryMethod,
       discountAmount: 0,
@@ -157,6 +160,18 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                 {formatPrice(unitBase)}
               </span>
             </div>
+
+            {serviceFeeAmount > 0 && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="font-bold text-emerald-900 block">هزینه خدمات</span>
+                  <span className="text-[10px] text-emerald-700">یک‌بار برای این سفارش · {printType.title}</span>
+                </div>
+                <span className="font-mono font-black text-emerald-800 flex-shrink-0">
+                  {formatPrice(serviceFeeAmount)}
+                </span>
+              </div>
+            )}
 
             {/* Optional additions */}
             {draft.hasLamination && (
@@ -246,8 +261,8 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
           {/* Totals Summary */}
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50/80 to-emerald-50/80 border border-sky-200 space-y-1.5 text-xs">
             <div className="flex justify-between text-slate-600">
-              <span>جمع اقلام:</span>
-              <span className="font-mono font-bold text-slate-800">{formatPrice(subtotal)}</span>
+              <span>جمع اقلام و خدمات:</span>
+              <span className="font-mono font-bold text-slate-800">{formatPrice(subtotal + serviceFeeAmount)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
               <span>هزینه ارسال ({selectedMethod?.title || '—'}):</span>

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Copy, Check, Loader2, AlertCircle, ChevronDown, ShieldCheck } from 'lucide-react';
-import { ChatGptIcon } from '../BrandIcons';
+import { Download, Copy, Check, Loader2, AlertCircle, ChevronDown, ShieldCheck, MessageSquareText } from 'lucide-react';
 
 interface ChatGptConnectorCardProps {
   showToast?: (msg: string) => void;
@@ -64,7 +63,7 @@ export const ChatGptConnectorCard: React.FC<ChatGptConnectorCardProps> = ({ show
         className="w-full flex items-center gap-3 p-4 sm:p-5 text-right cursor-pointer hover:bg-slate-50/70 transition-colors"
       >
         <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-          <ChatGptIcon className="w-6 h-6" />
+          <MessageSquareText className="w-6 h-6" />
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-xs sm:text-sm font-black text-slate-900">افزونه چت‌جی‌پی‌تی</h3>

@@ -64,9 +64,12 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const unitBase = dimension.basePrice + framePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
+  const serviceFeeAmount =
+    draft.invoiceDetails?.serviceFeeAmount ??
+    (printType.serviceFeeEnabled === true ? Math.max(0, Number(printType.serviceFee) || 0) : 0);
   // Shipping fee comes from the invoice produced by the transport panel
   const shippingCost = Number(draft.invoiceDetails?.shippingCost) || 0;
-  const computedTotal = Math.max(0, subtotal + shippingCost);
+  const computedTotal = Math.max(0, subtotal + serviceFeeAmount + shippingCost);
 
   // Base final total from Step 4 (the pre-invoice quote, in Toman)
   const baseTotal = draft.invoiceDetails?.finalTotal ?? draft.totalPrice ?? computedTotal;

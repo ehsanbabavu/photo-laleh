@@ -297,6 +297,8 @@ app.get('/api/public/landing', async (_req, res) => {
         subtitle: type.subtitle,
         description: type.description,
         basePrice: type.basePrice,
+        serviceFee: Math.max(0, Number(type.serviceFee) || 0),
+        serviceFeeEnabled: type.serviceFeeEnabled === true,
         features: (type.features || []).slice(0, 4),
         tag: type.tag,
         sampleImage: type.sampleImage,

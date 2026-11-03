@@ -518,7 +518,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                       referrerPolicy="origin"
                       src={sealSrc}
                       alt="نماد اعتماد الکترونیکی (اینماد)"
-                      code="NfUS7xo6bldkeviU5fFt5os3QJ2b6O48"
+                      {...{ code: 'NfUS7xo6bldkeviU5fFt5os3QJ2b6O48' }}
                       width={168}
                       height={168}
                       loading="eager"
