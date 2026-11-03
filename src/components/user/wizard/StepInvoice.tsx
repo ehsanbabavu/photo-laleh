@@ -165,6 +165,14 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               </div>
             )}
 
+            {/* Optional board (تخته شاسی) — itemised so the lines add up to the total */}
+            {framePrice > 0 && (
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-slate-800 text-xs">
+                <span className="font-bold">تخته شاسی</span>
+                <span className="font-mono font-bold text-amber-800">+ {formatPrice(framePrice)}</span>
+              </div>
+            )}
+
             {/* Optional additions */}
             {draft.hasLamination && (
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-slate-700 text-xs">
