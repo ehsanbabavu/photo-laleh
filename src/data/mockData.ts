@@ -34,22 +34,6 @@ export const PRINT_TYPES: PrintTypeOption[] = [
     ]
   },
   {
-    id: 'bw_to_color',
-    dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
-    title: 'تبدیل سیاه سفید به رنگی',
-    subtitle: 'زنده‌سازی خاطرات قدیمی و تصاویر نوستالژیک',
-    description: 'بازسازی دیجیتال و رنگ‌آمیزی هوشمندانه عکس‌های قدیمی با حفظ بافت اصیل چهره، بازیابی نور طبیعی و حذف لکه‌ها و پارگی‌ها.',
-    basePrice: 160000,
-    tag: 'هوش مصنوعی عمیق',
-    sampleImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80',
-    features: [
-      'رنگ‌آمیزی واقع‌گرایانه رنگ چشم، مو و البسه',
-      'حذف خط و تاخوردگی‌های فیزیکی کاغذ عکس',
-      'افزایش وضوح و شارپنس بدون حالت مصنوعی',
-      'امکان چاپ روی شاسی ضخیم یا بوم نقاشی'
-    ]
-  },
-  {
     id: 'memorial',
     dimensionIds: ['size_10x15', 'size_13x18', 'size_16x21', 'size_20x30', 'size_30x40', 'size_50x70'],
     title: 'عکس برای مراسم ختم',
