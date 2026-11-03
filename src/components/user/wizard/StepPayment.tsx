@@ -18,7 +18,7 @@ import { isReusableInvoice } from '../../../utils/orderDraftStorage';
 interface StepPaymentProps {
   draft: OrderDraft;
   onUpdateDraft: (updated: Partial<OrderDraft>) => void;
-  onNext: () => void;
+  onOrderPaid: (paidDraft: OrderDraft) => void;
   onBack: () => void;
   printTypes?: PrintTypeOption[];
   dimensions?: PrintDimension[];
@@ -29,7 +29,7 @@ interface StepPaymentProps {
 export const StepPayment: React.FC<StepPaymentProps> = ({
   draft,
   onUpdateDraft,
-  onNext,
+  onOrderPaid,
   onBack,
   printTypes,
   dimensions,
@@ -44,7 +44,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const [paymentRef, setPaymentRef] = useState(draft.paymentReference || '');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [countdownSeconds, setCountdownSeconds] = useState(15 * 60);
-  const [autoRedirecting, setAutoRedirecting] = useState(false);
+  const [isOrderRegistered, setIsOrderRegistered] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const [statusWarning, setStatusWarning] = useState('');
 
@@ -185,17 +185,17 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   }, [isPaid, countdownSeconds]);
 
   // 3. Background polling
-  const hasTriggeredNextRef = useRef(false);
+  const hasTriggeredPaymentSuccessRef = useRef(false);
+  const registeredPaymentReferenceRef = useRef<string | null>(null);
 
   const handlePaymentSuccess = (referenceId: string, paidRial?: number) => {
-    if (hasTriggeredNextRef.current) return;
-    hasTriggeredNextRef.current = true;
+    if (hasTriggeredPaymentSuccessRef.current) return;
+    hasTriggeredPaymentSuccessRef.current = true;
 
     const finalRial = typeof paidRial === 'number' && paidRial > 0 ? paidRial : payableRial;
 
     setIsPaid(true);
     setPaymentRef(referenceId);
-    setAutoRedirecting(true);
 
     onUpdateDraft({
       paymentMethod: 'card_to_card',
@@ -204,11 +204,16 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
       paymentAmountRial: finalRial,
       paymentAmountToman: Math.round(finalRial / 10)
     });
-
-    setTimeout(() => {
-      onNext();
-    }, 1800);
   };
+
+  useEffect(() => {
+    const paymentReference = draft.paymentReference;
+    if (!paymentReference || registeredPaymentReferenceRef.current === paymentReference) return;
+
+    registeredPaymentReferenceRef.current = paymentReference;
+    onOrderPaid(draft);
+    setIsOrderRegistered(true);
+  }, [draft, onOrderPaid]);
 
   useEffect(() => {
     if (!invoice || isPaid || !isPolling) return;
@@ -395,14 +400,22 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 text-white flex items-center justify-center mx-auto backdrop-blur-md border border-white/30 animate-bounce">
             <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10" />
           </div>
-          <h3 className="text-lg sm:text-2xl font-black">پرداخت کارت به کارت تایید شد! 🎉</h3>
+          <h3 className="text-lg sm:text-2xl font-black">
+            {isOrderRegistered
+              ? 'پرداخت و ثبت سفارش با موفقیت انجام شد!'
+              : 'پرداخت تأیید شد؛ سفارش در حال ثبت است...'}
+          </h3>
           <p className="text-xs sm:text-sm text-emerald-100 max-w-md mx-auto">
             مبلغ واریزی: {formatRialDirect(payableRial)} — کد پیگیری پرداخت:
           </p>
           <div className="inline-block px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 font-mono font-black text-sm tracking-wider dir-ltr">
             {paymentRef || draft.paymentReference || 'BLU-CONFIRMED'}
           </div>
-          <p className="text-xs text-emerald-200">در حال انتقال خودکار به مرحله نهایی ثبت سفارش...</p>
+          <p className="text-xs text-emerald-200">
+            {isOrderRegistered
+              ? 'سفارش ثبت شد؛ همین صفحه باز می‌ماند و پردازش آن در پس‌زمینه ادامه دارد.'
+              : 'در حال نهایی‌سازی ثبت سفارش...'}
+          </p>
         </div>
       )}
 
@@ -411,9 +424,8 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
         <div className="flex items-center justify-start gap-3 pt-3">
           <button
             type="button"
-            onClick={onBack}
-            disabled={autoRedirecting}
-            className="w-full sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
+              onClick={onBack}
+              className="w-full sm:w-44 h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-teal-600/20 cursor-pointer flex items-center justify-center gap-2"
           >
             <ChevronRight className="w-4 h-4" />
             <span>بازگشت به پیش‌فاکتور</span>

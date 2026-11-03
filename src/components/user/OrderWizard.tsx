@@ -5,7 +5,6 @@ import {
   Maximize2,
   Receipt,
   CreditCard,
-  Eye,
   CheckCircle2,
   History
 } from 'lucide-react';
@@ -15,8 +14,7 @@ import { StepUploadPhoto } from './wizard/StepUploadPhoto';
 import { StepDimensions } from './wizard/StepDimensions';
 import { StepInvoice } from './wizard/StepInvoice';
 import { StepPayment } from './wizard/StepPayment';
-import { StepPreviewConfirm } from './wizard/StepPreviewConfirm';
-import { PRINT_TYPES, PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
+import { PRINT_TYPES, PRINT_DIMENSIONS } from '../../data/mockData';
 import {
   clearOrderDraft,
   loadOrderDraft,
@@ -66,14 +64,11 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
   const isSubmittingRef = useRef(false);
 
-  // Step 6 (final confirm) is only valid when the payment already succeeded
-  const resumedStep = (() => {
-    const savedStep = Math.min(6, Math.max(1, restored?.step ?? 1));
-    if (savedStep === 6 && !restored?.draft?.paymentReference) return 5;
-    return savedStep;
-  })();
+  // Payment is the final wizard step; older drafts may still contain step 6.
+  const resumedStep = Math.min(5, Math.max(1, restored?.step ?? 1));
 
   const [currentStep, setCurrentStep] = useState<number>(resumedStep);
+  const [isOrderSubmitted, setIsOrderSubmitted] = useState(false);
   const [resumeNotice, setResumeNotice] = useState<null | {
     step: number;
     imagesDropped: boolean;
@@ -236,57 +231,56 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     { number: 2, title: 'آپلود عکس', icon: Upload, short: 'آپلود' },
     { number: 3, title: 'ابعاد چاپ', icon: Maximize2, short: 'ابعاد' },
     { number: 4, title: 'نمایش فاکتور', icon: Receipt, short: 'فاکتور' },
-    { number: 5, title: 'پرداخت فاکتور', icon: CreditCard, short: 'پرداخت' },
-    { number: 6, title: 'پیش‌نمایش و تایید', icon: Eye, short: 'تایید' }
+    { number: 5, title: 'پرداخت فاکتور', icon: CreditCard, short: 'پرداخت' }
   ];
 
-  const handleFinalOrder = () => {
+  const handleFinalOrder = (paidDraft: OrderDraft = draft) => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
+    setIsOrderSubmitted(true);
 
     const activeTypes = resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES;
-    const printTypeObj = activeTypes.find((t) => t.id === draft.printType) || activeTypes[0];
+    const printTypeObj = activeTypes.find((t) => t.id === paidDraft.printType) || activeTypes[0];
     const activeDimensions =
       dimensions && dimensions.length > 0 ? dimensions : PRINT_DIMENSIONS;
     const dimensionObj =
-      activeDimensions.find((d) => d.id === draft.dimensionId) ||
+      activeDimensions.find((d) => d.id === paidDraft.dimensionId) ||
       activeDimensions.find((d) => (printTypeObj.dimensionIds || []).includes(d.id)) ||
       activeDimensions[0];
-    const materialObj = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
     const framePrice =
-      draft.hasFrame && dimensionObj.frameEnabled
+      paidDraft.hasFrame && dimensionObj.frameEnabled
         ? Math.max(0, Number(dimensionObj.frameCustomerPrice) || 0)
         : 0;
     const unitBase = dimensionObj.basePrice + framePrice;
-    const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
-    const subtotal = (unitBase + unitExtras) * draft.quantity;
+    const unitExtras = (paidDraft.hasLamination ? 35000 : 0) + (paidDraft.designerRetouch ? 50000 : 0);
+    const subtotal = (unitBase + unitExtras) * paidDraft.quantity;
     const serviceFeeAmount =
       printTypeObj.serviceFeeEnabled === true ? Math.max(0, Number(printTypeObj.serviceFee) || 0) : 0;
     const activeMethods = (deliveryMethods && deliveryMethods.length > 0 ? deliveryMethods : [])
       .filter((method) => method.isEnabled !== false);
     const shippingMethod =
-      activeMethods.find((method) => method.id === draft.deliveryMethod) || activeMethods[0] || null;
+      activeMethods.find((method) => method.id === paidDraft.deliveryMethod) || activeMethods[0] || null;
     const shipping = Math.max(0, Number(shippingMethod?.price) || 0);
     const grossTotal = Math.max(0, subtotal + serviceFeeAmount + shipping);
     // Wallet credit used by this order; the whole balance is consumed and zeroed
-    const walletCredit = Math.max(0, Math.min(Number(draft.walletCreditUsed) || 0, grossTotal));
+    const walletCredit = Math.max(0, Math.min(Number(paidDraft.walletCreditUsed) || 0, grossTotal));
     const total = Math.max(0, grossTotal - walletCredit);
 
     // Amount actually issued/paid through BluPal, if any (exact, includes tracking digits)
-    const paidRial = draft.paymentAmountRial || Math.round(total * 10);
-    const paidToman = draft.paymentAmountToman || Math.round(paidRial / 10);
+    const paidRial = paidDraft.paymentAmountRial || Math.round(total * 10);
+    const paidToman = paidDraft.paymentAmountToman || Math.round(paidRial / 10);
 
     const promptToUse =
-      printTypePrompts[draft.printType] ||
+      printTypePrompts[paidDraft.printType] ||
       'یک پرتره باکیفیت و رتوش شده آتلیه؛ پرتره رسمی کیفیت عالی';
 
     const newOrder: Order = {
-      ...draft,
+      ...paidDraft,
       id: 'ord-' + Date.now(),
       trackingCode: 'Laleh-' + Math.floor(10000 + Math.random() * 90000),
       userId: user.id,
-      userName: draft.customerInfo.fullName || user.name,
+      userName: paidDraft.customerInfo.fullName || user.name,
       date: new Date().toLocaleDateString('fa-IR'),
       createdAt: new Date().toISOString(),
       status: 'pending_review',
@@ -297,7 +291,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       paymentAmountToman: paidToman,
       paymentAmountRial: paidRial,
       walletCreditUsed: walletCredit,
-      paymentStatus: draft.paymentReference ? 'paid' : 'pending'
+      paymentStatus: paidDraft.paymentReference ? 'paid' : 'pending'
     };
 
     // The credit is spent: zero the balance locally (the server persists it too)
@@ -360,6 +354,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
           {steps.map((s) => {
             const isCompleted = currentStep > s.number;
             const isCurrent = currentStep === s.number;
+            const canGoBack = s.number < currentStep && !isOrderSubmitted;
 
             return (
               <div
@@ -370,9 +365,12 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (s.number < currentStep) setCurrentStep(s.number);
+                    if (canGoBack) setCurrentStep(s.number);
                   }}
-                  className={`w-8 h-8 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                  disabled={!canGoBack}
+                  className={`w-8 h-8 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all ${
+                    canGoBack ? 'cursor-pointer' : 'cursor-default'
+                  } ${
                     isCurrent
                       ? 'bg-gradient-to-tr from-sky-500 to-emerald-500 text-white font-black shadow-md shadow-sky-500/25 scale-105'
                       : isCompleted
@@ -456,7 +454,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
           <StepPayment
             draft={draft}
             onUpdateDraft={handleUpdateDraft}
-            onNext={() => setCurrentStep(6)}
+            onOrderPaid={handleFinalOrder}
             onBack={() => setCurrentStep(4)}
             printTypes={resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES}
             dimensions={dimensions}
@@ -465,17 +463,6 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
           />
         )}
 
-        {currentStep === 6 && (
-          <StepPreviewConfirm
-            draft={draft}
-            onConfirmOrder={handleFinalOrder}
-            onBack={() => setCurrentStep(5)}
-            avalaiApiKey={avalaiApiKey}
-            printTypePrompts={printTypePrompts}
-            avalaiBaseUrl={avalaiBaseUrl}
-            avalaiModel={avalaiModel}
-          />
-        )}
       </div>
     </div>
   );
