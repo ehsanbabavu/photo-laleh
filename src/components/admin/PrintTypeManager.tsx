@@ -40,6 +40,8 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
   // Form states
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
+  const [basePrice, setBasePrice] = useState(100000);
+  const [serviceFee, setServiceFee] = useState(0);
   const [description, setDescription] = useState('');
   const [features, setFeatures] = useState<string[]>(['']);
   const [cardBgImage, setCardBgImage] = useState<string | null>(null);
@@ -53,6 +55,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     setTitle('');
     setSubtitle('');
     setBasePrice(100000);
+    setServiceFee(0);
     setDescription('');
     setFeatures(['کیفیت استاندارد چاپ آتلیه', 'امکان تحویل فوری و بسته‌بندی ویژه']);
     setCardBgImage(null);
@@ -66,6 +69,8 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     setEditingItem(item);
     setTitle(item.title);
     setSubtitle(item.subtitle);
+    setBasePrice(Math.max(0, Number(item.basePrice) || 0));
+    setServiceFee(Math.max(0, Number(item.serviceFee) || 0));
     setDescription(item.description);
     setFeatures(item.features && item.features.length > 0 ? [...item.features] : ['']);
     setCardBgImage(item.cardBgImage || null);
@@ -136,7 +141,9 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         id: 'pt_' + Date.now(),
         title: title.trim(),
         subtitle: subtitle.trim(),
-        basePrice: Number(editingItem?.basePrice) || 0,
+        basePrice: Math.max(0, Number(basePrice) || 0),
+        serviceFee: Math.max(0, Number(serviceFee) || 0),
+        serviceFeeEnabled: false,
         description: description.trim() || 'ارائه خدمات تخصصی چاپ با بالاترین کیفیت رنگ و ماندگاری در استودیو.',
         features: cleanFeatures,
         sampleImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
@@ -150,7 +157,8 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
         ...editingItem,
         title: title.trim(),
         subtitle: subtitle.trim(),
-        basePrice: Number(editingItem?.basePrice) || 0,
+        basePrice: Math.max(0, Number(basePrice) || 0),
+        serviceFee: Math.max(0, Number(serviceFee) || 0),
         description: description.trim(),
         features: cleanFeatures,
         cardBgImage: cardBgImage || undefined,
@@ -283,6 +291,38 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                     هیچ سایزی انتخاب نشده — در این کارت مرحله ابعاد خالی می‌شود
                   </span>
                 )}
+              </div>
+
+              <div className="mb-3 p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="block text-[11px] font-bold text-slate-700">هزینه خدمات · یک‌بار برای هر سفارش</span>
+                  <span className={`text-[10px] font-bold ${item.serviceFeeEnabled === true ? 'text-emerald-700' : 'text-slate-500'}`}>
+                    {item.serviceFeeEnabled === true
+                      ? Number(item.serviceFee) > 0
+                        ? formatPrice(item.serviceFee || 0)
+                        : 'مبلغ را وارد کنید'
+                      : Number(item.serviceFee) > 0
+                        ? `${formatPrice(item.serviceFee || 0)} · غیرفعال`
+                        : 'غیرفعال'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={item.serviceFeeEnabled === true}
+                  aria-label={`هزینه خدمات ${item.title}`}
+                  onClick={() => onUpdatePrintType({ ...item, serviceFeeEnabled: item.serviceFeeEnabled !== true })}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${
+                    item.serviceFeeEnabled === true ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-200 ${
+                      item.serviceFeeEnabled === true ? '-translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
 
               {/* Description preview */}
@@ -427,6 +467,32 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 leading-relaxed"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">قیمت پایه نوع چاپ (تومان)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={basePrice}
+                    onChange={(e) => setBasePrice(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">هزینه خدمات (تومان، یک‌بار برای هر سفارش)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={serviceFee}
+                    onChange={(e) => setServiceFee(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-sky-500"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">برای دریافت این مبلغ، کلید هزینه خدمات را روی کارت فعال کنید.</p>
+                </div>
               </div>
 
               {/* Card Background Image Upload */}

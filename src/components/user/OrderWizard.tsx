@@ -225,12 +225,14 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     const unitBase = dimensionObj.basePrice + framePrice;
     const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
     const subtotal = (unitBase + unitExtras) * draft.quantity;
+    const serviceFeeAmount =
+      printTypeObj.serviceFeeEnabled === true ? Math.max(0, Number(printTypeObj.serviceFee) || 0) : 0;
     const activeMethods = (deliveryMethods && deliveryMethods.length > 0 ? deliveryMethods : [])
       .filter((method) => method.isEnabled !== false);
     const shippingMethod =
       activeMethods.find((method) => method.id === draft.deliveryMethod) || activeMethods[0] || null;
     const shipping = Math.max(0, Number(shippingMethod?.price) || 0);
-    const grossTotal = Math.max(0, subtotal + shipping);
+    const grossTotal = Math.max(0, subtotal + serviceFeeAmount + shipping);
     // Wallet credit used by this order; the whole balance is consumed and zeroed
     const walletCredit = Math.max(0, Math.min(Number(draft.walletCreditUsed) || 0, grossTotal));
     const total = Math.max(0, grossTotal - walletCredit);

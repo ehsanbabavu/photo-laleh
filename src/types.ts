@@ -36,6 +36,9 @@ export interface PrintTypeOption {
   subtitle: string;
   description: string;
   basePrice: number;
+  /** One-time service fee per order, in Tomans. */
+  serviceFee?: number;
+  serviceFeeEnabled?: boolean;
   features: string[];
   sampleImage?: string;
   tag?: string;
@@ -93,6 +96,7 @@ export interface OrderInvoiceDetails {
   unitBasePrice: number;
   extrasPrice: number;
   subtotal: number;
+  serviceFeeAmount?: number;
   shippingCost: number;
   deliveryMethod: string;
   discountAmount: number;
