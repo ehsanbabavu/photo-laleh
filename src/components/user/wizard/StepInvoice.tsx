@@ -200,7 +200,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                     >
                       <p className="font-bold text-[11px] sm:text-xs text-slate-900">{method.title}</p>
                       <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium">
-                        {Number(method.price) > 0 ? `+${formatPrice(method.price)}` : 'رایگان'}
+                        {Number(method.price) > 0 ? `+${formatPrice(method.price)}` : 'پس کرایه'}
                         {method.eta ? ` • ${method.eta}` : ''}
                       </p>
                     </button>
