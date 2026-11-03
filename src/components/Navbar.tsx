@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, LogOut, Sparkles, Menu, X, LayoutDashboard, Palette, Printer, BotMessageSquare, Network, ChevronLeft, ExternalLink, LifeBuoy, Volume2, CreditCard, Database, Users, Send, Settings, ChevronDown, HardDrive, MessageSquare, Activity, Maximize2, Receipt, Wallet, Frame } from 'lucide-react';
+import { ShieldCheck, LogOut, Sparkles, Menu, X, LayoutDashboard, Palette, Printer, BotMessageSquare, Network, ChevronLeft, ExternalLink, LifeBuoy, Volume2, CreditCard, Database, Users, Send, Settings, ChevronDown, HardDrive, MessageSquare, Activity, Maximize2, Receipt, Wallet } from 'lucide-react';
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
 import { TulipIcon } from './TulipIcon';
@@ -100,7 +100,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const printItems = [
     { id: 'print_types' as AdminTab, label: 'مدیریت انواع چاپ', icon: Palette },
     { id: 'print_sizes' as AdminTab, label: 'مدیریت سایز', icon: Maximize2 },
-    { id: 'canvas_sizes' as AdminTab, label: 'سایز تخته شاسی', icon: Frame },
     { id: 'partner_invoices' as AdminTab, label: 'فاکتورهای صادر شده', icon: Receipt },
     { id: 'cost_requests' as AdminTab, label: 'بازبینی قیمت همکاران', icon: Wallet },
     { id: 'prompts_manager' as AdminTab, label: 'مدیریت پرامپت‌های چاپ', icon: Sparkles }
