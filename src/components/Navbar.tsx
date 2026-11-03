@@ -106,8 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   const isPrintActive = printItems.some((item) => item.id === adminTab);
-  // Open by default so the print screens are one tap away
-  const [printOpen, setPrintOpen] = useState(true);
+  const [printOpen, setPrintOpen] = useState(false);
 
   const settingsItems = [
     { id: 'chatgpt' as AdminTab, label: 'اتصال به هوش مصنوعی', icon: BotMessageSquare },
