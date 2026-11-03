@@ -124,6 +124,8 @@ export interface OrderDraft {
   quantity: number;
   hasLamination: boolean;
   designerRetouch: boolean;
+  /** Customer picked the «با قاب» option for the selected size */
+  hasFrame?: boolean;
   /** Id of the delivery method defined in the admin «ترابری» panel */
   deliveryMethod: string;
   customerInfo: {
