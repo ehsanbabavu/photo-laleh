@@ -199,7 +199,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
             {/* Delivery method (managed in the admin «ترابری» panel) */}
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <span className="text-[11px] text-slate-700 block font-bold">روش تحویل / ارسال:</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {activeDeliveryMethods.map((method) => {
                   const isActive = (selectedMethod?.id || '') === method.id;
                   return (
