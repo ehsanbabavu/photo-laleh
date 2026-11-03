@@ -38,6 +38,9 @@ interface OrderWizardProps {
   blupalSettings?: BluPalSettings;
 }
 
+const getDefaultDimensionId = (typeId: PrintTypeOption['id']) =>
+  typeId === 'personnel' ? 'personnel_6x3x4' : 'size_13x18';
+
 export const OrderWizard: React.FC<OrderWizardProps> = ({
   user,
   onOrderCompleted,
@@ -58,6 +61,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     restoredRef.current = loadOrderDraft(user.id);
   }
   const restored = restoredRef.current;
+  const hasRestoredDraftRef = useRef(Boolean(restored?.draft));
+  const hasUserSelectedPrintTypeRef = useRef(false);
 
   const isSubmittingRef = useRef(false);
 
@@ -100,9 +105,14 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     };
   }, [printTypes]);
 
+  const activePrintTypes = (resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES)
+    .filter((type) => type.isEnabled !== false);
+  const firstAvailablePrintType = activePrintTypes[0] ?? PRINT_TYPES[0];
+  const defaultDimensionId = getDefaultDimensionId(firstAvailablePrintType.id);
+
   // Initial order draft state (no photo by default, merged with any restored draft)
   const initialDraft: OrderDraft = {
-    printType: 'personnel',
+    printType: firstAvailablePrintType.id,
     uploadedImage: '',
     originalImageName: '',
     aiEffects: {
@@ -112,7 +122,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       weddingFilter: 'natural',
       autoEnhance: true
     },
-    dimensionId: 'personnel_6x3x4',
+    dimensionId: defaultDimensionId,
     materialId: 'silk_paper',
     quantity: 1,
     hasLamination: false,
@@ -141,6 +151,29 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     };
   });
 
+  React.useEffect(() => {
+    if (hasRestoredDraftRef.current || hasUserSelectedPrintTypeRef.current) return;
+    const firstAvailableType = (resolvedPrintTypes.length > 0 ? resolvedPrintTypes : PRINT_TYPES)
+      .find((type) => type.isEnabled !== false);
+    if (!firstAvailableType) return;
+
+    setDraft((current) => {
+      if (
+        hasRestoredDraftRef.current ||
+        hasUserSelectedPrintTypeRef.current ||
+        current.printType === firstAvailableType.id
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        printType: firstAvailableType.id,
+        dimensionId: getDefaultDimensionId(firstAvailableType.id)
+      };
+    });
+  }, [resolvedPrintTypes, draft.printType]);
+
   // Keep the unfinished order on the device as the user advances
   const latestStateRef = useRef({ step: currentStep, draft });
   latestStateRef.current = { step: currentStep, draft };
@@ -163,6 +196,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   }, [user.id]);
 
   const handleUpdateDraft = (updated: Partial<OrderDraft>) => {
+    if ('printType' in updated) hasUserSelectedPrintTypeRef.current = true;
     setDraft((prev) => {
       const next: OrderDraft = { ...prev, ...updated };
       // Any price-affecting change invalidates the previously issued (unpaid) invoice
@@ -188,6 +222,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   };
 
   const handleStartNewOrder = () => {
+    hasRestoredDraftRef.current = false;
+    hasUserSelectedPrintTypeRef.current = false;
     clearOrderDraft(user.id);
     setResumeNotice(null);
     setDraft(initialDraft);
