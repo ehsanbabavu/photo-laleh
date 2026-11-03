@@ -429,7 +429,16 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                     </div>
 
                     {/* Image status indicators */}
-                    <div className="flex items-center gap-1.5 pt-1">
+                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
+                          order.hasFrame
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {order.hasFrame ? 'با تخته شاسی' : 'بدون تخته شاسی'}
+                      </span>
                       {order.uploadedImage && (
                         <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium border border-slate-200">
                           عکس اصلی
