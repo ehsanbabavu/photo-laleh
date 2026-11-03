@@ -8,7 +8,9 @@ import {
   Zap,
   ExternalLink,
   ShieldCheck,
-  User
+  User,
+  Copy,
+  Check
 } from 'lucide-react';
 import { BluPalSettings } from '../../types';
 import { apiClient } from '../../services/apiClient';
@@ -23,6 +25,25 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
   const [cardNumber, setCardNumber] = useState(settings?.blupalCardNumber || '');
   const [accountHolder, setAccountHolder] = useState(settings?.blupalAccountHolder || '');
   const [enabled, setEnabled] = useState(settings?.blupalEnabled ?? true);
+  const [webhookSecret, setWebhookSecret] = useState(settings?.blupalWebhookSecret || '');
+  const [customWebhookUrl, setCustomWebhookUrl] = useState(settings?.blupalCustomWebhookUrl || '');
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
+
+  const systemWebhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/blupal/webhook`
+    : '/api/blupal/webhook';
+  const activeWebhookUrl = customWebhookUrl.trim() || systemWebhookUrl;
+
+  const handleCopyWebhookUrl = async () => {
+    if (!navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(activeWebhookUrl);
+      setCopiedWebhookUrl(true);
+      window.setTimeout(() => setCopiedWebhookUrl(false), 2000);
+    } catch {
+      setCopiedWebhookUrl(false);
+    }
+  };
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -60,6 +81,8 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
       blupalCardNumber: cardNumber.trim(),
       blupalAccountHolder: accountHolder.trim(),
       blupalEnabled: enabled,
+      blupalWebhookSecret: webhookSecret.trim(),
+      blupalCustomWebhookUrl: customWebhookUrl.trim(),
     });
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
@@ -131,6 +154,65 @@ export const AdminBluPalSettings: React.FC<AdminBluPalSettingsProps> = ({ settin
             className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
           />
         </div>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900">آدرس وب‌هوک دریافت نتیجه پرداخت</h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+              این آدرس را در بخش تنظیمات وب‌هوک پنل پذیرندهٔ بلوپال وارد کنید.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="url"
+              value={activeWebhookUrl}
+              readOnly
+              dir="ltr"
+              aria-label="آدرس فعال وب‌هوک بلوپال"
+              className="min-w-0 flex-1 rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-left font-mono text-xs text-slate-800"
+            />
+            <button
+              type="button"
+              onClick={handleCopyWebhookUrl}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-sky-700"
+            >
+              {copiedWebhookUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              <span>{copiedWebhookUrl ? 'کپی شد' : 'کپی آدرس'}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="blupal-custom-webhook-url" className="text-xs font-bold text-slate-700">آدرس وب‌هوک سفارشی (اختیاری)</label>
+              <input
+                id="blupal-custom-webhook-url"
+                type="url"
+                value={customWebhookUrl}
+                onChange={(e) => setCustomWebhookUrl(e.target.value)}
+                dir="ltr"
+                placeholder="https://example.com/api/blupal/webhook"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left font-mono text-xs text-slate-800"
+              />
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                اگر خالی بماند، آدرس فعلی سایت به‌صورت خودکار استفاده می‌شود.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="blupal-webhook-secret" className="text-xs font-bold text-slate-700">کلید امضای وب‌هوک (اختیاری)</label>
+              <input
+                id="blupal-webhook-secret"
+                type="password"
+                value={webhookSecret}
+                onChange={(e) => setWebhookSecret(e.target.value)}
+                dir="ltr"
+                autoComplete="new-password"
+                placeholder="کلید امضا در صورت تنظیم در بلوپال"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left font-mono text-xs text-slate-800"
+              />
+            </div>
+          </div>
         </div>
 
         <button

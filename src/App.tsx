@@ -136,7 +136,9 @@ export default function App() {
       blupalAccountHolder: 'آتلیه تخصصی لاله',
       blupalIban: 'IR720560086190004528719301',
       blupalEnabled: true,
-      blupalAutoPollInterval: 3
+      blupalAutoPollInterval: 3,
+      blupalWebhookSecret: '',
+      blupalCustomWebhookUrl: ''
     });
 
   const handleSaveBluPalSettings = (newSettings: BluPalSettings) => {
@@ -329,7 +331,12 @@ export default function App() {
           if (data.settings.telegramEnabled !== undefined) {
             setTelegramEnabled(data.settings.telegramEnabled);
           }
-          if (data.settings.blupalToken !== undefined || data.settings.blupalCardNumber) {
+          if (
+            data.settings.blupalToken !== undefined ||
+            data.settings.blupalCardNumber ||
+            data.settings.blupalWebhookSecret !== undefined ||
+            data.settings.blupalCustomWebhookUrl !== undefined
+          ) {
             const nextBluPal: BluPalSettings = {
               blupalToken: data.settings.blupalToken || '',
               blupalBaseUrl: data.settings.blupalBaseUrl || 'https://blupal.top',
@@ -338,7 +345,9 @@ export default function App() {
               blupalAccountHolder: data.settings.blupalAccountHolder || 'آتلیه تخصصی لاله',
               blupalIban: data.settings.blupalIban || 'IR720560086190004528719301',
               blupalEnabled: data.settings.blupalEnabled ?? true,
-              blupalAutoPollInterval: data.settings.blupalAutoPollInterval || 3
+              blupalAutoPollInterval: data.settings.blupalAutoPollInterval || 3,
+              blupalWebhookSecret: data.settings.blupalWebhookSecret || '',
+              blupalCustomWebhookUrl: data.settings.blupalCustomWebhookUrl || ''
             };
             setBlupalSettings(nextBluPal);
           }
