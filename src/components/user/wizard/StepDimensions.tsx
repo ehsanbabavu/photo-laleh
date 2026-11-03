@@ -65,7 +65,7 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
       if (draft.hasFrame) onUpdateDraft({ hasFrame: false });
       return;
     }
-    // A size that offers a frame starts with «با قاب» selected (the customer can turn it off)
+    // A size that offers a frame starts with «با تخته شاسی» selected (the customer can turn it off)
     if (typeof draft.hasFrame !== 'boolean') onUpdateDraft({ hasFrame: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.dimensionId, availableDimensions.length]);
@@ -163,7 +163,7 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                             : 'bg-white border-slate-300 text-slate-600 hover:border-amber-400'
                         }`}
                       >
-                        با قاب
+                        با تخته شاسی
                       </button>
                       <button
                         type="button"
@@ -174,7 +174,7 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                             : 'bg-white border-slate-300 text-slate-600 hover:border-sky-400'
                         }`}
                       >
-                        بدون قاب
+                        بدون تخته شاسی
                       </button>
                     </div>
                   )}
@@ -187,7 +187,7 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                     const frameCost = withFrame ? Number(dim.frameCostPrice) || 0 : 0;
                     const customerTotal = Number(dim.basePrice) + frameCustomer;
                     const costTotal = Number(dim.costPrice) + frameCost;
-                    const suffix = withFrame ? 'با قاب' : 'بدون قاب';
+                    const suffix = withFrame ? 'با تخته شاسی' : 'بدون تخته شاسی';
                     return (
                       <div className="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
                         <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
