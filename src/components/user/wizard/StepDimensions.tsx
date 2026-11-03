@@ -4,7 +4,8 @@ import {
   ChevronRight,
   ChevronLeft,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Frame as FrameIcon
 } from 'lucide-react';
 import { OrderDraft, PrintDimension, PrintTypeOption } from '../../../types';
 import { formatPrice } from '../../../utils/formatters';
@@ -56,6 +57,19 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
       onUpdateDraft({ dimensionId: availableDimensions[0].id });
     }
   }, [draft.printType, draft.dimensionId, availableDimensions.length]);
+
+  // Keep the frame choice in sync with the selected size
+  useEffect(() => {
+    const selected = availableDimensions.find((d) => d.id === draft.dimensionId);
+    const hasFrameOption = Boolean(selected?.frameEnabled && Number(selected?.frameCustomerPrice) > 0);
+    if (!hasFrameOption) {
+      if (draft.hasFrame) onUpdateDraft({ hasFrame: false });
+      return;
+    }
+    // A size that offers a frame starts with «با قاب» selected (the customer can turn it off)
+    if (typeof draft.hasFrame !== 'boolean') onUpdateDraft({ hasFrame: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.dimensionId, availableDimensions.length]);
 
   const hasNoSizes = availableDimensions.length === 0;
 
@@ -164,6 +178,85 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
           })}
         </div>
       )}
+
+      {/* Frame (قاب) choice for the selected size */}
+      {(() => {
+        const selected = availableDimensions.find((d) => d.id === draft.dimensionId);
+        if (!selected || !selected.frameEnabled || Number(selected.frameCustomerPrice) <= 0) return null;
+        const framePrice = Number(selected.frameCustomerPrice) || 0;
+        const withoutFrame = draft.hasFrame === false;
+        return (
+          <div className="p-3.5 rounded-2xl bg-white border border-amber-200 shadow-xs">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                <FrameIcon className="w-4 h-4" />
+              </span>
+              <div>
+                <p className="text-xs sm:text-sm font-black text-slate-900">قاب می‌خواهید؟</p>
+                <p className="text-[10px] sm:text-[11px] text-slate-500">
+                  برای «{selected.title}» می‌توانید با قاب یا بدون قاب سفارش دهید
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => onUpdateDraft({ hasFrame: true })}
+                className={`p-3 rounded-xl border text-right transition-all cursor-pointer active:scale-99 ${
+                  !withoutFrame
+                    ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300/40'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black text-slate-900">با قاب</span>
+                  <span
+                    className={`w-4 h-4 rounded-full flex items-center justify-center border flex-shrink-0 ${
+                      !withoutFrame ? 'bg-amber-500 border-transparent text-white' : 'border-slate-300 bg-slate-50'
+                    }`}
+                  >
+                    {!withoutFrame && <CheckCircle2 className="w-3 h-3" />}
+                  </span>
+                </span>
+                <span className="mt-1 block font-mono text-[11px] font-bold text-amber-800">
+                  + {formatPrice(framePrice)}
+                </span>
+                <span className="mt-0.5 block font-mono text-[10px] font-black text-slate-700">
+                  جمع: {formatPrice(Number(selected.basePrice) + framePrice)}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onUpdateDraft({ hasFrame: false })}
+                className={`p-3 rounded-xl border text-right transition-all cursor-pointer active:scale-99 ${
+                  withoutFrame
+                    ? 'bg-sky-50 border-sky-400 ring-2 ring-sky-300/40'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black text-slate-900">بدون قاب</span>
+                  <span
+                    className={`w-4 h-4 rounded-full flex items-center justify-center border flex-shrink-0 ${
+                      withoutFrame ? 'bg-sky-500 border-transparent text-white' : 'border-slate-300 bg-slate-50'
+                    }`}
+                  >
+                    {withoutFrame && <CheckCircle2 className="w-3 h-3" />}
+                  </span>
+                </span>
+                <span className="mt-1 block font-mono text-[11px] font-bold text-slate-600">
+                  فقط چاپ
+                </span>
+                <span className="mt-0.5 block font-mono text-[10px] font-black text-slate-700">
+                  جمع: {formatPrice(Number(selected.basePrice))}
+                </span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between gap-3 pt-3">
