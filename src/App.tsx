@@ -768,7 +768,6 @@ export default function App() {
       apiClient.saveOrder(newOrder);
       return next;
     });
-    setUserTab('orders');
 
     // Enqueue order in AI Sequential Queue with 1-Minute Rate-Limit Protection
     aiQueueManager.enqueue({
