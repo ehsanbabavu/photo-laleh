@@ -54,7 +54,7 @@ export interface PrintDimension {
   basePrice: number;
   /** Internal cost of this size — admin only, never exposed to customers */
   costPrice?: number;
-  /** Show the optional frame (قاب) price to customers for this size */
+  /** Show the optional frame (تخته شاسی) price to customers for this size */
   frameEnabled?: boolean;
   /** Frame price charged to the customer */
   frameCustomerPrice?: number;
@@ -124,7 +124,7 @@ export interface OrderDraft {
   quantity: number;
   hasLamination: boolean;
   designerRetouch: boolean;
-  /** Customer picked the «با قاب» option for the selected size */
+  /** Customer picked the «با تخته شاسی» option for the selected size */
   hasFrame?: boolean;
   /** Id of the delivery method defined in the admin «ترابری» panel */
   deliveryMethod: string;
