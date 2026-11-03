@@ -179,29 +179,34 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                     </div>
                   )}
 
-                  {/* Price breakdown: customer price without the frame + cost price with the frame */}
-                  <div className="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
-                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
-                      <span className="text-slate-600">قیمت مشتری (بدون قاب):</span>
-                      <span className="font-mono text-slate-900">{formatPrice(dim.basePrice)}</span>
-                    </div>
-                    {dim.frameEnabled && Number(dim.frameCustomerPrice) > 0 && (
-                      <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
-                        <span className="text-amber-700">قیمت مشتری (با قاب):</span>
-                        <span className="font-mono text-amber-800">
-                          {formatPrice(Number(dim.basePrice) + Number(dim.frameCustomerPrice))}
-                        </span>
+                  {/* Price of the current choice only: with frame OR without frame */}
+                  {(() => {
+                    const hasFrameOption = Boolean(dim.frameEnabled && Number(dim.frameCustomerPrice) > 0);
+                    const withFrame = isSelected ? Boolean(draft.hasFrame) && hasFrameOption : false;
+                    const frameCustomer = withFrame ? Number(dim.frameCustomerPrice) || 0 : 0;
+                    const frameCost = withFrame ? Number(dim.frameCostPrice) || 0 : 0;
+                    const customerTotal = Number(dim.basePrice) + frameCustomer;
+                    const costTotal = Number(dim.costPrice) + frameCost;
+                    const suffix = withFrame ? 'با قاب' : 'بدون قاب';
+                    return (
+                      <div className="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
+                          <span className={withFrame ? 'text-amber-700' : 'text-slate-600'}>
+                            قیمت مشتری ({suffix}):
+                          </span>
+                          <span className={`font-mono ${withFrame ? 'text-amber-800' : 'text-slate-900'}`}>
+                            {formatPrice(customerTotal)}
+                          </span>
+                        </div>
+                        {Number(dim.costPrice) > 0 && (
+                          <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
+                            <span className="text-rose-700">قیمت تمام‌شده ({suffix}):</span>
+                            <span className="font-mono text-rose-800">{formatPrice(costTotal)}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {Number(dim.costPrice) > 0 && (
-                      <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
-                        <span className="text-rose-700">قیمت تمام‌شده (با قاب):</span>
-                        <span className="font-mono text-rose-800">
-                          {formatPrice(Number(dim.costPrice) + Number(dim.frameCostPrice || 0))}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
