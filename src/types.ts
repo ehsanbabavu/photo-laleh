@@ -54,6 +54,12 @@ export interface PrintDimension {
   basePrice: number;
   /** Internal cost of this size — admin only, never exposed to customers */
   costPrice?: number;
+  /** Show the optional frame (قاب) price to customers for this size */
+  frameEnabled?: boolean;
+  /** Frame price charged to the customer */
+  frameCustomerPrice?: number;
+  /** Frame cost — admin only, never exposed to customers */
+  frameCostPrice?: number;
   description: string;
   popular?: boolean;
 }
