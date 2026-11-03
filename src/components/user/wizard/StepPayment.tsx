@@ -46,6 +46,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const [countdownSeconds, setCountdownSeconds] = useState(15 * 60);
   const [autoRedirecting, setAutoRedirecting] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [statusWarning, setStatusWarning] = useState('');
 
   // Resolve printType from props
   const activePrintTypes: PrintTypeOption[] =
@@ -217,8 +218,16 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
       try {
         const targetId = invoice.invoiceId || (invoice as any).localInvoiceId;
         const res = await apiClient.checkBluPalInvoiceStatus(targetId);
-        if (res && res.success) {
-          if (res.status === 'paid' || res.invoice?.status === 'paid') {
+        if (res?.error === 'not_found') {
+          setStatusWarning(`فاکتور ${targetId} در سامانه سایت پیدا نشد. دوباره پرداخت نکنید و همین شناسه را به پشتیبانی اعلام کنید.`);
+          return;
+        }
+        if (!res?.success) {
+          if (res?.message) setStatusWarning(res.message);
+          return;
+        }
+        setStatusWarning(res.warning || '');
+        if (res.status === 'paid' || res.invoice?.status === 'paid') {
             const refCode =
               res.invoice?.referenceCode ||
               res.referenceCode ||
@@ -232,7 +241,6 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
             );
             setIsPolling(false);
           }
-        }
       } catch (err) {
         // Polling retry
       }
@@ -371,6 +379,12 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
                   </div>
                 </div>
 
+                {statusWarning && (
+                  <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <p>{statusWarning}</p>
+                  </div>
+                )}
               </>
             )}
           </div>

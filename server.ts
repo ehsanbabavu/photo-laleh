@@ -2095,6 +2095,7 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
     const expiresInMs = 15 * 60 * 1000;
 
     const newInvoice: any = {
+      id: localInvoiceId,
       invoiceId: remote ? remote.invoiceId : localInvoiceId,
       localInvoiceId,
       remoteInvoiceId: remote ? remote.invoiceId : '',
@@ -2376,7 +2377,11 @@ app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) =
 
     // 2. Update matching order in DB if any
     db.orders = (db.orders || []).map((ord: any) => {
+      const linkedInvoiceId = String(
+        ord.paymentInvoiceId || ord.paymentInvoice?.invoiceId || ord.paymentInvoice?.remoteInvoiceId || ''
+      ).trim();
       const isOrderMatch =
+        (strInvoiceId && linkedInvoiceId === strInvoiceId) ||
         (strInvoiceId && String(ord.id || '').trim() === strInvoiceId) ||
         (strInvoiceId && String(ord.trackingCode || '').trim() === strInvoiceId);
       if (isOrderMatch && isPaid) {
@@ -2403,6 +2408,11 @@ app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) =
 
     db.webhookLogs = [logEntry, ...(db.webhookLogs || []).slice(0, 19)];
     await writeDb(db);
+
+    if (isPaid && !invoiceFound) {
+      console.error(`[BluPal Webhook] Paid invoice ${strInvoiceId || 'unknown'} has no local invoice record`);
+      return res.status(404).json({ success: false, error: 'invoice_not_found', invoiceId: strInvoiceId });
+    }
 
     console.log(`[BluPal Webhook] Received status for invoice ${strInvoiceId}: ${isPaid ? 'PAID' : rawStatus} (Ref: ${referenceCode}, Matched: ${invoiceFound})`);
 
