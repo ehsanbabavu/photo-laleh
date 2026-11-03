@@ -239,10 +239,6 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                       یک‌بار مصرف
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-700 mt-0.5 leading-snug">
-                    موجودی شما {formatPrice(userWallet)} است؛ با استفاده از آن، مبلغ از همین فاکتور
-                    کسر و اعتبار کیف پول شما صفر می‌شود.
-                  </p>
                 </div>
               </div>
 
