@@ -218,7 +218,11 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       activeDimensions[0];
     const materialObj = PAPER_MATERIALS.find((m) => m.id === draft.materialId) || PAPER_MATERIALS[0];
 
-    const unitBase = printTypeObj.basePrice + dimensionObj.basePrice;
+    const framePrice =
+      draft.hasFrame && dimensionObj.frameEnabled
+        ? Math.max(0, Number(dimensionObj.frameCustomerPrice) || 0)
+        : 0;
+    const unitBase = printTypeObj.basePrice + dimensionObj.basePrice + framePrice;
     const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
     const subtotal = (unitBase + unitExtras) * draft.quantity;
     const activeMethods = (deliveryMethods && deliveryMethods.length > 0 ? deliveryMethods : [])
