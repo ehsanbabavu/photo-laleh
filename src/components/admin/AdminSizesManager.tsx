@@ -88,13 +88,13 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
     if (duplicate) return setFormError('سایزی با همین عنوان از قبل وجود دارد.');
 
     if (!Number.isFinite(Number(form.frameCustomerPrice)) || Number(form.frameCustomerPrice) < 0) {
-      return setFormError('قیمت قاب (مشتری) نمی‌تواند منفی باشد.');
+      return setFormError('قیمت تخته شاسی (مشتری) نمی‌تواند منفی باشد.');
     }
     if (!Number.isFinite(Number(form.frameCostPrice)) || Number(form.frameCostPrice) < 0) {
-      return setFormError('قیمت تمام‌شده قاب نمی‌تواند منفی باشد.');
+      return setFormError('قیمت تمام‌شده تخته شاسی نمی‌تواند منفی باشد.');
     }
     if (form.frameEnabled && Number(form.frameCustomerPrice) <= 0) {
-      return setFormError('برای فعال بودن قاب، قیمت مشتری قاب را وارد کنید.');
+      return setFormError('برای فعال بودن تخته شاسی، قیمت مشتری تخته شاسی را وارد کنید.');
     }
 
     const payload: PrintDimension = {
@@ -273,7 +273,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     )}
                   </div>
 
-                  {/* Optional frame (قاب) */}
+                  {/* Optional frame (تخته شاسی) */}
                   <div
                     className={`p-2.5 rounded-xl border mb-2.5 space-y-1 ${
                       dim.frameEnabled
@@ -284,7 +284,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold flex items-center gap-1 text-slate-700">
                         <Frame className="w-3 h-3" />
-                        قاب
+                        تخته شاسی
                       </span>
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
@@ -299,7 +299,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     {Number(dim.frameCustomerPrice) > 0 || Number(dim.frameCostPrice) > 0 ? (
                       <div className="space-y-0.5 pt-0.5">
                         <div className="flex items-center justify-between text-[10px] font-bold">
-                          <span className="text-slate-600">قیمت مشتری قاب:</span>
+                          <span className="text-slate-600">قیمت مشتری تخته شاسی:</span>
                           <span className="font-mono text-emerald-700">
                             {Number(dim.frameCustomerPrice) > 0
                               ? formatPrice(Number(dim.frameCustomerPrice))
@@ -309,7 +309,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                         <div className="flex items-center justify-between text-[10px] font-bold">
                           <span className="text-slate-600 flex items-center gap-1">
                             <Lock className="w-2.5 h-2.5" />
-                            قیمت تمام‌شده قاب:
+                            قیمت تمام‌شده تخته شاسی:
                           </span>
                           <span className="font-mono text-rose-700">
                             {Number(dim.frameCostPrice) > 0
@@ -318,14 +318,14 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-[10px] font-black pt-0.5 border-t border-slate-200/70">
-                          <span className="text-slate-700">مشتری با قاب:</span>
+                          <span className="text-slate-700">مشتری با تخته شاسی:</span>
                           <span className="font-mono text-slate-900">
                             {formatPrice(Number(dim.basePrice) + Number(dim.frameCustomerPrice))}
                           </span>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-[10px] text-slate-400 font-bold">قیمتی برای قاب ثبت نشده است.</p>
+                      <p className="text-[10px] text-slate-400 font-bold">قیمتی برای تخته شاسی ثبت نشده است.</p>
                     )}
                   </div>
 
@@ -482,12 +482,12 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                 )}
               </div>
 
-              {/* Optional frame (قاب) */}
+              {/* Optional frame (تخته شاسی) */}
               <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <label className="flex items-center gap-1.5 text-amber-900 font-black">
                     <Frame className="w-3.5 h-3.5" />
-                    قاب برای این سایز
+                    تخته شاسی برای این سایز
                   </label>
 
                   {/* on/off toggle for the customer */}
@@ -499,7 +499,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer flex-shrink-0 ${
                       form.frameEnabled ? 'bg-emerald-500' : 'bg-slate-300'
                     }`}
-                    title={form.frameEnabled ? 'قاب برای مشتری نمایش داده می‌شود' : 'قاب برای مشتری خاموش است'}
+                    title={form.frameEnabled ? 'تخته شاسی برای مشتری نمایش داده می‌شود' : 'تخته شاسی برای مشتری خاموش است'}
                   >
                     <span
                       className={`inline-block h-4.5 w-4.5 h-[18px] w-[18px] transform rounded-full bg-white shadow transition-transform ${
@@ -510,13 +510,13 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                 </div>
 
                 <p className="text-[10px] text-amber-800 leading-relaxed">
-                  وقتی روشن باشد، قیمت قاب به مشتری نشان داده می‌شود؛ وقتی خاموش باشد فقط برای
+                  وقتی روشن باشد، قیمت تخته شاسی به مشتری نشان داده می‌شود؛ وقتی خاموش باشد فقط برای
                   محاسبه داخلی ذخیره می‌شود.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-slate-700 font-bold mb-1">قیمت قاب (مشتری)</label>
+                    <label className="block text-slate-700 font-bold mb-1">قیمت تخته شاسی (مشتری)</label>
                     <input
                       type="number"
                       min={0}
@@ -530,7 +530,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                   <div>
                     <label className="block text-rose-800 font-bold mb-1 flex items-center gap-1">
                       <Lock className="w-3 h-3" />
-                      قیمت تمام‌شده قاب
+                      قیمت تمام‌شده تخته شاسی
                     </label>
                     <input
                       type="number"
@@ -546,7 +546,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
 
                 {form.frameCustomerPrice > 0 && (
                   <p className="text-[10px] font-bold text-slate-700">
-                    مبلغ نهایی مشتری با قاب: {formatPrice(Number(form.basePrice) + Number(form.frameCustomerPrice))}
+                    مبلغ نهایی مشتری با تخته شاسی: {formatPrice(Number(form.basePrice) + Number(form.frameCustomerPrice))}
                   </p>
                 )}
               </div>
@@ -555,7 +555,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                 <label className="block text-slate-700 font-bold mb-1">توضیح کوتاه</label>
                 <textarea
                   rows={2}
-                  placeholder="مناسب آلبوم خاطرات و قاب‌های کوچک رومیزی"
+                  placeholder="مناسب آلبوم خاطرات و تخته شاسی‌های کوچک رومیزی"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 leading-relaxed"
