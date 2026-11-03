@@ -57,7 +57,11 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const dimension =
     activeDimensions.find((d) => d.id === draft.dimensionId) || activeDimensions[0];
 
-  const unitBase = printType.basePrice + dimension.basePrice;
+  const framePrice =
+    draft.hasFrame && dimension.frameEnabled
+      ? Math.max(0, Number(dimension.frameCustomerPrice) || 0)
+      : 0;
+  const unitBase = printType.basePrice + dimension.basePrice + framePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
   // Shipping fee comes from the invoice produced by the transport panel
