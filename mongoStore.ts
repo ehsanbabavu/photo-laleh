@@ -38,8 +38,6 @@ const ARRAY_COLLECTIONS = [
   'invoices',
   'partnerInvoices',
   'costRequests',
-  // «سایز تخته شاسی» — canvas/board sizes with cost + customer price
-  'canvasSizes',
   'webhookLogs'
 ] as const;
 
