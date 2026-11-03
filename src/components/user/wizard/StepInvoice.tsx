@@ -141,37 +141,22 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
 
           {/* Line items table */}
           <div className="space-y-2 text-xs">
-            {/* Service & Type */}
+            {/* Service + size merged into a single line with one price */}
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <p className="font-bold text-slate-900 text-xs sm:text-sm">{printType.title}</p>
                 <p className="text-slate-500 text-[10px] sm:text-[11px] mt-0.5">{printType.subtitle}</p>
+                {dimension.id !== 'personnel_6x3x4' && !dimension.title.includes('۶ عدد عکس ۳×۴') && (
+                  <p className="text-[10px] sm:text-[11px] font-bold text-sky-700 mt-1">
+                    {dimension.title} · <span className="font-mono">{dimension.dimensionsCm}</span>
+                    {framePrice > 0 && <span className="text-amber-700"> · با تخته شاسی</span>}
+                  </p>
+                )}
               </div>
-              <span className="font-mono font-bold text-slate-900 text-xs sm:text-sm flex-shrink-0">
-                {formatPrice(printType.basePrice)}
+              <span className="font-mono font-black text-slate-900 text-xs sm:text-sm flex-shrink-0">
+                {formatPrice(printType.basePrice + dimension.basePrice + framePrice)}
               </span>
             </div>
-
-            {/* Dimension item (Hidden for 6 pieces 3x4 promotional card) */}
-            {dimension.id !== 'personnel_6x3x4' && !dimension.title.includes('۶ عدد عکس ۳×۴') && (
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-bold text-slate-900 text-xs">{dimension.title}</p>
-                  <p className="text-slate-500 text-[10px] font-mono mt-0.5">{dimension.dimensionsCm}</p>
-                </div>
-                <span className="font-mono font-bold text-sky-700 text-xs flex-shrink-0">
-                  {dimension.basePrice === 0 ? 'رایگان' : `+ ${formatPrice(dimension.basePrice)}`}
-                </span>
-              </div>
-            )}
-
-            {/* Optional board (تخته شاسی) — itemised so the lines add up to the total */}
-            {framePrice > 0 && (
-              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-slate-800 text-xs">
-                <span className="font-bold">تخته شاسی</span>
-                <span className="font-mono font-bold text-amber-800">+ {formatPrice(framePrice)}</span>
-              </div>
-            )}
 
             {/* Optional additions */}
             {draft.hasLamination && (
