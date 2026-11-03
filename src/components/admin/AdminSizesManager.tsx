@@ -1,17 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Maximize2,
-  Plus,
-  Pencil,
-  Trash2,
-  RotateCcw,
-  X,
-  AlertCircle,
-  Ruler,
-  Layers,
-  Star,
-  Lock
-} from 'lucide-react';
+import { Maximize2, Plus, Pencil, Trash2, RotateCcw, X, AlertCircle, Ruler, Layers, Star, Lock, Frame } from 'lucide-react';
 import { PrintDimension, PrintTypeOption } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
@@ -30,6 +18,9 @@ const emptyForm = {
   aspectRatio: '',
   basePrice: 0,
   costPrice: 0,
+  frameEnabled: false,
+  frameCustomerPrice: 0,
+  frameCostPrice: 0,
   description: '',
   popular: false
 };
@@ -66,6 +57,9 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
       aspectRatio: item.aspectRatio || '',
       basePrice: Number(item.basePrice) || 0,
       costPrice: Number(item.costPrice) || 0,
+      frameEnabled: Boolean(item.frameEnabled),
+      frameCustomerPrice: Number(item.frameCustomerPrice) || 0,
+      frameCostPrice: Number(item.frameCostPrice) || 0,
       description: item.description || '',
       popular: Boolean(item.popular)
     });
@@ -93,6 +87,16 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
     );
     if (duplicate) return setFormError('سایزی با همین عنوان از قبل وجود دارد.');
 
+    if (!Number.isFinite(Number(form.frameCustomerPrice)) || Number(form.frameCustomerPrice) < 0) {
+      return setFormError('قیمت قاب (مشتری) نمی‌تواند منفی باشد.');
+    }
+    if (!Number.isFinite(Number(form.frameCostPrice)) || Number(form.frameCostPrice) < 0) {
+      return setFormError('قیمت تمام‌شده قاب نمی‌تواند منفی باشد.');
+    }
+    if (form.frameEnabled && Number(form.frameCustomerPrice) <= 0) {
+      return setFormError('برای فعال بودن قاب، قیمت مشتری قاب را وارد کنید.');
+    }
+
     const payload: PrintDimension = {
       id: editingId || `size_${Date.now().toString(36)}`,
       title,
@@ -100,6 +104,9 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
       aspectRatio: form.aspectRatio.trim() || '—',
       basePrice: Math.round(Number(form.basePrice) || 0),
       costPrice: Math.round(Number(form.costPrice) || 0),
+      frameEnabled: form.frameEnabled,
+      frameCustomerPrice: Math.round(Number(form.frameCustomerPrice) || 0),
+      frameCostPrice: Math.round(Number(form.frameCostPrice) || 0),
       description: form.description.trim(),
       popular: form.popular
     };
@@ -266,6 +273,62 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     )}
                   </div>
 
+                  {/* Optional frame (قاب) */}
+                  <div
+                    className={`p-2.5 rounded-xl border mb-2.5 space-y-1 ${
+                      dim.frameEnabled
+                        ? 'bg-amber-50/70 border-amber-200'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold flex items-center gap-1 text-slate-700">
+                        <Frame className="w-3 h-3" />
+                        قاب
+                      </span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                          dim.frameEnabled
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : 'bg-slate-100 text-slate-500 border-slate-200'
+                        }`}
+                      >
+                        {dim.frameEnabled ? 'برای مشتری روشن' : 'خاموش'}
+                      </span>
+                    </div>
+                    {Number(dim.frameCustomerPrice) > 0 || Number(dim.frameCostPrice) > 0 ? (
+                      <div className="space-y-0.5 pt-0.5">
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span className="text-slate-600">قیمت مشتری قاب:</span>
+                          <span className="font-mono text-emerald-700">
+                            {Number(dim.frameCustomerPrice) > 0
+                              ? formatPrice(Number(dim.frameCustomerPrice))
+                              : 'ثبت نشده'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span className="text-slate-600 flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" />
+                            قیمت تمام‌شده قاب:
+                          </span>
+                          <span className="font-mono text-rose-700">
+                            {Number(dim.frameCostPrice) > 0
+                              ? formatPrice(Number(dim.frameCostPrice))
+                              : 'ثبت نشده'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-black pt-0.5 border-t border-slate-200/70">
+                          <span className="text-slate-700">مشتری با قاب:</span>
+                          <span className="font-mono text-slate-900">
+                            {formatPrice(Number(dim.basePrice) + Number(dim.frameCustomerPrice))}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 font-bold">قیمتی برای قاب ثبت نشده است.</p>
+                    )}
+                  </div>
+
                   {dim.description && (
                     <p className="text-[11px] text-slate-600 leading-relaxed font-medium mb-2.5">
                       {dim.description}
@@ -415,6 +478,75 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                 {form.costPrice > 0 && (
                   <p className="text-[10px] font-bold text-emerald-700">
                     سود ناخالص این سایز: {formatPrice(form.basePrice - form.costPrice)}
+                  </p>
+                )}
+              </div>
+
+              {/* Optional frame (قاب) */}
+              <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-1.5 text-amber-900 font-black">
+                    <Frame className="w-3.5 h-3.5" />
+                    قاب برای این سایز
+                  </label>
+
+                  {/* on/off toggle for the customer */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.frameEnabled}
+                    onClick={() => setForm({ ...form, frameEnabled: !form.frameEnabled })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer flex-shrink-0 ${
+                      form.frameEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                    title={form.frameEnabled ? 'قاب برای مشتری نمایش داده می‌شود' : 'قاب برای مشتری خاموش است'}
+                  >
+                    <span
+                      className={`inline-block h-4.5 w-4.5 h-[18px] w-[18px] transform rounded-full bg-white shadow transition-transform ${
+                        form.frameEnabled ? '-translate-x-[22px]' : '-translate-x-[3px]'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <p className="text-[10px] text-amber-800 leading-relaxed">
+                  وقتی روشن باشد، قیمت قاب به مشتری نشان داده می‌شود؛ وقتی خاموش باشد فقط برای
+                  محاسبه داخلی ذخیره می‌شود.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">قیمت قاب (مشتری)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      placeholder="120000"
+                      value={form.frameCustomerPrice}
+                      onChange={(e) => setForm({ ...form, frameCustomerPrice: Number(e.target.value) })}
+                      className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:outline-none focus:border-amber-400 text-left dir-ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-rose-800 font-bold mb-1 flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      قیمت تمام‌شده قاب
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      placeholder="70000"
+                      value={form.frameCostPrice}
+                      onChange={(e) => setForm({ ...form, frameCostPrice: Number(e.target.value) })}
+                      className="w-full bg-white border border-rose-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:outline-none focus:border-rose-400 text-left dir-ltr"
+                    />
+                  </div>
+                </div>
+
+                {form.frameCustomerPrice > 0 && (
+                  <p className="text-[10px] font-bold text-slate-700">
+                    مبلغ نهایی مشتری با قاب: {formatPrice(Number(form.basePrice) + Number(form.frameCustomerPrice))}
                   </p>
                 )}
               </div>
