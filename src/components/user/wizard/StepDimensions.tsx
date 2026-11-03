@@ -7,6 +7,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { OrderDraft, PrintDimension, PrintTypeOption } from '../../../types';
+import { formatPrice } from '../../../utils/formatters';
 import {
   PRINT_TYPES,
   PRINT_DIMENSIONS,
@@ -133,6 +134,30 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                   <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed font-medium">
                     {dim.description}
                   </p>
+
+                  {/* Price breakdown: customer price without the frame + cost price with the frame */}
+                  <div className="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
+                      <span className="text-slate-600">قیمت مشتری (بدون قاب):</span>
+                      <span className="font-mono text-slate-900">{formatPrice(dim.basePrice)}</span>
+                    </div>
+                    {dim.frameEnabled && Number(dim.frameCustomerPrice) > 0 && (
+                      <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
+                        <span className="text-amber-700">قیمت مشتری (با قاب):</span>
+                        <span className="font-mono text-amber-800">
+                          {formatPrice(Number(dim.basePrice) + Number(dim.frameCustomerPrice))}
+                        </span>
+                      </div>
+                    )}
+                    {Number(dim.costPrice) > 0 && (
+                      <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
+                        <span className="text-rose-700">قیمت تمام‌شده (با قاب):</span>
+                        <span className="font-mono text-rose-800">
+                          {formatPrice(Number(dim.costPrice) + Number(dim.frameCostPrice || 0))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
