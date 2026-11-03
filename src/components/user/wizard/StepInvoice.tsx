@@ -58,7 +58,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
     draft.hasFrame && dimension.frameEnabled
       ? Math.max(0, Number(dimension.frameCustomerPrice) || 0)
       : 0;
-  const unitBase = printType.basePrice + dimension.basePrice + framePrice;
+  const unitBase = dimension.basePrice + framePrice;
   const unitExtras = (draft.hasLamination ? 35000 : 0) + (draft.designerRetouch ? 50000 : 0);
   const subtotal = (unitBase + unitExtras) * draft.quantity;
   const shippingCost = Math.max(0, Number(selectedMethod?.price) || 0);
@@ -154,7 +154,7 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
                 )}
               </div>
               <span className="font-mono font-black text-slate-900 text-xs sm:text-sm flex-shrink-0">
-                {formatPrice(printType.basePrice + dimension.basePrice + framePrice)}
+                {formatPrice(unitBase)}
               </span>
             </div>
 
