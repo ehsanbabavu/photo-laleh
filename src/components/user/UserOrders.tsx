@@ -43,14 +43,12 @@ export const UserOrders: React.FC<UserOrdersProps> = ({
   const handleSavePrintSelection = async (orderId: string, selection: PrintImageKey[]) => {
     setSavingSelectionIds((previous) => ({ ...previous, [orderId]: true }));
     try {
-      const saved = await onUpdatePrintSelection(orderId, selection).catch(() => false);
-      if (saved) {
-        setSelectionDrafts((previous) => {
-          const next = { ...previous };
-          delete next[orderId];
-          return next;
-        });
-      }
+      await onUpdatePrintSelection(orderId, selection).catch(() => false);
+      setSelectionDrafts((previous) => {
+        const next = { ...previous };
+        delete next[orderId];
+        return next;
+      });
     } finally {
       setSavingSelectionIds((previous) => ({ ...previous, [orderId]: false }));
     }
@@ -82,15 +80,12 @@ export const UserOrders: React.FC<UserOrdersProps> = ({
           {myOrders.map((order) => {
             const isProcessing = order.status === 'ai_processing' || order.aiStatus === 'processing';
             const isInQueue = order.aiStatus === 'in_queue';
-            const displayPhoto = order.uploadedImage;
             const printAssets = getOrderPrintAssets(order);
             const availablePrintKeys = new Set(printAssets.map((asset) => asset.key));
             const savedPrintImages = (
               order.selectedPrintImages ?? printAssets.map((asset) => asset.key)
             ).filter((key) => availablePrintKeys.has(key));
             const selectedPrintImages = selectionDrafts[order.id] ?? savedPrintImages;
-            const selectionHasChanges =
-              [...selectedPrintImages].sort().join('|') !== [...savedPrintImages].sort().join('|');
 
             return (
               <div
@@ -114,55 +109,27 @@ export const UserOrders: React.FC<UserOrdersProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Photo Thumbnail + Title */}
-                <div className="flex items-center gap-3.5 sm:gap-4">
-                  <div className="relative w-14 h-18 sm:w-16 sm:h-20 rounded-xl sm:rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 shadow-xs">
-                    {displayPhoto ? (
-                      <img
-                        src={displayPhoto}
-                        alt={order.userName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-400">
-                        <Package className="w-5 h-5" />
-                      </div>
-                    )}
-
-                    {isProcessing && (
-                      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white p-1 text-center">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-400 mb-1" />
-                        <span className="text-[8px] font-bold">در حال پردازش</span>
-                      </div>
-                    )}
-                    {isInQueue && (
-                      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white p-1 text-center">
-                        <span className="text-[8px] font-bold text-amber-300">در صف هوش مصنوعی</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
-                      {order.printType === 'personnel'
-                        ? 'عکس پرسنلی ۳×۴ رسمی'
-                        : order.printType === 'bw_to_color'
-                        ? 'تبدیل سیاه و سفید به رنگی'
-                        : order.printType === 'memorial'
-                        ? 'عکس مراسم یادبود و ترحیم'
-                        : 'عکس نامزدی یا عروسی عمارت'}
-                    </h3>
-                    {Number(order.invoiceDetails?.serviceFeeAmount) > 0 && (
-                      <p className="mt-1 text-[10px] text-emerald-700 font-bold">
-                        هزینه خدمات: <span className="font-mono">{formatPrice(order.invoiceDetails?.serviceFeeAmount || 0)}</span>
-                      </p>
-                    )}
-                    {isInQueue && (
-                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-bold border border-amber-200 inline-block mt-1">
-                        در صف نوبت پردازش هوش مصنوعی (فاصله ۱ دقیقه بین سفارش‌ها)
-                      </span>
-                    )}
-                  </div>
+                {/* 2. Order title */}
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
+                    {order.printType === 'personnel'
+                      ? 'عکس پرسنلی ۳×۴ رسمی'
+                      : order.printType === 'bw_to_color'
+                      ? 'تبدیل سیاه و سفید به رنگی'
+                      : order.printType === 'memorial'
+                      ? 'عکس مراسم یادبود و ترحیم'
+                      : 'عکس نامزدی یا عروسی عمارت'}
+                  </h3>
+                  {Number(order.invoiceDetails?.serviceFeeAmount) > 0 && (
+                    <p className="mt-1 text-[10px] text-emerald-700 font-bold">
+                      هزینه خدمات: <span className="font-mono">{formatPrice(order.invoiceDetails?.serviceFeeAmount || 0)}</span>
+                    </p>
+                  )}
+                  {isInQueue && (
+                    <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-bold border border-amber-200 inline-block mt-1">
+                      در صف نوبت پردازش هوش مصنوعی (فاصله ۱ دقیقه بین سفارش‌ها)
+                    </span>
+                  )}
                 </div>
 
                 {/* 2. Middle: Stepper Progress Pipeline */}
@@ -294,6 +261,7 @@ export const UserOrders: React.FC<UserOrdersProps> = ({
                                   type="checkbox"
                                   className="sr-only"
                                   checked={isSelected}
+                                  disabled={Boolean(savingSelectionIds[order.id])}
                                   aria-label={`ارسال ${asset.label} برای چاپ`}
                                   onChange={() => {
                                     const next = isSelected
@@ -303,6 +271,7 @@ export const UserOrders: React.FC<UserOrdersProps> = ({
                                       ...previous,
                                       [order.id]: next
                                     }));
+                                    void handleSavePrintSelection(order.id, next);
                                   }}
                                 />
                                 <img
@@ -319,24 +288,7 @@ export const UserOrders: React.FC<UserOrdersProps> = ({
                             );
                           })}
                         </div>
-                        <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-2">
-                          <p className="text-[9px] leading-relaxed text-slate-500">
-                            انتخاب شما هنگام ارسال سفارش برای چاپ استفاده می‌شود.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => void handleSavePrintSelection(order.id, selectedPrintImages)}
-                            disabled={!selectionHasChanges || Boolean(savingSelectionIds[order.id])}
-                            className="inline-flex min-h-9 flex-shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {savingSelectionIds[order.id] ? (
-                              <RefreshCw className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="w-3 h-3" />
-                            )}
-                            ذخیره انتخاب
-                          </button>
-                        </div>
+
                       </>
                     )}
                   </section>
