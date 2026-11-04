@@ -1,4 +1,4 @@
-// Seed data inserted into a fresh MongoDB database on first connection.
+// Seed data used to initialize a fresh database provider.
 export const INITIAL_DB = {
   users: [
     {

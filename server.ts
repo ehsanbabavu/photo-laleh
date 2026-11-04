@@ -28,6 +28,8 @@ import {
   revokeSession,
   getStorageStatus,
   testPostgresConnection,
+  bootstrapPostgresAdminCredentials,
+  copyStorageProviderData,
   switchStorageProvider
 } from './storage';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
@@ -730,7 +732,7 @@ app.post('/api/backup/restore', async (req, res) => {
   }
 });
 
-// --- Authentication (server-side sessions stored in MongoDB) ---
+// --- Authentication (server-side sessions use the active storage provider) ---
 const SESSION_COOKIE = 'laleh_session';
 
 function parseCookies(header: string | undefined): Record<string, string> {
@@ -853,7 +855,7 @@ async function messengerSignup(
       if (!/^\d{4,20}$/.test(verifiedId)) {
         return res.status(401).json({
           success: false,
-          error: 'شناسه تلگرام قابل تأیید نیست. صفحه را از داخل وب‌اپ تلگرام با�� کنید.'
+          error: 'شن��سه تلگرام قابل تأیید نیست. صفحه را از داخل وب‌اپ تلگرام با�� کنید.'
         });
       }
       rawId = verifiedId;
@@ -1324,7 +1326,7 @@ app.post('/api/auth/password/reset', async (req, res) => {
       return res.status(400).json({ success: false, error: 'کد تایید را وارد کنید' });
     }
     if (password.length < 6) {
-      return res.status(400).json({ success: false, error: 'رمز عبور باید حداقل ۶ نویسه باشد' });
+      return res.status(400).json({ success: false, error: '��مز عبور باید حداقل ۶ نویسه باشد' });
     }
 
     const db = await readDb();
@@ -1616,6 +1618,25 @@ app.post('/api/db/switch', async (req: any, res) => {
     res.json({ success: true, ...result, status });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message || 'تغییر دیتابیس ناموفق بود' });
+  }
+});
+
+app.post('/api/db/copy', async (req: any, res) => {
+  if (!checkSetupKey(req, res)) return;
+  const { source, target, confirm } = req.body || {};
+  if ((source !== 'mongodb' && source !== 'postgres') || (target !== 'mongodb' && target !== 'postgres') || source === target) {
+    return res.status(400).json({ success: false, error: 'جهت کپی دیتابیس معتبر نیست' });
+  }
+  if (confirm !== true) {
+    return res.status(400).json({ success: false, error: 'تأیید جایگزینی اطلاعات مقصد الزامی است' });
+  }
+
+  try {
+    const result = await copyStorageProviderData(source, target);
+    const status = await getStorageStatus();
+    res.json({ success: true, ...result, status });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'کپی اطلاعات دیتابیس ناموفق بود' });
   }
 });
 
@@ -2839,7 +2860,7 @@ async function handleTelegramCallbackQuery(cb: any, token: string) {
           body: JSON.stringify({
             chat_id: cb.message.chat.id,
             message_id: cb.message.message_id,
-            text: `⏳ با تشکر از شما فایل‌های چاپ تا ۱۰ ثانیه دیگر حذف خواه��د شد.`,
+            text: `⏳ با تشکر از شما فایل‌های چ��پ تا ۱۰ ثانیه دیگر حذف خواه��د شد.`,
             parse_mode: 'Markdown'
           })
         });
@@ -3272,7 +3293,7 @@ async function sendMessengerWelcomeMessage(
 
 /** Formats a Toman amount with Persian digits. */
 function tomanLabel(value: any): string {
-  return `${new Intl.NumberFormat('fa-IR').format(Math.round(Number(value) || 0))} تومان`;
+  return `${new Intl.NumberFormat('fa-IR').format(Math.round(Number(value) || 0))} ت��مان`;
 }
 
 /** Message sent to the customer right after a successful order. */
@@ -4161,7 +4182,24 @@ app.get('/api/auth/telegram/pending', async (req: any, res) => {
 // Start Express + Vite Server
 const PORT = Number(process.env.PORT) || 3000;
 
+async function bootstrapInitialAdmin() {
+  const rawPhone = String(process.env.INITIAL_ADMIN_PHONE || '');
+  const rawPassword = String(process.env.INITIAL_ADMIN_PASSWORD || '');
+  if (!rawPhone && !rawPassword && process.env.DEFAULT_DATABASE_PROVIDER !== 'postgres') return;
+
+  try {
+    const phone = normalizePhone(rawPhone);
+    const passwordHash = rawPassword ? hashPassword(rawPassword) : '';
+    const result = await bootstrapPostgresAdminCredentials(phone, passwordHash);
+    if (result.created) console.log('[v0] Initial PostgreSQL admin account initialized.');
+  } finally {
+    delete process.env.INITIAL_ADMIN_PHONE;
+    delete process.env.INITIAL_ADMIN_PASSWORD;
+  }
+}
+
 async function startServer() {
+  await bootstrapInitialAdmin();
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

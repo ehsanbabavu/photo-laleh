@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import useSWR from 'swr';
-import { AlertCircle, CheckCircle2, Database, Loader2, RefreshCw, Server } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, Database, Loader2, RefreshCw, Server } from 'lucide-react';
 
 export type DatabaseProvider = 'mongodb' | 'postgres';
 
@@ -46,11 +46,13 @@ export const DatabaseProviderSelector: React.FC<DatabaseProviderSelectorProps> =
   const { data, error: loadError, isLoading, mutate } = useSWR<DatabaseStatusResponse>('/api/db/status', fetcher);
   const [isTestingPostgres, setIsTestingPostgres] = useState(false);
   const [switchingTo, setSwitchingTo] = useState<DatabaseProvider | null>(null);
+  const [copying, setCopying] = useState<{ source: DatabaseProvider; target: DatabaseProvider } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const isBusy = isTestingPostgres || switchingTo !== null;
+  const isBusy = isTestingPostgres || switchingTo !== null || copying !== null;
   const canSwitch = data?.activeProvider !== null && data?.activeProvider !== undefined && !data.activeProviderError;
+  const canCopyData = canSwitch && Boolean(data?.mongodb.connected) && Boolean(data?.postgresql.connected);
   const canSwitchToMongo = canSwitch && (data?.mongodb.connected || data?.activeProvider === 'mongodb');
   const canSwitchToPostgres = canSwitch && data?.postgresql.configured && data.postgresql.connected;
 
@@ -108,6 +110,53 @@ export const DatabaseProviderSelector: React.FC<DatabaseProviderSelectorProps> =
     }
   };
 
+  const handleCopy = async (source: DatabaseProvider, target: DatabaseProvider) => {
+    if (source === target || !canCopyData || !data?.activeProvider) return;
+
+    const sourceTitle = providerTitle(source);
+    const targetTitle = providerTitle(target);
+    const activeProvider = data.activeProvider;
+    const inactiveSourceWarning = activeProvider === source
+      ? ''
+      : `هشدار: ${sourceTitle} غیرفعال است و ممکن است داده‌های آن قدیمی باشد. `;
+    const activeTargetWarning = activeProvider === target
+      ? 'چون مقصد فعال است، نشست‌های فعلی ممکن است جایگزین شوند و ورود مجدد لازم باشد. '
+      : '';
+    const confirmed = window.confirm(
+      `${inactiveSourceWarning}${activeTargetWarning}تمام داده‌ها شامل کاربران، سفارش‌ها، تنظیمات، نشست‌ها، کدهای تأیید و گزارش‌ها از ${sourceTitle} به ${targetTitle} کپی می‌شوند و اطلاعات قبلی مقصد جایگزین خواهد شد. ${providerTitle(activeProvider)} فعال می‌ماند. هنگام کپی، عملیات دیتابیس موقتاً منتظر می‌مانند. ادامه می‌دهید؟`
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    setSuccess(null);
+    setCopying({ source, target });
+    try {
+      const response = await fetch('/api/db/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, target, confirm: true })
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        setError(result?.error || `کپی اطلاعات ${sourceTitle} به ${targetTitle} ناموفق بود.`);
+        await mutate().catch(() => undefined);
+        return;
+      }
+
+      const activeTitle = providerTitle(
+        result.activeProvider === 'postgres' ? 'postgres' : result.activeProvider === 'mongodb' ? 'mongodb' : activeProvider
+      );
+      setSuccess(`کپی کامل از ${sourceTitle} به ${targetTitle} انجام شد؛ ${activeTitle} همچنان دیتابیس فعال است.`);
+      showToast(`کپی اطلاعات ${sourceTitle} به ${targetTitle} انجام شد.`);
+      await mutate().catch(() => undefined);
+    } catch {
+      setError('کپی اطلاعات دیتابیس ناموفق بود. اتصال‌ها را بررسی کنید.');
+      await mutate().catch(() => undefined);
+    } finally {
+      setCopying(null);
+    }
+  };
+
   const connectionLabel = (configured: boolean, connected: boolean) => {
     if (!configured) return 'تنظیم نشده';
     return connected ? 'متصل' : 'در دسترس نیست';
@@ -122,7 +171,7 @@ export const DatabaseProviderSelector: React.FC<DatabaseProviderSelectorProps> =
         <div className="min-w-0">
           <h2 id="database-provider-title" className="text-sm font-black text-slate-900">دیتابیس فعال</h2>
           <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-            MongoDB پیش‌فرض است. تغییر انتخاب، داده‌ها را یک‌بار منتقل و مقصد را پس از اعتبارسنجی فعال می‌کند؛ از Blob برای نگهداری انتخاب استفاده نمی‌شود.
+            در تنظیم استقرار Render این پروژه، PostgreSQL به‌صورت پیش‌فرض فعال می‌شود. فقط دیتابیس فعال برای خواندن و نوشتن برنامه استفاده می‌شود؛ دیتابیس دیگر غیرفعال می‌ماند. می‌توانید داده‌ها را جداگانه در هر دو جهت کپی کنید.
           </p>
         </div>
         <button
@@ -155,11 +204,13 @@ export const DatabaseProviderSelector: React.FC<DatabaseProviderSelectorProps> =
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-emerald-700" aria-hidden="true" />
             <h3 className="text-xs font-black text-slate-900">MongoDB</h3>
-            {data?.activeProvider === 'mongodb' && (
+            {data?.activeProvider === 'mongodb' ? (
               <span className="ms-auto inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">
                 <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> فعال
               </span>
-            )}
+            ) : data?.activeProvider === 'postgres' ? (
+              <span className="ms-auto rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600">غیرفعال</span>
+            ) : null}
           </div>
           <p className="text-[10px] text-slate-600">
             وضعیت: {isLoading ? 'در حال بررسی…' : connectionLabel(Boolean(data?.mongodb.configured), Boolean(data?.mongodb.connected))}
@@ -182,11 +233,13 @@ export const DatabaseProviderSelector: React.FC<DatabaseProviderSelectorProps> =
           <div className="flex items-center gap-2">
             <Server className="w-4 h-4 text-sky-700" aria-hidden="true" />
             <h3 className="text-xs font-black text-slate-900">PostgreSQL</h3>
-            {data?.activeProvider === 'postgres' && (
+            {data?.activeProvider === 'postgres' ? (
               <span className="ms-auto inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-1 text-[10px] font-bold text-sky-800">
                 <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> فعال
               </span>
-            )}
+            ) : data?.activeProvider === 'mongodb' ? (
+              <span className="ms-auto rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600">غیرفعال</span>
+            ) : null}
           </div>
           <p className="text-[10px] text-slate-600">
             وضعیت: {isLoading ? 'در حال بررسی…' : connectionLabel(Boolean(data?.postgresql.configured), Boolean(data?.postgresql.connected))}
@@ -214,6 +267,61 @@ export const DatabaseProviderSelector: React.FC<DatabaseProviderSelectorProps> =
             </button>
           </div>
         </article>
+      </div>
+
+      <div
+        className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 sm:p-4 space-y-3"
+        aria-labelledby="database-copy-title"
+        aria-busy={copying !== null}
+      >
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-white text-amber-800 border border-amber-200 flex items-center justify-center flex-shrink-0">
+            <Copy className="w-4 h-4" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 id="database-copy-title" className="text-xs font-black text-slate-900">کپی کامل اطلاعات بین دیتابیس‌ها</h3>
+            <p className="mt-1 text-[10px] leading-relaxed text-slate-600">
+              کاربران، سفارش‌ها، تنظیمات، نشست‌ها، کدهای تأیید و گزارش‌ها کپی می‌شوند. اطلاعات قبلی دیتابیس مقصد جایگزین می‌شود؛ دیتابیس فعال تغییر نمی‌کند. فایل‌های Blob منتقل نمی‌شوند و فقط آدرس ثبت‌شده آن‌ها کپی می‌شود.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="جهت کپی اطلاعات دیتابیس">
+          <button
+            type="button"
+            onClick={() => void handleCopy('mongodb', 'postgres')}
+            disabled={isBusy || isLoading || !canCopyData}
+            aria-busy={copying?.source === 'mongodb' && copying?.target === 'postgres'}
+            className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-[10px] font-bold text-sky-800 bg-white border border-sky-200 hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {copying?.source === 'mongodb' && copying?.target === 'postgres' ? (
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Copy className="w-4 h-4" aria-hidden="true" />
+            )}
+            کپی کامل از MongoDB به PostgreSQL
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCopy('postgres', 'mongodb')}
+            disabled={isBusy || isLoading || !canCopyData}
+            aria-busy={copying?.source === 'postgres' && copying?.target === 'mongodb'}
+            className="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-[10px] font-bold text-emerald-800 bg-white border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {copying?.source === 'postgres' && copying?.target === 'mongodb' ? (
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Copy className="w-4 h-4" aria-hidden="true" />
+            )}
+            کپی کامل از PostgreSQL به MongoDB
+          </button>
+        </div>
+
+        {(!data?.mongodb.connected || !data?.postgresql.connected) && (
+          <p role="status" className="text-[10px] text-amber-900">
+            برای کپی، اتصال هر دو دیتابیس باید برقرار باشد.
+          </p>
+        )}
       </div>
 
       {(error || success) && (

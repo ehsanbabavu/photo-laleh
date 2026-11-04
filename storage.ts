@@ -205,42 +205,120 @@ function verifyMigration(
   targetOperational: OperationalSnapshot
 ) {
   if (stateFingerprint(sourceState) !== stateFingerprint(targetState)) {
-    throw new Error('اعتبارسنجی داده‌های برنامه پس از انتقال ناموفق بود؛ دیتابیس مبدأ فعال باقی ماند.');
+    throw new Error('اعتبارسنجی داده‌های برنامه پس از کپی ناموفق بود؛ دیتابیس فعال تغییر نکرد.');
   }
   if (operationalFingerprint(sourceOperational) !== operationalFingerprint(targetOperational)) {
-    throw new Error('اعتبارسنجی نشست‌ها و داده‌های عملیاتی پس از انتقال ناموفق بود؛ دیتابیس مبدأ فعال ماند.');
+    throw new Error('اعتبارسنجی نشست‌ها و داده‌های عملیاتی پس از کپی ناموفق بود؛ دیتابیس فعال تغییر نکرد.');
   }
+}
+
+type ProviderSnapshot = {
+  state: any;
+  operational: OperationalSnapshot;
+};
+
+async function assertMongoConnection() {
+  const db = await mongo.getDb();
+  if (!db) throw new Error('برای کپی یا انتخاب MongoDB ابتدا اتصال آن را تنظیم کنید.');
+  await db.command({ ping: 1 });
+}
+
+async function readStorageSnapshot(provider: StorageProvider, db: PgDatabase): Promise<ProviderSnapshot> {
+  if (provider === 'postgres') {
+    const database = requirePostgres(db);
+    const [state, operational] = await Promise.all([
+      postgres.readDb(database),
+      postgres.readOperationalData(database)
+    ]);
+    return { state, operational };
+  }
+
+  await assertMongoConnection();
+  const [state, operational] = await Promise.all([mongo.readDb(), mongo.readOperationalData()]);
+  return { state, operational };
+}
+
+async function writeProviderSnapshot(provider: StorageProvider, db: PgDatabase, snapshot: ProviderSnapshot) {
+  if (provider === 'postgres') {
+    const database = requirePostgres(db);
+    await postgres.replaceAllState(database, snapshot.state);
+    await postgres.replaceOperationalData(database, snapshot.operational);
+    return;
+  }
+
+  await assertMongoConnection();
+  await mongo.replaceAllData(snapshot.state, snapshot.operational);
+}
+
+async function copyProviderData(source: StorageProvider, target: StorageProvider, db: PgDatabase) {
+  const sourceSnapshot = await readStorageSnapshot(source, db);
+  const rollbackSnapshot = target === 'mongodb' ? await readStorageSnapshot(target, db) : null;
+
+  try {
+    await writeProviderSnapshot(target, db, sourceSnapshot);
+    const targetSnapshot = await readStorageSnapshot(target, db);
+    verifyMigration(
+      sourceSnapshot.state,
+      targetSnapshot.state,
+      sourceSnapshot.operational,
+      targetSnapshot.operational
+    );
+  } catch (error: any) {
+    if (rollbackSnapshot) {
+      try {
+        await writeProviderSnapshot(target, db, rollbackSnapshot);
+      } catch (restoreError: any) {
+        throw new Error(
+          `کپی ناموفق بود و بازگردانی مقصد هم شکست خورد: ${restoreError?.message || 'خطای نامشخص'}؛ وضعیت دیتابیس مقصد را بررسی کنید.`
+        );
+      }
+    }
+    throw error;
+  }
+}
+
+export async function bootstrapPostgresAdminCredentials(phone: string, passwordHash: string) {
+  return postgres.withExclusiveStorageLock(async (activeProvider, db) => {
+    if (activeProvider !== 'postgres') throw new Error('برای راه‌اندازی ادمین اولیه، PostgreSQL باید دیتابیس فعال باشد.');
+
+    const state = await postgres.readDb(db);
+    const users = Array.isArray(state.users) ? state.users : [];
+    const admin = users.find((user: any) => user?.role === 'admin');
+    if (!admin) throw new Error('کاربر ادمین اولیه در داده‌های شروع پیدا نشد.');
+    if (admin.password) return { created: false };
+    if (!/^09\d{9}$/.test(phone)) throw new Error('شماره ادمین معتبر نیست.');
+    if (!/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i.test(passwordHash)) {
+      throw new Error('فرمت رمز هش‌شده معتبر نیست.');
+    }
+
+    const phoneInUse = users.some((user: any) => user?.id !== admin.id && String(user?.phone || '') === phone);
+    if (phoneInUse) throw new Error('این شماره قبلاً برای کاربر دیگری ثبت شده است.');
+
+    state.users = users.map((user: any) =>
+      user?.id === admin.id ? { ...user, phone, username: phone, password: passwordHash } : user
+    );
+    await postgres.writeDb(db, state);
+    return { created: true };
+  });
+}
+
+export async function copyStorageProviderData(source: StorageProvider, target: StorageProvider) {
+  if (!['mongodb', 'postgres'].includes(source) || !['mongodb', 'postgres'].includes(target) || source === target) {
+    throw new Error('جهت کپی دیتابیس معتبر نیست.');
+  }
+
+  return postgres.withExclusiveStorageLock(async (activeProvider, db) => {
+    await copyProviderData(source, target, db);
+    return { copied: true, sourceProvider: source, targetProvider: target, activeProvider };
+  });
 }
 
 export async function switchStorageProvider(target: StorageProvider) {
   return postgres.withExclusiveStorageLock(async (source, db) => {
     if (source === target) return { changed: false, activeProvider: source };
 
-    if (target === 'postgres') {
-      const sourceState = await mongo.readDb();
-      const sourceOperational = await mongo.readOperationalData();
-      await postgres.replaceAllState(db, sourceState);
-      await postgres.replaceOperationalData(db, sourceOperational);
-
-      const targetState = await postgres.readDb(db);
-      const targetOperational = await postgres.readOperationalData(db);
-      verifyMigration(sourceState, targetState, sourceOperational, targetOperational);
-      await postgres.setActiveProvider(db, 'postgres');
-      return { changed: true, activeProvider: 'postgres' as const };
-    }
-
-    const mongoDb = await mongo.getDb();
-    if (!mongoDb) throw new Error('برای انتخاب MongoDB ابتدا اتصال آن را تنظیم و آزمایش کنید.');
-    await mongoDb.command({ ping: 1 });
-
-    const sourceState = await postgres.readDb(db);
-    const sourceOperational = await postgres.readOperationalData(db);
-    await mongo.replaceAllData(sourceState, sourceOperational);
-
-    const targetState = await mongo.readDb();
-    const targetOperational = await mongo.readOperationalData();
-    verifyMigration(sourceState, targetState, sourceOperational, targetOperational);
-    await postgres.setActiveProvider(db, 'mongodb');
-    return { changed: true, activeProvider: 'mongodb' as const };
+    await copyProviderData(source, target, db);
+    await postgres.setActiveProvider(db, target);
+    return { changed: true, activeProvider: target };
   });
 }
