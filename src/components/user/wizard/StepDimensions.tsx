@@ -191,17 +191,19 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                     return (
                       <div className="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
                         <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
-                          <span className={withFrame ? 'text-amber-700' : 'text-slate-600'}>
-                            قیمت مشتری ({suffix}):
+                          <span className="text-slate-700">
+                            قیمت <span className="text-red-600">{suffix}</span>:
                           </span>
-                          <span className={`font-mono ${withFrame ? 'text-amber-800' : 'text-slate-900'}`}>
+                          <span className="font-mono font-black text-slate-900">
                             {formatPrice(customerTotal)}
                           </span>
                         </div>
                         {Number(dim.costPrice) > 0 && (
                           <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
-                            <span className="text-rose-700">قیمت تمام‌شده ({suffix}):</span>
-                            <span className="font-mono text-rose-800">{formatPrice(costTotal)}</span>
+                            <span className="text-slate-700">
+                              قیمت تمام‌شده <span className="text-red-600">{suffix}</span>:
+                            </span>
+                            <span className="font-mono font-black text-slate-900">{formatPrice(costTotal)}</span>
                           </div>
                         )}
                       </div>
