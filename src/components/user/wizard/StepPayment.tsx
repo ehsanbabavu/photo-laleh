@@ -413,7 +413,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
           </div>
           <p className="text-xs text-emerald-200">
             {isOrderRegistered
-              ? 'سفارش ثبت شد؛ همین صفحه باز می‌ماند و پردازش آن در پس‌زمینه ادامه دارد.'
+              ? 'سفارش در مرحلهٔ ثبت و پرداخت باقی می‌ماند؛ رتوش پس از شروع از پنل مدیریت انجام می‌شود.'
               : 'در حال نهایی‌سازی ثبت سفارش...'}
           </p>
         </div>

@@ -718,11 +718,31 @@ export default function App() {
 
   // Persist Orders when updated
   const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
+    const orderToStart = orders.find((order) => order.id === orderId);
+
+    if (newStatus === 'ai_processing' && orderToStart?.paymentStatus !== 'paid') {
+      showToast('پردازش رتوش فقط پس از تأیید پرداخت امکان‌پذیر است.');
+      return;
+    }
+
     setOrders((prev) => {
       const next = prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o));
       apiClient.syncOrders(next);
       return next;
     });
+
+    if (newStatus === 'ai_processing' && orderToStart) {
+      aiQueueManager.enqueue({
+        order: { ...orderToStart, status: 'ai_processing', aiStatus: 'pending' },
+        apiKey: avalaiApiKey,
+        baseUrl: avalaiBaseUrl,
+        model: avalaiModel,
+        prompt: orderToStart.aiPromptUsed || printTypePrompts[orderToStart.printType] || 'پرتره باکیفیت و رتوش شده آتلیه',
+        commercialPrompt: printTypePrompts['commercial'] || 'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی',
+        queuedAt: Date.now()
+      });
+    }
+
     showToast('وضعیت سفارش با موفقیت تغییر یافت.');
   };
 
@@ -749,35 +769,22 @@ export default function App() {
     showToast('تمامی سفارشات سیستم با موفقیت حذف شدند.');
   };
 
-  const processingOrderIdsRef = useRef<Set<string>>(new Set());
+  const handledOrderIdsRef = useRef<Set<string>>(new Set());
 
-  // When a user completes the order wizard
+  // Register a paid order without starting retouch automatically.
   const handleNewOrder = (newOrder: Order) => {
-    // Prevent duplicate processing of the same order
-    if (processingOrderIdsRef.current.has(newOrder.id)) {
+    if (handledOrderIdsRef.current.has(newOrder.id)) {
       return;
     }
-    processingOrderIdsRef.current.add(newOrder.id);
+    handledOrderIdsRef.current.add(newOrder.id);
 
     setOrders((prev) => {
-      // Ensure this order id is not already in the state
       if (prev.some((o) => o.id === newOrder.id)) {
         return prev;
       }
       const next = [newOrder, ...prev];
       apiClient.saveOrder(newOrder);
       return next;
-    });
-
-    // Enqueue order in AI Sequential Queue with 1-Minute Rate-Limit Protection
-    aiQueueManager.enqueue({
-      order: newOrder,
-      apiKey: avalaiApiKey,
-      baseUrl: avalaiBaseUrl,
-      model: avalaiModel,
-      prompt: newOrder.aiPromptUsed || printTypePrompts[newOrder.printType] || 'پرتره باکیفیت و رتوش شده آتلیه',
-      commercialPrompt: printTypePrompts['commercial'] || 'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی',
-      queuedAt: Date.now()
     });
   };
 
