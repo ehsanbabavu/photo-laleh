@@ -1219,6 +1219,10 @@ export default function App() {
                   user={currentUser}
                   onOrderCompleted={handleNewOrder}
                   onUserUpdate={handleUpdateUser}
+                  onPhoneVerified={(updatedUser) => {
+                    setCurrentUser(updatedUser);
+                    showToast('شماره موبایل تأیید و در پروفایل ذخیره شد.');
+                  }}
                   printTypes={printTypes}
                   avalaiApiKey={avalaiApiKey}
                   printTypePrompts={printTypePrompts}
