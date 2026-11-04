@@ -165,7 +165,6 @@ export const StepInvoice: React.FC<StepInvoiceProps> = ({
               <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-xs">
                 <div>
                   <span className="font-bold text-emerald-900 block">هزینه خدمات</span>
-                  <span className="text-[10px] text-emerald-700">یک‌بار برای این سفارش · {printType.title}</span>
                 </div>
                 <span className="font-mono font-black text-emerald-800 flex-shrink-0">
                   {formatPrice(serviceFeeAmount)}
