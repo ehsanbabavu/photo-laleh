@@ -238,20 +238,32 @@ export const apiClient = {
       } catch {
         payload = null;
       }
-      if (payload) return payload;
+      if (payload) return { ...payload, httpStatus: res.status };
+      const outcomeUnknown = res.status >= 500;
       return {
         success: false,
-        message: res.ok ? 'پاسخ نامعتبر از سرور صدور فاکتور' : `خطای سرور در صدور فاکتور (${res.status})`
+        error: outcomeUnknown ? 'invoice_outcome_unknown' : 'invoice_not_created',
+        httpStatus: res.status,
+        message: outcomeUnknown
+          ? 'پاسخ سرور دیر رسید و وضعیت صدور فاکتور مشخص نیست.'
+          : res.ok
+            ? 'پاسخ نامعتبر از سرور صدور فاکتور'
+            : `خطای سرور در صدور فاکتور (${res.status})`
       };
     } catch (err: any) {
       console.warn('createBluPalInvoice error:', err);
-      return { success: false, message: err?.message || 'خطا در ارتباط با سرور صدور فاکتور' };
+      return {
+        success: false,
+        error: 'invoice_outcome_unknown',
+        message: 'ارتباط با سرور قطع شد و وضعیت صدور فاکتور مشخص نیست.'
+      };
     }
   },
 
-  async checkBluPalInvoiceStatus(invoiceId: string) {
+  async checkBluPalInvoiceStatus(invoiceId: string, localOnly = false) {
     try {
-      const res = await fetch(`/api/blupal/status/${invoiceId}`);
+      const query = localOnly ? '?localOnly=1' : '';
+      const res = await fetch(`/api/blupal/status/${encodeURIComponent(invoiceId)}${query}`, { cache: 'no-store' });
       let payload: any = null;
       try {
         payload = await res.json();

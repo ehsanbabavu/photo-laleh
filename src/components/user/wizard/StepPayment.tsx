@@ -46,6 +46,7 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   const [countdownSeconds, setCountdownSeconds] = useState(15 * 60);
   const [isOrderRegistered, setIsOrderRegistered] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [invoiceOutcomeUnknown, setInvoiceOutcomeUnknown] = useState(false);
   const [statusWarning, setStatusWarning] = useState('');
 
   // Resolve printType from props
@@ -121,16 +122,19 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
 
       setIsCreatingInvoice(true);
       setInvoiceError('');
+      setInvoiceOutcomeUnknown(false);
       setInvoice(null);
 
       try {
         const itemDesc = invDetails
           ? `سفارش چاپ ${invDetails.printTypeTitle} (${invDetails.dimensionTitle}) - ${invDetails.quantity} عدد - ${invDetails.customerFullName}`
           : `سفارش چاپ عکس ${printType?.title || 'آتلیه'}`;
+        const requestOrderId = draft.id || `draft-${crypto.randomUUID()}`;
+        if (!draft.id) onUpdateDraft({ id: requestOrderId });
 
         const res = await apiClient.createBluPalInvoice({
           amount: totalAmountToPay,
-          orderId: draft.id || ('ORD-' + Date.now()),
+          orderId: requestOrderId,
           customerName:
             invDetails?.customerFullName || draft.customerInfo?.fullName || user?.name || 'مشتری آتلیه',
           customerPhone: invDetails?.customerPhone || draft.customerInfo?.phoneNumber || user?.phone || '',
@@ -143,18 +147,49 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
         if (res && res.success && res.invoice) {
           setInvoice(res.invoice);
           setInvoiceError('');
+          setInvoiceOutcomeUnknown(false);
           // Remember it so a resume/re-render does not issue a second invoice
           onUpdateDraft({ paymentInvoice: res.invoice, paymentInvoiceId: res.invoice.invoiceId });
         } else {
+          const outcomeUnknown =
+            res?.error === 'invoice_outcome_unknown' ||
+            (Number(res?.httpStatus) >= 500 && res?.error !== 'invoice_not_created');
+
+          if (outcomeUnknown) {
+            const recovery = await apiClient.checkBluPalInvoiceStatus(requestOrderId, true);
+            if (!isMounted) return;
+            const recoveredInvoice = recovery?.invoice as BluPalInvoice | undefined;
+            if (
+              recovery?.success &&
+              recoveredInvoice &&
+              (recoveredInvoice.status === 'paid' || isReusableInvoice(recoveredInvoice, totalAmountToPay))
+            ) {
+              setInvoice(recoveredInvoice);
+              setInvoiceError('');
+              setInvoiceOutcomeUnknown(false);
+              onUpdateDraft({
+                paymentInvoice: recoveredInvoice,
+                paymentInvoiceId: recoveredInvoice.invoiceId
+              });
+              return;
+            }
+          }
+
           // Never fabricate an invoice: a fake id / amount means an unmatched transfer.
+          setInvoiceOutcomeUnknown(outcomeUnknown);
           setInvoiceError(
-            res?.message ||
-              'صدور فاکتور در درگاه بلوپال انجام نشد. لطفاً چند لحظه بعد دوباره تلاش کنید.'
+            outcomeUnknown
+              ? 'پاسخ نهایی سرور دریافت نشد و ممکن است فاکتور در پنل بلوپال ایجاد شده باشد. ابتدا پنل بلوپال را بررسی کنید؛ اگر فاکتور را می‌بینید، دوباره تلاش نکنید تا فاکتور تکراری صادر نشود.'
+              : res?.message ||
+                'صدور فاکتور در درگاه بلوپال انجام نشد. لطفاً چند لحظه بعد دوباره تلاش کنید.'
           );
         }
       } catch (err: any) {
         if (isMounted) {
-          setInvoiceError(err?.message || 'خطا در ارتباط با سرور هنگام صدور فاکتور.');
+          setInvoiceOutcomeUnknown(true);
+          setInvoiceError(
+            err?.message || 'ارتباط با سرور قطع شد و ممکن است فاکتور در بلوپال ایجاد شده باشد؛ پیش از تلاش مجدد، پنل را بررسی کنید.'
+          );
         }
       } finally {
         if (isMounted) setIsCreatingInvoice(false);
@@ -295,23 +330,43 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
               </div>
             ) : invoiceError ? (
               <div className="space-y-3">
-                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 space-y-2">
-                  <div className="flex items-center gap-2 text-red-700">
+                <div
+                  className={`p-4 rounded-2xl border space-y-2 ${
+                    invoiceOutcomeUnknown ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
+                  }`}
+                >
+                  <div className={`flex items-center gap-2 ${invoiceOutcomeUnknown ? 'text-amber-700' : 'text-red-700'}`}>
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-xs font-black">فاکتور صادر نشد</span>
+                    <span className="text-xs font-black">
+                      {invoiceOutcomeUnknown ? 'وضعیت صدور فاکتور نامشخص است' : 'فاکتور صادر نشد'}
+                    </span>
                   </div>
-                  <p className="text-[11px] leading-relaxed text-red-700">{invoiceError}</p>
+                  <p className={`text-[11px] leading-relaxed ${invoiceOutcomeUnknown ? 'text-amber-800' : 'text-red-700'}`}>
+                    {invoiceError}
+                  </p>
                   <p className="text-[11px] leading-relaxed text-slate-600">
                     مبلغ محاسبه‌شده این سفارش: {formatPrice(baseTotal)}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setRetryNonce((n) => n + 1)}
+                  onClick={() => {
+                    if (
+                      invoiceOutcomeUnknown &&
+                      !window.confirm(
+                        'ممکن است فاکتور در پنل بلوپال ایجاد شده باشد. اگر فاکتور را می‌بینید، لغو را بزنید. آیا پس از بررسی پنل می‌خواهید دوباره درخواست صدور بدهید؟'
+                      )
+                    ) {
+                      return;
+                    }
+                    setRetryNonce((n) => n + 1);
+                  }}
                   className="w-full h-11 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  <span>تلاش مجدد برای صدور فاکتور</span>
+                  <span>
+                    {invoiceOutcomeUnknown ? 'پس از بررسی پنل بلوپال، تلاش مجدد' : 'تلاش مجدد برای صدور فاکتور'}
+                  </span>
                 </button>
               </div>
             ) : (

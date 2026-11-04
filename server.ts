@@ -2003,6 +2003,56 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
       });
     }
 
+    const normalizedOrderId = String(orderId || '').trim();
+    const currentUserId = String(req.currentUser?.id || '');
+    const currentUserPhone = normalizePhone(req.currentUser?.phone);
+    const getExpiryMs = (value: any) => {
+      if (value === null || value === undefined || value === '') return 0;
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) return numeric > 1e12 ? numeric : numeric * 1000;
+      const parsed = Date.parse(String(value));
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+    const reusableInvoice = (Array.isArray(db.invoices) ? db.invoices : [])
+      .filter((invoice: any) => {
+        if (String(invoice.orderId || '').trim() !== normalizedOrderId) return false;
+        if (invoice.provider && invoice.provider !== 'blupal') return false;
+        const belongsToCurrentUser =
+          req.currentUser?.role === 'admin' ||
+          (invoice.userId
+            ? String(invoice.userId) === currentUserId
+            : Boolean(currentUserPhone && normalizePhone(invoice.customerPhone) === currentUserPhone));
+        if (!belongsToCurrentUser) return false;
+
+        const storedRial = Number(invoice.requestedAmountRial);
+        const sameAmount = Number.isFinite(storedRial)
+          ? storedRial === requestedRial
+          : Math.round(Number(invoice.amount) * 10) === requestedRial;
+        if (!sameAmount) return false;
+
+        const status = String(invoice.status || '').toLowerCase();
+        if (status === 'paid') return true;
+        if (status !== 'pending') return false;
+        const expiryMs = getExpiryMs(invoice.expiresAt);
+        return !invoice.expiresAt || (expiryMs > 0 && expiryMs > Date.now());
+      })
+      .sort((left: any, right: any) => {
+        const leftPaid = String(left.status || '').toLowerCase() === 'paid';
+        const rightPaid = String(right.status || '').toLowerCase() === 'paid';
+        if (leftPaid !== rightPaid) return leftPaid ? -1 : 1;
+        return getExpiryMs(right.expiresAt) - getExpiryMs(left.expiresAt);
+      })[0];
+
+    if (reusableInvoice) {
+      return res.json({
+        success: true,
+        invoice: reusableInvoice,
+        amountRial: reusableInvoice.amountRial,
+        finalAmountRial: reusableInvoice.finalAmountRial ?? reusableInvoice.amountRial,
+        paymentUrl: reusableInvoice.paymentUrl || ''
+      });
+    }
+
     const localInvoiceId =
       'BLU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000);
     const token = String(settings.blupalToken || '').trim();
@@ -2039,12 +2089,14 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
       expiresAt: any;
     } | null = null;
     let remoteError = '';
+    let remoteOutcomeUnknown = false;
 
     if (!isFree) {
       try {
         const createUrl = getBluPalCreateUrl(settings.blupalBaseUrl, settings.blupalCustomEndpoint);
         const { response, payload } = await blupalRequest(createUrl, token, {
           method: 'POST',
+          signal: AbortSignal.timeout(50000),
           body: JSON.stringify({
             amount: requestedRial,
             ...(configuredCard ? { card_number: configuredCard } : {})
@@ -2055,8 +2107,10 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
 
         if (!response.ok || payload?.success === false) {
           remoteError = blupalErrorMessage(payload, response.status);
+          remoteOutcomeUnknown = response.status >= 500;
         } else if (remoteInvoiceId === undefined || remoteInvoiceId === null || remoteInvoiceId === '') {
           remoteError = 'پاسخ بلوپال فاقد شناسه فاکتور (invoice_id) بود.';
+          remoteOutcomeUnknown = true;
         } else {
           // `final_amount` carries the unique tracking suffix — keep it exactly as returned.
           const amountRial = Number(payload?.amount) || requestedRial;
@@ -2073,6 +2127,7 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
           };
         }
       } catch (err: any) {
+        remoteOutcomeUnknown = true;
         remoteError = `ارتباط با سرور بلوپال برقرار نشد: ${err?.message || 'خطای شبکه'}`;
       }
     }
@@ -2080,10 +2135,13 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
     // The gateway refused / was unreachable → never invent an invoice
     // (a fake id / fake card would make the transfer unmatched).
     if (!isFree && !remote) {
-      return res.status(502).json({
+      const message = remoteOutcomeUnknown
+        ? 'پاسخ نهایی بلوپال دریافت نشد و ممکن است فاکتور در پنل بلوپال ایجاد شده باشد. پیش از تلاش مجدد، پنل را بررسی کنید.'
+        : remoteError || 'صدور فاکتور در بلوپال انجام نشد.';
+      return res.status(remoteOutcomeUnknown ? 504 : 502).json({
         success: false,
-        error: 'invoice_not_created',
-        message: remoteError || 'صدور فاکتور در بلوپال انجام نشد.',
+        error: remoteOutcomeUnknown ? 'invoice_outcome_unknown' : 'invoice_not_created',
+        message,
         amount: requestedToman,
         amountRial: requestedRial,
         invoiceDetails: invoiceDetails || null
@@ -2107,7 +2165,8 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
       amountRial: payableRial,
       finalAmount: Math.round(payableRial / 10),
       finalAmountRial: payableRial,
-      orderId: orderId || '',
+      orderId: normalizedOrderId,
+      userId: currentUserId,
       customerName: customerName || '',
       customerPhone: customerPhone || '',
       description: description || 'پرداخت سفارش آتلیه دیجیتال لاله',
@@ -2146,14 +2205,31 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
 // Check Invoice Status
 app.get('/api/blupal/status/:invoiceId', async (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     const db = await readDb();
     const reqId = String(req.params.invoiceId || '').trim();
-    const invoice = (db.invoices || []).find(
+    const invoices = Array.isArray(db.invoices) ? db.invoices : [];
+    const currentUserId = String(req.currentUser?.id || '');
+    const currentUserPhone = normalizePhone(req.currentUser?.phone);
+    const canAccessInvoice = (invoice: any) => {
+      if (req.currentUser?.role === 'admin') return true;
+      if (invoice.userId) return String(invoice.userId) === currentUserId;
+      return Boolean(currentUserPhone && normalizePhone(invoice.customerPhone) === currentUserPhone);
+    };
+    const exactInvoice = invoices.find(
       (inv: any) =>
-        String(inv.invoiceId || '').trim() === reqId ||
-        String(inv.localInvoiceId || '').trim() === reqId ||
-        String(inv.orderId || '').trim() === reqId
+        canAccessInvoice(inv) &&
+        (String(inv.invoiceId || '').trim() === reqId || String(inv.localInvoiceId || '').trim() === reqId)
     );
+    const invoiceByOrderId = invoices
+      .filter((inv: any) => canAccessInvoice(inv) && String(inv.orderId || '').trim() === reqId)
+      .sort((left: any, right: any) => {
+        const leftPaid = String(left.status || '').toLowerCase() === 'paid';
+        const rightPaid = String(right.status || '').toLowerCase() === 'paid';
+        if (leftPaid !== rightPaid) return leftPaid ? -1 : 1;
+        return Number(right.expiresAt || 0) - Number(left.expiresAt || 0);
+      })[0];
+    const invoice = exactInvoice || invoiceByOrderId;
 
     if (!invoice) {
       return res.status(404).json({ success: false, error: 'not_found', message: 'فاکتور یافت نشد.' });
@@ -2162,10 +2238,12 @@ app.get('/api/blupal/status/:invoiceId', async (req, res) => {
     const settings = db.settings || {};
     const token = String(settings.blupalToken || '').trim();
     let gateError = '';
+    const localOnly = String(req.query?.localOnly || '') === '1';
 
     // --- Ask the gateway while the invoice is payable (and once more after payment
     //     to capture the payer details BluPal only exposes on PAID invoices) ---
     const shouldAskGateway =
+      !localOnly &&
       (invoice.status === 'pending' || (invoice.status === 'paid' && !invoice.payerName)) &&
       token &&
       invoice.isRemote !== false &&
@@ -2586,7 +2664,7 @@ app.post('/api/telegram/send-order', async (req, res) => {
       if (order.dimensionId === 'personnel_12x3x4') {
         sheetCountText = `${2 * (order.quantity || 1)} سری`;
       }
-      const captionSheet = `🎴 شیت ۹تایی چاپ\n📌 شماره سفارش: ${order.trackingCode}\n📐 اندازه: 10*15\n🔢 تعداد: ${sheetCountText}\n📅 ثبت: ${timeFa}`;
+      const captionSheet = `🎴 شیت ۹تایی چاپ\n📌 ��ماره سفارش: ${order.trackingCode}\n📐 اندازه: 10*15\n🔢 تعداد: ${sheetCountText}\n📅 ثبت: ${timeFa}`;
       const msgId = await sendDocumentFromDataUrl(order.printSheetImage, captionSheet, `sheet-9pack-${order.trackingCode}.jpg`);
       if (msgId) sentMessageIds.push(msgId);
     }
