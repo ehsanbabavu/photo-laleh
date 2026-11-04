@@ -33,6 +33,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
   const [otpStep, setOtpStep] = useState(false);
   const [loginOtpStep, setLoginOtpStep] = useState(false);
   const [loginOtpCode, setLoginOtpCode] = useState('');
+  const [loginOtpPhone, setLoginOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
 
   const sendOtpCode = async () => {
@@ -82,7 +83,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
 
     const enteredPhone = normalizeDigits(phone);
     if (!enteredPhone || !password) {
-      setLoginError('شماره موبایل و رمز عبور را وارد کنید.');
+      setLoginError('نام کاربری و رمز عبور را وارد کنید.');
       return;
     }
 
@@ -96,7 +97,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
         const res = await fetch('/api/auth/login/otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: enteredPhone, code: normalizeDigits(loginOtpCode.trim()) })
+          body: JSON.stringify({ phone: normalizeDigits(loginOtpPhone || enteredPhone), code: normalizeDigits(loginOtpCode.trim()) })
         });
         const data = await res.json().catch(() => null);
         if (res.ok && data?.success && data.user) {
@@ -117,11 +118,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: enteredPhone, password })
+        body: JSON.stringify({ username: enteredPhone, password })
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.requiresOtp) {
         setLoginOtpStep(true);
+        setLoginOtpPhone(String(data.phone || enteredPhone));
         setLoginOtpCode('');
         return;
       }
@@ -139,7 +141,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
       setIsSubmitting(false);
     }
 
-    setLoginError('شماره موبایل یا رمز عبور اشتباه است.');
+    setLoginError('نام کاربری یا رمز عبور اشتباه است.');
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -318,14 +320,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
-                شماره موبایل
+                نام کاربری
               </label>
               <div className="relative">
                 <input
                   type="tel"
                   inputMode="numeric"
                   required
-                  placeholder="09123456789"
+                  placeholder="شماره موبایل یا شناسه پیام‌رسان"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
@@ -354,7 +356,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
             ) : (
               <>
                 <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-800">
-                  کد تایید به {normalizeDigits(phone)} ارسال شد
+                  کد تایید به {normalizeDigits(loginOtpPhone || phone)} ارسال شد
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
@@ -570,16 +572,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
 
             {!forgotStep ? (
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
-                  شماره موبایل
-                </label>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    required
-                    placeholder="09123456789"
-                    value={forgotPhone}
+              <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                شماره موبایل
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  required
+                  placeholder="09123456789"
+                  value={forgotPhone}
                     onChange={(e) => setForgotPhone(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
                   />

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, AlertCircle, UserPlus, ShieldCheck, Phone } from 'lucide-react';
+import { Loader2, AlertCircle, UserPlus, ShieldCheck } from 'lucide-react';
 import { User } from '../types';
 import { TelegramIcon } from './BrandIcons';
 
@@ -68,13 +68,13 @@ const PROVIDER_COPY: Record<Provider, { label: string; endpoint: string; sdk: st
     label: 'ایتا',
     endpoint: '/api/auth/eitaa',
     sdk: 'https://developer.eitaa.com/eitaa-web-app.js',
-    note: 'ثبت‌نام با اشتراک‌گذاری شماره موبایل — بدون رمز عبور'
+    note: 'ثبت‌نام با شناسه ایتا — دریافت رمز عبور در ایتا'
   },
   telegram: {
     label: 'تلگرام',
     endpoint: '/api/auth/telegram',
     sdk: 'https://telegram.org/js/telegram-web-app.js',
-    note: 'ورود مستقیم با آیدی تلگرام — بدون رمز عبور'
+    note: 'ثبت‌نام با شماره موبایل — دریافت رمز عبور در تلگرام'
   }
 };
 
@@ -118,7 +118,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   const copy = PROVIDER_COPY[provider];
   const [displayName, setDisplayName] = useState('');
   const [messengerId, setMessengerId] = useState('');
-  const [manualPhone, setManualPhone] = useState('');
   const [needsManualPhone, setNeedsManualPhone] = useState(false);
   const [inMessenger, setInMessenger] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -265,8 +264,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         /* fall through to the signup screen */
       }
       setIsAutoLoggingIn(false);
-      // A missing account is fine — we still know the Telegram id, so let the user
-      // register straight away instead of asking for a phone number.
+      // A missing account is fine — Telegram registration continues after the user shares their phone.
       if (!telegramId) setNeedsManualPhone(true);
     }, AUTO_LOGIN_PAUSE_MS);
 
@@ -305,6 +303,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
       const payload: Record<string, string> = { name: displayName.trim() };
       if (phone) payload.phone = phone;
       if (messengerId) payload.userId = messengerId;
+      if (provider === 'telegram') {
+        const { initData, signinToken } = resolveIdentity();
+        if (initData) payload.initData = initData;
+        if (signinToken) payload.signinToken = signinToken;
+      }
       const res = await fetch(copy.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -350,7 +353,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
           resolve();
           setStatus('');
           setNeedsManualPhone(true);
-          setError('شماره‌ای دریافت نشد؛ می‌توانید شماره را دستی وارد کنید.');
+          setError('شماره تأیید نشد؛ دوباره درخواست کنید یا شماره را از طریق ربات تلگرام ارسال کنید.');
         }
       }, 2500);
     });
@@ -373,7 +376,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
           await waitForTelegramPhone();
         } else {
           setNeedsManualPhone(true);
-          setError('شماره دریافت نشد؛ لطفاً شماره موبایل را دستی وارد کنید.');
+          setError('شناسه تلگرام در دسترس نیست. از طریق ربات تلگرام ثبت‌نام کنید.');
         }
       };
 
@@ -437,13 +440,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   };
 
   const handleRegister = async () => {
-    // Telegram: the identity is the numeric Telegram id (no phone step)
+    // Telegram registrations must verify the user's own phone through the bot.
     if (provider === 'telegram') {
       if (!messengerId) {
         await loginWithTelegramIdentity();
         return;
       }
-      await submitPhone('');
+      await requestPhone();
       return;
     }
 
@@ -454,19 +457,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
         return;
       }
       await submitPhone('');
-      return;
     }
-
-    if (needsManualPhone) {
-      const phone = normalizePhoneDigits(manualPhone);
-      if (!/^09\d{9}$/.test(phone)) {
-        setError('شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد.');
-        return;
-      }
-      await submitPhone(phone);
-      return;
-    }
-    await requestPhone();
   };
 
   return (
@@ -535,19 +526,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
 
           {!isAutoLoggingIn && provider === 'telegram' && needsManualPhone && (
             <div className="mb-3 rounded-2xl bg-white/95 border border-slate-200 px-3 py-2.5">
-              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 mb-1">
-                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                شماره موبایل
-              </label>
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={manualPhone}
-                onChange={(e) => setManualPhone(normalizePhoneDigits(e.target.value))}
-                placeholder="09xxxxxxxxx"
-                dir="ltr"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-emerald-500"
-              />
+              <p className="text-[11px] leading-5 text-slate-600">
+                برای ثبت‌نام، صفحه را از داخل تلگرام باز کنید و شماره خودتان را با ربات به اشتراک بگذارید.
+              </p>
             </div>
           )}
 
@@ -567,9 +548,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
                 ? 'لطفاً کمی صبر کنید…'
                 : provider === 'eitaa'
                 ? 'ورود'
-                : needsManualPhone
-                ? 'ادامه ثبت نام'
-                : 'ثبت نام'}
+                : 'اشتراک‌گذاری شماره موبایل'}
             </span>
           </button>
 
