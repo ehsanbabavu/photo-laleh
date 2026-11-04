@@ -215,6 +215,10 @@ function hashPassword(password: string): string {
   return `scrypt$${salt}$${derived}`;
 }
 
+function generateFiveDigitPassword(): string {
+  return crypto.randomInt(0, 100_000).toString().padStart(5, '0');
+}
+
 function verifyPassword(password: string, stored: string | undefined | null): boolean {
   if (!stored) return false;
   if (!stored.startsWith('scrypt$')) return stored === password; // legacy plaintext
@@ -273,8 +277,10 @@ function maskDbUri(uri: string) {
 
 function sanitizeUser(user: any) {
   if (!user) return user;
-  const { password, ...rest } = user;
-  return rest;
+  const safeUser = { ...user };
+  delete safeUser.password;
+  delete safeUser.messengerWelcomePending;
+  return safeUser;
 }
 
 function sanitizeUsers(users: any[]) {
@@ -767,20 +773,25 @@ async function currentUserFromRequest(req: any) {
 }
 
 app.post('/api/auth/login', async (req, res) => {
-  const phone = normalizePhone(req.body?.phone);
+  const identifier = normalizePhone(req.body?.username || req.body?.phone);
   const password = String(req.body?.password ?? '');
-  if (!phone || !password) {
-    return res.status(400).json({ success: false, error: 'شماره موبایل و رمز عبور را وارد کنید.' });
+  if (!identifier || !password) {
+    return res.status(400).json({ success: false, error: 'نام کاربری و رمز عبور را وارد کنید.' });
+  }
+  if (!/^09\d{9}$/.test(identifier) && !/^\d{4,20}$/.test(identifier)) {
+    return res.status(400).json({ success: false, error: 'نام کاربری باید شماره موبایل یا شناسه پیام‌رسان باشد.' });
   }
 
-  if (await hitRateLimit(`login:${clientIp(req)}:${phone}`, 10, 10 * 60 * 1000)) {
-    return res.status(429).json({ success: false, error: 'تلاش‌های ناموفق بیش از ح��. چند دقیقه بعد دوباره تلاش کنید.' });
+  if (await hitRateLimit(`login:${clientIp(req)}:${identifier}`, 10, 10 * 60 * 1000)) {
+    return res.status(429).json({ success: false, error: 'تلاش‌های ناموفق بیش از حد مجاز است. چند دقیقه بعد دوباره تلاش کنید.' });
   }
 
   const db = await readDb();
-  const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
+  const user =
+    (db.users || []).find((u: any) => normalizePhone(u.phone) === identifier) ||
+    (db.users || []).find((u: any) => String(u.eitaaId || '') === identifier || String(u.telegramId || '') === identifier);
   if (!user || !verifyPassword(password, user.password)) {
-    return res.status(401).json({ success: false, error: 'شماره موبایل یا رمز عبور اشتباه است.' });
+    return res.status(401).json({ success: false, error: 'نام کاربری یا رمز عبور اشتباه است.' });
   }
 
   // Upgrade legacy plaintext passwords transparently on successful login
@@ -790,11 +801,15 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   if (user.role === 'admin' && db.settings?.adminLoginOtp === true) {
-    const sent = await sendOtpSms(phone);
+    const adminPhone = normalizePhone(user.phone);
+    if (!/^09\d{9}$/.test(adminPhone)) {
+      return res.status(400).json({ success: false, error: 'برای ورود مدیر، شماره موبایل معتبر لازم است.' });
+    }
+    const sent = await sendOtpSms(adminPhone);
     if (!sent.ok) {
       return res.status(400).json({ success: false, error: sent.error });
     }
-    return res.json({ success: true, requiresOtp: true, phone });
+    return res.json({ success: true, requiresOtp: true, phone: adminPhone });
   }
 
   const token = await createSession(user.id, undefined, sessionMeta(req));
@@ -811,10 +826,35 @@ async function messengerSignup(
   try {
     // The Eitaa sign-up page is id-only: ignore any phone it might send.
     const phone = provider === 'eitaa' ? '' : normalizePhone(req.body?.phone ?? '');
-    const rawId = String(req.body?.userId ?? req.body?.eitaaId ?? req.body?.telegramId ?? '').trim();
     const hasPhone = /^09\d{9}$/.test(phone);
-    const hasMessengerId = /^\d{4,20}$/.test(rawId);
+    if (await hitRateLimit(`${provider}-auth:${clientIp(req)}`, 12, 10 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'درخواست‌های ثبت‌نام بیش از حد مجاز است' });
+    }
 
+    const db = await readDb();
+    let rawId = String(req.body?.userId ?? req.body?.eitaaId ?? req.body?.telegramId ?? '').trim();
+    let verifiedTelegramName = '';
+    if (provider === 'telegram') {
+      const botToken = String(db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+      const initData = String(req.body?.initData || '').trim();
+      const verified = initData && botToken ? verifyTelegramInitData(initData, botToken) : null;
+      let verifiedId = verified?.ok ? String(verified.userId || '') : '';
+      verifiedTelegramName = verified?.ok ? String(verified.name || '') : '';
+
+      if (!verifiedId) {
+        const signinToken = String(req.body?.signinToken || req.query?.t || '').trim();
+        verifiedId = signinToken ? (await resolveTelegramSigninToken(signinToken)) || '' : '';
+      }
+      if (!/^\d{4,20}$/.test(verifiedId)) {
+        return res.status(401).json({
+          success: false,
+          error: 'شناسه تلگرام قابل تأیید نیست. صفحه را از داخل وب‌اپ تلگرام باز کنید.'
+        });
+      }
+      rawId = verifiedId;
+    }
+
+    const hasMessengerId = /^\d{4,20}$/.test(rawId);
     if (!hasPhone && !hasMessengerId) {
       return res.status(400).json({
         success: false,
@@ -824,15 +864,27 @@ async function messengerSignup(
             : 'شماره موبایل را به اشتراک بگذارید'
       });
     }
-    if (await hitRateLimit(`${provider}-auth:${clientIp(req)}`, 12, 10 * 60 * 1000)) {
-      return res.status(429).json({ success: false, error: 'درخواست‌های ثبت‌نام بیش از حد مجاز است' });
+
+    const field = provider === 'eitaa' ? 'eitaaId' : 'telegramId';
+    const pendingPhones = { ...((db.settings || {}).pendingPhones || {}) };
+    const hasPendingPhone = provider === 'telegram' && hasPhone;
+    if (hasPendingPhone) {
+      const pending = pendingPhones[rawId];
+      if (
+        !pending ||
+        normalizePhone(pending.phone) !== phone ||
+        Date.now() - Number(pending.at || 0) > 10 * 60 * 1000
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'شماره در تلگرام تأیید نشده است. دوباره دکمه ارسال شماره موبایل را بزنید.'
+        });
+      }
     }
 
-    const db = await readDb();
-    const field = provider === 'eitaa' ? 'eitaaId' : 'telegramId';
-    const incomingName = String(req.body?.name || '').trim();
+    const incomingName = verifiedTelegramName || String(req.body?.name || '').trim();
 
-    // Identity is the shared mobile number; the messenger id is attached to it
+    // Telegram phones are verified through the bot; Eitaa accounts are matched by messenger id.
     let existing = hasPhone
       ? (db.users || []).find((u: any) => normalizePhone(u.phone) === phone)
       : null;
@@ -840,26 +892,63 @@ async function messengerSignup(
       existing = (db.users || []).find((u: any) => String(u[field] || '') === rawId);
     }
 
+    const finishTelegramPhoneVerification = async () => {
+      if (!hasPendingPhone) return;
+      const updatedPendingPhones = { ...((db.settings || {}).pendingPhones || {}) };
+      delete updatedPendingPhones[rawId];
+      db.settings = { ...(db.settings || {}), pendingPhones: updatedPendingPhones };
+      await writeDb(db);
+    };
+
     if (existing) {
       if (existing.role === 'admin') {
         return res.status(403).json({ success: false, error: 'این شناسه مربوط به مدیر است' });
       }
-      // Keep the messenger id on the account so order notifications can reach it
-      if (hasMessengerId && String(existing[field] || '') !== rawId) {
-        existing = { ...existing, [field]: rawId };
-        db.users = (db.users || []).map((u: any) => (u.id === existing.id ? existing : u));
+
+      let updatedUser = existing;
+      if (hasMessengerId && String(updatedUser[field] || '') !== rawId) {
+        updatedUser = { ...updatedUser, [field]: rawId };
+      }
+      let welcomePassword = '';
+      if (!updatedUser.password || updatedUser.messengerWelcomePending === true) {
+        welcomePassword = generateFiveDigitPassword();
+        updatedUser = {
+          ...updatedUser,
+          password: hashPassword(welcomePassword),
+          messengerWelcomePending: true
+        };
+      }
+
+      if (updatedUser !== existing) {
+        db.users = (db.users || []).map((u: any) => (u.id === updatedUser.id ? updatedUser : u));
         await writeDb(db);
       }
-      const token = await createSession(existing.id, undefined, sessionMeta(req));
+
+      if (welcomePassword) {
+        const delivery = await sendMessengerWelcomeMessage(db, provider, updatedUser, welcomePassword, req);
+        if (!delivery.ok) {
+          console.error('[auth] messenger welcome delivery failed', { provider, error: delivery.error });
+          return res.status(502).json({
+            success: false,
+            error: 'حساب ثبت شد، اما ارسال پیام حاوی رمز عبور ناموفق بود. دوباره تلاش کنید.'
+          });
+        }
+      }
+
+      await finishTelegramPhoneVerification();
+      const token = await createSession(updatedUser.id, undefined, sessionMeta(req));
       if (token) setSessionCookie(res, token);
-      return res.json({ success: true, user: sanitizeUser(existing), isNew: false });
+      return res.json({ success: true, user: sanitizeUser(updatedUser), isNew: false });
     }
 
+    const welcomePassword = generateFiveDigitPassword();
     const newUser: any = {
       id: 'usr-' + Date.now(),
       name: incomingName || `کاربر ${provider === 'eitaa' ? 'ایتا' : 'تلگرام'}`,
       phone: hasPhone ? phone : '',
       ...(hasMessengerId ? { [field]: rawId } : {}),
+      password: hashPassword(welcomePassword),
+      messengerWelcomePending: true,
       role: 'user',
       category: 'customer',
       createdAt: new Date().toLocaleDateString('fa-IR'),
@@ -871,6 +960,16 @@ async function messengerSignup(
     db.users = [...(db.users || []), newUser];
     await writeDb(db);
 
+    const delivery = await sendMessengerWelcomeMessage(db, provider, newUser, welcomePassword, req);
+    if (!delivery.ok) {
+      console.error('[auth] messenger welcome delivery failed', { provider, error: delivery.error });
+      return res.status(502).json({
+        success: false,
+        error: 'حساب ثبت شد، اما ارسال پیام حاوی رمز عبور ناموفق بود. دوباره تلاش کنید.'
+      });
+    }
+
+    await finishTelegramPhoneVerification();
     const token = await createSession(newUser.id, undefined, sessionMeta(req));
     if (token) setSessionCookie(res, token);
     res.json({ success: true, user: sanitizeUser(newUser), isNew: true });
@@ -1002,10 +1101,6 @@ app.post('/api/auth/telegram/session', async (req: any, res) => {
         if (resolved) telegramId = resolved;
       }
     }
-    if (!telegramId) {
-      const direct = String(req.body?.telegramId || '').trim();
-      if (/^\d{4,20}$/.test(direct)) telegramId = direct;
-    }
 
     if (!telegramId) {
       return res.status(401).json({
@@ -1021,16 +1116,20 @@ app.post('/api/auth/telegram/session', async (req: any, res) => {
     }
 
     let user = (db.users || []).find((u: any) => String(u.telegramId || '') === telegramId);
+    let welcomePassword = '';
     if (!user) {
       // Auto-login from the mini app must not create accounts silently
       if (req.body?.createIfMissing === false) {
         return res.status(404).json({ success: false, exists: false, error: 'حساب تلگرامی یافت نشد' });
       }
+      welcomePassword = generateFiveDigitPassword();
       user = {
         id: 'usr-' + Date.now(),
         name: name || 'کاربر تلگرام',
         phone: '',
         telegramId,
+        password: hashPassword(welcomePassword),
+        messengerWelcomePending: true,
         role: 'user',
         category: 'customer',
         createdAt: new Date().toLocaleDateString('fa-IR'),
@@ -1040,6 +1139,22 @@ app.post('/api/auth/telegram/session', async (req: any, res) => {
       };
       db.users = [...(db.users || []), user];
       await writeDb(db);
+    } else if (!user.password || user.messengerWelcomePending === true) {
+      welcomePassword = generateFiveDigitPassword();
+      user = { ...user, password: hashPassword(welcomePassword), messengerWelcomePending: true };
+      db.users = (db.users || []).map((stored: any) => (stored.id === user.id ? user : stored));
+      await writeDb(db);
+    }
+
+    if (welcomePassword) {
+      const delivery = await sendMessengerWelcomeMessage(db, 'telegram', user, welcomePassword, req);
+      if (!delivery.ok) {
+        console.error('[auth] messenger welcome delivery failed', { provider: 'telegram', error: delivery.error });
+        return res.status(502).json({
+          success: false,
+          error: 'حساب ثبت شد، اما ارسال پیام حاوی رمز عبور ناموفق بود. دوباره تلاش کنید.'
+        });
+      }
     }
 
     const sessionToken = await createSession(user.id, undefined, sessionMeta(req));
@@ -2896,13 +3011,18 @@ async function sendTelegramDocument(
 async function sendTelegramMessage(
   botToken: string,
   chatId: string,
-  text: string
+  text: string,
+  replyMarkup?: any
 ): Promise<{ ok: boolean; messageId?: number; error?: string }> {
   try {
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text })
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+      })
     });
     const result: any = await response.json().catch(() => null);
     if (result?.ok) return { ok: true, messageId: result.result?.message_id };
@@ -2955,6 +3075,65 @@ async function sendEitaaMessage(
   } catch (err: any) {
     return { ok: false, error: err?.message || 'eitaa network error' };
   }
+}
+
+function buildMessengerWelcomeMessage(username: string, password: string, req?: any): string {
+  const loginUrl = `${publicBaseUrl(req)}/login`;
+  return [
+    'سلام 👋 به آتلیه دیجیتال لاله خوش آمدید.',
+    'ثبت‌نام شما با موفقیت انجام شد.',
+    '',
+    `نام کاربری: ${username}`,
+    `رمز عبور: ${password}`,
+    `آدرس صفحه لاگین: ${loginUrl}`,
+    '',
+    'از این پس سفارش‌ها و کد پیگیری همین‌جا برایتان ارسال می‌شود.'
+  ].join('\n');
+}
+
+async function sendMessengerWelcomeMessage(
+  db: any,
+  provider: 'eitaa' | 'telegram',
+  user: any,
+  password: string,
+  req?: any,
+  replyMarkup?: any
+): Promise<{ ok: boolean; error?: string }> {
+  const field = provider === 'eitaa' ? 'eitaaId' : 'telegramId';
+  const chatId = String(user?.[field] || '').trim();
+  const username = normalizePhone(user?.phone) || chatId;
+  if (!chatId || !username) return { ok: false, error: 'شناسه کاربر برای ارسال پیام موجود نیست' };
+
+  const token = String(
+    provider === 'eitaa'
+      ? (db.settings || {}).eitaaToken || process.env.EITAA_TOKEN || ''
+      : (db.settings || {}).telegramToken || process.env.TELEGRAM_BOT_TOKEN || ''
+  ).trim();
+  if (!token) {
+    return {
+      ok: false,
+      error: provider === 'eitaa' ? 'توکن ربات ایتا تنظیم نشده است' : 'توکن ربات تلگرام تنظیم نشده است'
+    };
+  }
+
+  const message = buildMessengerWelcomeMessage(username, password, req);
+  const result =
+    provider === 'telegram'
+      ? await sendTelegramMessage(token, chatId, message, replyMarkup)
+      : await sendEitaaMessage(token, chatId, message);
+
+  if (result.ok && user?.id) {
+    db.users = (db.users || []).map((stored: any) =>
+      stored.id === user.id ? { ...stored, messengerWelcomePending: false } : stored
+    );
+    try {
+      await writeDb(db);
+    } catch (err: any) {
+      console.error('[auth] failed to record welcome delivery', err?.message || err);
+    }
+  }
+
+  return result;
 }
 
 /** Formats a Toman amount with Persian digits. */
@@ -3541,6 +3720,14 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
 
   // --- A) The user attached a contact (Attach → Contact) or shared it ---
   if (contact?.phone_number) {
+    const contactUserId = String(contact.user_id || '');
+    if (contactUserId && contactUserId !== fromId) {
+      await sendTelegramMessage(botToken, chatId, 'لطفاً شماره موبایل متصل به حساب خودتان را ارسال کنید.', {
+        remove_keyboard: true
+      });
+      return;
+    }
+
     const raw = String(contact.phone_number).replace(/[^\d+]/g, '');
     const phone = normalizePhone(raw.replace(/^\+?98/, '0'));
     if (/^09\d{9}$/.test(phone)) {
@@ -3556,46 +3743,61 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
       let owner = (db.users || []).find((u: any) => String(u.telegramId || '') === fromId);
       if (!owner) owner = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
 
+      let welcomePassword = '';
       if (owner) {
-        const updated = {
+        const updated: any = {
           ...owner,
           telegramId: fromId || owner.telegramId,
           phone: normalizePhone(owner.phone) ? owner.phone : phone,
           phoneVerifiedAt: new Date().toISOString()
         };
-        db.users = (db.users || []).map((u: any) => (u.id === owner.id ? updated : u));
+        if (!updated.password || updated.messengerWelcomePending === true) {
+          welcomePassword = generateFiveDigitPassword();
+          updated.password = hashPassword(welcomePassword);
+          updated.messengerWelcomePending = true;
+        }
+        owner = updated;
+        db.users = (db.users || []).map((u: any) => (u.id === owner.id ? owner : u));
       } else {
-        db.users = [
-          ...(db.users || []),
-          {
-            id: 'usr-' + Date.now(),
-            name: fromName || 'کاربر تلگرام',
-            phone,
-            telegramId: fromId,
-            role: 'user',
-            category: 'customer',
-            createdAt: new Date().toLocaleDateString('fa-IR'),
-            walletBalance: 100000,
-            hasUsedFirstOrderGift: false,
-            registeredVia: 'telegram',
-            phoneVerifiedAt: new Date().toISOString()
-          }
-        ];
+        welcomePassword = generateFiveDigitPassword();
+        owner = {
+          id: 'usr-' + Date.now(),
+          name: fromName || 'کاربر تلگرام',
+          phone,
+          telegramId: fromId,
+          password: hashPassword(welcomePassword),
+          messengerWelcomePending: true,
+          role: 'user',
+          category: 'customer',
+          createdAt: new Date().toLocaleDateString('fa-IR'),
+          walletBalance: 100000,
+          hasUsedFirstOrderGift: false,
+          registeredVia: 'telegram',
+          phoneVerifiedAt: new Date().toISOString()
+        };
+        db.users = [...(db.users || []), owner];
       }
       await writeDb(db);
 
-      if (botToken) {
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text:
-              '✅ شماره موبایل شما ثبت شد.\n' +
-              'از این پس سفارش‌ها و کد پیگیری همین‌جا برایتان ارسال می‌شود.',
-            reply_markup: { remove_keyboard: true }
-          })
-        }).catch(() => undefined);
+      if (welcomePassword) {
+        const delivery = await sendMessengerWelcomeMessage(
+          db,
+          'telegram',
+          owner,
+          welcomePassword,
+          req,
+          { remove_keyboard: true }
+        );
+        if (!delivery.ok) {
+          console.error('[auth] messenger welcome delivery failed', { provider: 'telegram', error: delivery.error });
+        }
+      } else if (botToken) {
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          '✅ شماره موبایل شما ثبت شد.\nاز این پس سفارش‌ها و کد پیگیری همین‌جا برایتان ارسال می‌شود.',
+          { remove_keyboard: true }
+        );
       }
       return;
     }
