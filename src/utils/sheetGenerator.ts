@@ -193,11 +193,31 @@ export async function generateSingle10x15Sheet(imageUrl: string): Promise<string
 /**
  * Triggers a direct browser download for a data URL or image source.
  */
-export function downloadImage(dataUrl: string, fileName: string) {
+export async function downloadImage(imageUrl: string, fileName: string) {
+  let downloadUrl = imageUrl;
+  let objectUrl: string | null = null;
+
+  if (!imageUrl.startsWith('data:') && !imageUrl.startsWith('blob:')) {
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error('Image download failed');
+      objectUrl = URL.createObjectURL(await response.blob());
+      downloadUrl = objectUrl;
+    } catch {
+      downloadUrl = imageUrl;
+    }
+  }
+
   const link = document.createElement('a');
-  link.href = dataUrl;
+  link.href = downloadUrl;
   link.download = fileName;
+  link.rel = 'noopener';
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
+  link.remove();
+
+  if (objectUrl) {
+    const urlToRevoke = objectUrl;
+    window.setTimeout(() => URL.revokeObjectURL(urlToRevoke), 1000);
+  }
 }

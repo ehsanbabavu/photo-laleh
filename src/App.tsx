@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod } from './types';
+import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod, PrintImageKey } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
@@ -487,8 +487,15 @@ export default function App() {
   React.useEffect(() => {
     const unsubOrder = aiQueueManager.onOrderUpdate((updatedOrder, toastMsg) => {
       setOrders((prev) => {
-        const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
-        apiClient.saveOrder(updatedOrder);
+        const next = prev.map((order) => {
+          if (order.id !== updatedOrder.id) return order;
+          const mergedOrder = {
+            ...updatedOrder,
+            selectedPrintImages: order.selectedPrintImages ?? updatedOrder.selectedPrintImages
+          };
+          apiClient.saveOrder(mergedOrder);
+          return mergedOrder;
+        });
         return next;
       });
       if (toastMsg) {
@@ -744,6 +751,69 @@ export default function App() {
     }
 
     showToast('وضعیت سفارش با موفقیت تغییر یافت.');
+  };
+
+  const handleGenerateOrderImage = (order: Order, asset: 'ai' | 'commercial') => {
+    if (order.paymentStatus !== 'paid') {
+      showToast('تولید تصویر فقط پس از تأیید پرداخت امکان‌پذیر است.');
+      return;
+    }
+    if (!order.uploadedImage) {
+      showToast('برای تولید تصویر، عکس اصلی سفارش در دسترس نیست.');
+      return;
+    }
+    if (!avalaiApiKey.trim()) {
+      showToast('برای تولید تصویر، ابتدا کلید سرویس هوش مصنوعی را در تنظیمات وارد کنید.');
+      return;
+    }
+
+    const commercialPrompt =
+      printTypePrompts.commercial ||
+      'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی';
+    const queued = aiQueueManager.enqueue({
+      order,
+      apiKey: avalaiApiKey,
+      baseUrl: avalaiBaseUrl,
+      model: avalaiModel,
+      prompt:
+        asset === 'commercial'
+          ? commercialPrompt
+          : order.aiPromptUsed || printTypePrompts[order.printType] || 'پرتره باکیفیت و رتوش شده آتلیه',
+      commercialPrompt,
+      asset,
+      queuedAt: Date.now()
+    });
+
+    showToast(
+      queued
+        ? asset === 'commercial'
+          ? 'تولید عکس تبلیغاتی در صف قرار گرفت.'
+          : 'تولید خروجی هوش مصنوعی در صف قرار گرفت.'
+        : 'این سفارش هم‌اکنون در صف یا در حال پردازش است.'
+    );
+  };
+
+  const handleUpdatePrintSelection = async (
+    orderId: string,
+    selectedPrintImages: PrintImageKey[]
+  ): Promise<boolean> => {
+    try {
+      const result = await apiClient.updateOrderPrintSelection(orderId, selectedPrintImages);
+      const savedSelection = Array.isArray(result?.selectedPrintImages)
+        ? (result.selectedPrintImages as PrintImageKey[])
+        : selectedPrintImages;
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === orderId ? { ...order, selectedPrintImages: savedSelection } : order
+        )
+      );
+      showToast('انتخاب عکس‌های چاپ ذخیره شد.');
+      return true;
+    } catch (error) {
+      console.error('Failed to save print image selection:', error);
+      showToast('ذخیره انتخاب عکس‌های چاپ ناموفق بود. دوباره تلاش کنید.');
+      return false;
+    }
   };
 
   const handleUpdateOrder = (updatedOrder: Order) => {
@@ -1072,6 +1142,7 @@ export default function App() {
                   queueInfo={queueInfo}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onUpdateOrder={handleUpdateOrder}
+                  onGenerateOrderImage={handleGenerateOrderImage}
                   onDeleteOrder={handleDeleteOrder}
                   onClearAllOrders={handleClearAllOrders}
                   telegramToken={telegramToken}
@@ -1185,6 +1256,7 @@ export default function App() {
                   orders={orders}
                   user={currentUser}
                   onStartNewOrder={() => setUserTab('wizard')}
+                  onUpdatePrintSelection={handleUpdatePrintSelection}
                 />
               )}
 

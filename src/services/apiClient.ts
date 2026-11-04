@@ -2,7 +2,7 @@
  * API Client for interacting with real internal database server (/api/*)
  */
 
-import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod } from '../types';
+import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -60,6 +60,19 @@ export const apiClient = {
     } catch (err) {
       console.warn('API updateOrder error:', err);
     }
+  },
+
+  async updateOrderPrintSelection(orderId: string, selectedPrintImages: PrintImageKey[]) {
+    const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/print-selection`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selectedPrintImages })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.message || 'ذخیره انتخاب عکس‌های چاپ ناموفق بود.');
+    }
+    return data;
   },
 
   async deleteOrder(orderId: string) {

@@ -286,6 +286,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       createdAt: new Date().toISOString(),
       status: 'pending_review',
       aiStatus: 'pending',
+      selectedPrintImages: [],
       aiPromptUsed: promptToUse,
       // Order total follows the issued invoice amount, not a second local re-calculation
       totalPrice: paidToman,

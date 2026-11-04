@@ -26,6 +26,7 @@ import {
   disconnectDb,
   DEFAULT_DB_NAME
 } from './mongoStore';
+import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +54,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-setup-key');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') return res.status(204).end();
   }
@@ -773,7 +774,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   if (await hitRateLimit(`login:${clientIp(req)}:${phone}`, 10, 10 * 60 * 1000)) {
-    return res.status(429).json({ success: false, error: 'تلاش‌های ناموفق بیش از حد. چند دقیقه بعد دوباره تلاش کنید.' });
+    return res.status(429).json({ success: false, error: 'تلاش‌های ناموفق بیش از ح��. چند دقیقه بعد دوباره تلاش کنید.' });
   }
 
   const db = await readDb();
@@ -1498,6 +1499,42 @@ app.put('/api/orders/:id', async (req, res) => {
   db.orders = (db.orders || []).map((o: any) => (o.id === orderId ? { ...o, ...updatedOrder } : o));
   await writeDb(db);
   res.json({ success: true });
+});
+
+app.patch('/api/orders/:id/print-selection', async (req: any, res) => {
+  const db = await readDb();
+  const order = (db.orders || []).find((item: any) => item.id === req.params.id);
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'سفارش یافت نشد.' });
+  }
+
+  const user = req.currentUser;
+  if (!user || (user.role !== 'admin' && order.userId !== user.id)) {
+    return res.status(404).json({ success: false, message: 'سفارش یافت نشد.' });
+  }
+  if (order.paymentStatus !== 'paid') {
+    return res.status(400).json({ success: false, message: 'انتخاب عکس چاپ پس از تأیید پرداخت فعال می‌شود.' });
+  }
+
+  const submitted = req.body?.selectedPrintImages;
+  const allowedKeys = new Set(['sheet', 'ai', 'commercial']);
+  if (
+    !Array.isArray(submitted) ||
+    submitted.length > 3 ||
+    submitted.some((key: unknown) => typeof key !== 'string' || !allowedKeys.has(key))
+  ) {
+    return res.status(400).json({ success: false, message: 'فهرست عکس‌های انتخاب‌شده معتبر نیست.' });
+  }
+
+  const selectedPrintImages = Array.from(new Set(submitted)) as Array<'sheet' | 'ai' | 'commercial'>;
+  const availableKeys = new Set(getOrderPrintAssets(order).map((asset) => asset.key));
+  if (selectedPrintImages.some((key) => !availableKeys.has(key))) {
+    return res.status(400).json({ success: false, message: 'یکی از عکس‌های انتخاب‌شده برای این سفارش آماده نیست.' });
+  }
+
+  order.selectedPrintImages = selectedPrintImages;
+  await writeDb(db);
+  res.json({ success: true, selectedPrintImages });
 });
 
 app.delete('/api/orders/:id', async (req, res) => {
@@ -2553,7 +2590,7 @@ async function handleTelegramCallbackQuery(cb: any, token: string) {
           body: JSON.stringify({
             chat_id: cb.message.chat.id,
             message_id: cb.message.message_id,
-            text: `⏳ با تشکر از شما فایل‌های چاپ تا ۱۰ ثانیه دیگر حذف خواهند شد.`,
+            text: `⏳ با تشکر از شما فایل‌های چاپ تا ۱۰ ثانیه دیگر حذف خواه��د شد.`,
             parse_mode: 'Markdown'
           })
         });
@@ -2611,13 +2648,27 @@ app.post('/api/telegram/test', async (req, res) => {
 
 app.post('/api/telegram/send-order', async (req, res) => {
   try {
-    const { botToken, chatId, order, dimensionTitle, materialName } = req.body;
-    if (!botToken || !chatId || !order) {
+    const { botToken, chatId, order: requestedOrder, dimensionTitle, materialName } = req.body;
+    if (!botToken || !chatId || !requestedOrder) {
       return res.status(400).json({ success: false, error: 'Missing parameters' });
     }
 
-    // Always update settings so polling has the latest botToken
     const dbSettings = await readDb();
+    const order = (dbSettings.orders || []).find((item: any) => item.id === requestedOrder.id) || requestedOrder;
+    const availableAssets = getOrderPrintAssets(order);
+    const selectedKeys = Array.isArray(order.selectedPrintImages)
+      ? order.selectedPrintImages
+      : availableAssets.map((asset) => asset.key);
+    const selectedAssets = getSelectedOrderPrintAssets(order, selectedKeys);
+    if (selectedAssets.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'no_print_images_selected',
+        message: 'حداقل یک عکس آماده را برای ارسال به چاپ انتخاب کنید.'
+      });
+    }
+
+    // Always update settings so polling has the latest botToken
     dbSettings.settings = { ...(dbSettings.settings || {}), telegramToken: botToken, telegramChatId: chatId };
     await writeDb(dbSettings);
 
@@ -2632,14 +2683,12 @@ app.post('/api/telegram/send-order', async (req, res) => {
       day: '2-digit'
     });
 
-    async function sendDocumentFromDataUrl(dataUrl: string, caption: string, filename: string) {
-      if (!dataUrl) return null;
+    async function sendDocumentFromImageSource(imageUrl: string, caption: string, filename: string) {
+      if (!imageUrl) return null;
       try {
-        const parts = dataUrl.split(';base64,');
-        if (parts.length < 2) return null;
-        const contentType = parts[0].split(':')[1] || 'image/jpeg';
-        const raw = Buffer.from(parts[1], 'base64');
-        const blob = new Blob([raw], { type: contentType });
+        const image = await toUploadableImage(imageUrl);
+        if (!image) return null;
+        const blob = new Blob([image.buffer], { type: image.mime });
 
         const form = new FormData();
         form.append('chat_id', chatId);
@@ -2658,26 +2707,37 @@ app.post('/api/telegram/send-order', async (req, res) => {
       }
     }
 
-    // 1. Send 9-pack sheet image
-    if (order.printSheetImage) {
-      let sheetCountText = `${order.quantity || 1} سری`;
-      if (order.dimensionId === 'personnel_12x3x4') {
-        sheetCountText = `${2 * (order.quantity || 1)} سری`;
-      }
-      const captionSheet = `🎴 شیت ۹تایی چاپ\n📌 ��ماره سفارش: ${order.trackingCode}\n📐 اندازه: 10*15\n🔢 تعداد: ${sheetCountText}\n📅 ثبت: ${timeFa}`;
-      const msgId = await sendDocumentFromDataUrl(order.printSheetImage, captionSheet, `sheet-9pack-${order.trackingCode}.jpg`);
+    const sheetCountText =
+      order.dimensionId === 'personnel_12x3x4'
+        ? `${2 * (order.quantity || 1)} سری`
+        : `${order.quantity || 1} سری`;
+    const productionDetails = [
+      dimensionTitle ? `📐 سایز: ${dimensionTitle}` : null,
+      materialName ? `🧻 جنس: ${materialName}` : null
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    for (const asset of selectedAssets) {
+      const quantityText = asset.key === 'sheet' ? sheetCountText : `${order.quantity || 1} سری`;
+      const caption = [
+        asset.label,
+        `📌 شماره سفارش: ${order.trackingCode}`,
+        productionDetails || null,
+        `🔢 تعداد: ${quantityText}`,
+        `📅 ثبت: ${timeFa}`
+      ]
+        .filter(Boolean)
+        .join('\n');
+      const msgId = await sendDocumentFromImageSource(
+        asset.imageUrl,
+        caption,
+        `${order.trackingCode}-${asset.key}.jpg`
+      );
       if (msgId) sentMessageIds.push(msgId);
     }
 
-    // 2. Send commercial promotional image
-    const commercialImg = order.commercialSheet10x15Image || order.commercialImage;
-    if (commercialImg) {
-      const captionComm = `🎨 عکس تبلیغاتی ۱۰×۱۵\n📌 شماره سفارش: ${order.trackingCode}\n📐 اندازه: 10*15\n🔢 تعداد: ${order.quantity || 1} سری\n📅 ثبت: ${timeFa}`;
-      const msgId = await sendDocumentFromDataUrl(commercialImg, captionComm, `commercial-10x15-${order.trackingCode}.jpg`);
-      if (msgId) sentMessageIds.push(msgId);
-    }
-
-    // 3. Send inquiry message
+    // Send inquiry message
     try {
       const confirmMsg = `آیا سفارش ${order.trackingCode} چاپ شده است؟`;
       const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -2782,24 +2842,16 @@ async function toUploadableImage(
   }
 }
 
-/** The production files that must reach the colleague, in a stable order. */
-function collectOrderPrintImages(order: any): Array<{ key: string; label: string; source: string }> {
-  const images: Array<{ key: string; label: string; source: string }> = [];
-  if (order.printSheetImage) images.push({ key: 'sheet', label: 'شیت چاپ نهایی', source: order.printSheetImage });
-  if (order.commercialSheet10x15Image) {
-    images.push({ key: 'commercial_sheet', label: 'شیت تبلیغاتی ۱۰×۱۵', source: order.commercialSheet10x15Image });
-  }
-  if (order.commercialImage) {
-    images.push({ key: 'commercial', label: 'عکس تبلیغاتی', source: order.commercialImage });
-  }
-  if (order.aiProcessedImage) images.push({ key: 'ai', label: 'عکس رتوش‌شده', source: order.aiProcessedImage });
-  if (order.uploadedImage) images.push({ key: 'original', label: 'عکس اصلی', source: order.uploadedImage });
-  if (Array.isArray(order.uploadedImages)) {
-    order.uploadedImages.forEach((img: string, index: number) => {
-      images.push({ key: `original_${index}`, label: `عکس اصلی ${index + 1}`, source: img });
-    });
-  }
-  return images.filter((image) => Boolean(image.source));
+/** Production files shown in the three customer-selectable image tabs. */
+function collectOrderPrintImages(
+  order: any,
+  selectedKeys: unknown
+): Array<{ key: string; label: string; source: string }> {
+  return getSelectedOrderPrintAssets(order, selectedKeys).map((asset) => ({
+    key: asset.key,
+    label: asset.label,
+    source: asset.imageUrl
+  }));
 }
 
 function buildPartnerCaption(order: any, dimension: any, materialName: string, imageLabel?: string): string {
@@ -2933,7 +2985,7 @@ function buildOrderCreatedMessage(order: any) {
     `📦 وضعیت: ${statusLabel}`,
     '',
     'برای پیگیری، وارد پنل کاربری → سفارشات شوید.',
-    'آتلیه دیجیتال لاله'
+    '��تلیه دیجیتال لاله'
   ]
     .filter(Boolean)
     .join('\n');
@@ -3174,7 +3226,7 @@ app.post('/api/print/send-to-partner', async (req, res) => {
   try {
     const db = await readDb();
     const settings = db.settings || {};
-    const { orderId, partnerId, channel } = req.body || {};
+    const { orderId, partnerId, channel, imageKeys } = req.body || {};
 
     const sendChannel = channel === 'eitaa' ? 'eitaa' : channel === 'telegram' ? 'telegram' : null;
     if (!orderId || !partnerId || !sendChannel) {
@@ -3188,6 +3240,41 @@ app.post('/api/print/send-to-partner', async (req, res) => {
     const order = (db.orders || []).find((o: any) => o.id === orderId);
     if (!order) {
       return res.status(404).json({ success: false, error: 'not_found', message: 'سفارش یافت نشد.' });
+    }
+
+    const availableImages = getOrderPrintAssets(order);
+    const requestedKeys = Array.isArray(imageKeys)
+      ? imageKeys
+      : Array.isArray(order.selectedPrintImages)
+      ? order.selectedPrintImages
+      : availableImages.map((asset) => asset.key);
+    const availableKeys = new Set(availableImages.map((asset) => asset.key));
+    const allowedKeys = new Set(['sheet', 'ai', 'commercial']);
+    if (
+      requestedKeys.length > 3 ||
+      requestedKeys.some((key: unknown) => typeof key !== 'string' || !allowedKeys.has(key))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_image_selection',
+        message: 'فهرست عکس‌های انتخاب‌شده معتبر نیست.'
+      });
+    }
+    const selectedImageKeys = Array.from(new Set(requestedKeys)) as Array<'sheet' | 'ai' | 'commercial'>;
+    if (selectedImageKeys.some((key) => !availableKeys.has(key))) {
+      return res.status(400).json({
+        success: false,
+        error: 'image_not_ready',
+        message: 'یکی از عکس‌های انتخاب‌شده هنوز آماده نیست.'
+      });
+    }
+    const images = collectOrderPrintImages(order, selectedImageKeys);
+    if (images.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'no_print_images_selected',
+        message: 'حداقل یک عکس آماده را برای ارسال به چاپ انتخاب کنید.'
+      });
     }
 
     const partner = (db.users || []).find((u: any) => u.id === partnerId);
@@ -3245,7 +3332,6 @@ app.post('/api/print/send-to-partner', async (req, res) => {
         (m: any) => m.id === order.materialId
       )?.name || order.invoiceDetails?.materialTitle || '';
 
-    const images = collectOrderPrintImages(order);
     const warnings: string[] = [];
     let sentCount = 0;
     const sentMessageIds: number[] = [];
@@ -3271,7 +3357,7 @@ app.post('/api/print/send-to-partner', async (req, res) => {
         const image = images[index];
         const upload = await toUploadableImage(image.source);
         if (!upload) {
-          warnings.push(`تصویر «${image.label}» قابل خواندن نبود.`);
+          warnings.push(`تصویر «${image.label}» ق��بل خواندن نبود.`);
           continue;
         }
 
@@ -3359,6 +3445,7 @@ app.post('/api/print/send-to-partner', async (req, res) => {
             partnerChannel: sendChannel,
             partnerSentAt: sentAt,
             partnerInvoiceId: invoiceId,
+            selectedPrintImages: selectedImageKeys,
             sentMessageIds
           }
         : o

@@ -18,6 +18,7 @@ export interface QueueJob {
   model?: string;
   prompt: string;
   commercialPrompt?: string;
+  asset?: 'all' | 'ai' | 'commercial';
   queuedAt: number;
 }
 
@@ -104,13 +105,13 @@ class AiQueueManager {
   /**
    * Enqueue a new order for AI processing
    */
-  public enqueue(job: QueueJob) {
+  public enqueue(job: QueueJob): boolean {
     // Check if already queued or currently processing
     if (this.currentJob?.order.id === job.order.id) {
-      return;
+      return false;
     }
     if (this.queue.some((j) => j.order.id === job.order.id)) {
-      return;
+      return false;
     }
 
     // Set order status to in-queue
@@ -136,6 +137,7 @@ class AiQueueManager {
     if (!this.isProcessing && this.cooldownRemaining === 0) {
       this.processNext();
     }
+    return true;
   }
 
   /**
@@ -154,6 +156,7 @@ class AiQueueManager {
     if (!this.currentJob) return;
 
     const { order, apiKey, baseUrl, model, prompt } = this.currentJob;
+    const asset = this.currentJob.asset || 'all';
 
     // 1. Update order status to active processing
     const processingOrder: Order = {
@@ -168,6 +171,57 @@ class AiQueueManager {
     this.notifyQueueState();
 
     try {
+      if (asset === 'ai') {
+        const result = await processOrderInBackend({
+          uploadedImage: order.uploadedImage,
+          originalImageName: order.originalImageName,
+          printType: order.printType,
+          prompt,
+          apiKey,
+          baseUrl,
+          model
+        });
+        const completedOrder: Order = {
+          ...order,
+          status: 'pending_review',
+          aiStatus: 'completed',
+          aiProcessedImage: result.imageUrl,
+          aiPromptUsed: prompt,
+          aiCompletedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+        };
+        this.notifyOrderUpdate(completedOrder, `خروجی هوش مصنوعی سفارش #${order.trackingCode} آماده شد و برای بررسی مدیر برگشت.`);
+        return;
+      }
+
+      if (asset === 'commercial') {
+        const commercialPromptToUse = this.currentJob.commercialPrompt || 'عکاسی تبلیغاتی و تجاری فاخر، نورپردازی متمرکز استودیویی روی محصول و مدل، بوکه نرم پس‌زمینه لوکس، کیفیت فوق‌العاده وضوح و رنگ عالی';
+        const result = await processOrderInBackend({
+          uploadedImage: order.uploadedImage,
+          originalImageName: order.originalImageName,
+          printType: 'commercial',
+          prompt: commercialPromptToUse,
+          apiKey,
+          baseUrl,
+          model
+        });
+        let commercialSheet10x15Image: string | undefined;
+        try {
+          commercialSheet10x15Image = await generateSingle10x15Sheet(result.imageUrl);
+        } catch (sheetError) {
+          console.warn('Commercial 10x15 generation warning:', sheetError);
+        }
+        const completedOrder: Order = {
+          ...order,
+          status: 'pending_review',
+          aiStatus: order.aiProcessedImage ? 'completed' : 'pending',
+          commercialImage: result.imageUrl,
+          commercialPromptUsed: commercialPromptToUse,
+          commercialSheet10x15Image
+        };
+        this.notifyOrderUpdate(completedOrder, `عکس تبلیغاتی سفارش #${order.trackingCode} آماده شد و برای بررسی مدیر برگشت.`);
+        return;
+      }
+
       // 2. Execute AI generation in backend
       const result = await processOrderInBackend({
         uploadedImage: order.uploadedImage,
@@ -235,7 +289,7 @@ class AiQueueManager {
       // 4. Update order to completed state
       const completedOrder: Order = {
         ...order,
-        status: 'printing',
+        status: 'pending_review',
         aiStatus: 'completed',
         aiProcessedImage: result.imageUrl,
         aiCompletedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
@@ -257,8 +311,15 @@ class AiQueueManager {
       console.error('Error processing order in queue:', error);
       const fallbackOrder: Order = {
         ...order,
-        status: 'printing',
-        aiStatus: 'completed'
+        status: 'pending_review',
+        aiStatus:
+          asset === 'commercial'
+            ? order.aiProcessedImage
+              ? 'completed'
+              : 'pending'
+            : order.aiProcessedImage
+            ? 'completed'
+            : 'failed'
       };
       this.notifyOrderUpdate(fallbackOrder);
     } finally {

@@ -154,6 +154,8 @@ export interface OrderDraft {
   invoiceDetails?: OrderInvoiceDetails;
 }
 
+export type PrintImageKey = 'sheet' | 'ai' | 'commercial';
+
 export interface Order extends OrderDraft {
   id: string;
   trackingCode: string;
@@ -174,6 +176,8 @@ export interface Order extends OrderDraft {
   commercialImage?: string;
   commercialPromptUsed?: string;
   commercialSheet10x15Image?: string;
+  /** Photo assets the customer chose to include in a print send. */
+  selectedPrintImages?: PrintImageKey[];
   sentMessageIds?: number[]; // To track messages for deletion
   partnerId?: string;
   partnerName?: string;
