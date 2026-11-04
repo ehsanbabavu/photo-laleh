@@ -137,12 +137,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   };
 
   const [draft, setDraft] = useState<OrderDraft>(() => {
-    if (!restored?.draft) return initialDraft;
+    const restoredDraft = restored?.draft;
     return {
       ...initialDraft,
-      ...restored.draft,
-      aiEffects: { ...initialDraft.aiEffects, ...(restored.draft.aiEffects || {}) },
-      customerInfo: { ...initialDraft.customerInfo, ...(restored.draft.customerInfo || {}) }
+      ...(restoredDraft || {}),
+      id: restoredDraft?.id || `draft-${crypto.randomUUID()}`,
+      aiEffects: { ...initialDraft.aiEffects, ...(restoredDraft?.aiEffects || {}) },
+      customerInfo: { ...initialDraft.customerInfo, ...(restoredDraft?.customerInfo || {}) }
     };
   });
 
@@ -221,7 +222,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     hasUserSelectedPrintTypeRef.current = false;
     clearOrderDraft(user.id);
     setResumeNotice(null);
-    setDraft(initialDraft);
+    setDraft({ ...initialDraft, id: `draft-${crypto.randomUUID()}` });
     setCurrentStep(1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
