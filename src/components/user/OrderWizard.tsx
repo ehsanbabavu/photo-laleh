@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { OrderDraft, Order, User, PrintTypeOption, PrintDimension, BluPalSettings, DeliveryMethod } from '../../types';
 import { StepPrintType } from './wizard/StepPrintType';
+import { PhoneVerificationGate } from './PhoneVerificationGate';
+import { isValidIranianPhone } from '../../utils/phone';
 import { StepUploadPhoto } from './wizard/StepUploadPhoto';
 import { StepDimensions } from './wizard/StepDimensions';
 import { StepInvoice } from './wizard/StepInvoice';
@@ -26,6 +28,7 @@ interface OrderWizardProps {
   user: User;
   onOrderCompleted: (newOrder: Order) => void;
   onUserUpdate?: (updatedUser: User) => void;
+  onPhoneVerified: (updatedUser: User) => void;
   printTypes?: PrintTypeOption[];
   dimensions?: PrintDimension[];
   deliveryMethods?: DeliveryMethod[];
@@ -43,6 +46,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   user,
   onOrderCompleted,
   onUserUpdate,
+  onPhoneVerified,
   printTypes = PRINT_TYPES,
   dimensions,
   deliveryMethods,
@@ -125,7 +129,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     deliveryMethod: 'peyk',
     customerInfo: {
       fullName: user.name || '',
-      phoneNumber: user.phone || '09123456789',
+      phoneNumber: user.phone || '',
       province: 'تهران',
       city: 'تهران',
       address: '',
@@ -309,6 +313,21 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     setResumeNotice(null);
     onOrderCompleted(newOrder);
   };
+
+  const handlePhoneVerified = (updatedUser: User) => {
+    setDraft((current) => ({
+      ...current,
+      customerInfo: {
+        ...current.customerInfo,
+        phoneNumber: updatedUser.phone || ''
+      }
+    }));
+    onPhoneVerified(updatedUser);
+  };
+
+  if (user.role !== 'admin' && user.category !== 'colleague' && !isValidIranianPhone(user.phone)) {
+    return <PhoneVerificationGate initialPhone={user.phone} onVerified={handlePhoneVerified} />;
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">

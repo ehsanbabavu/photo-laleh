@@ -27,6 +27,7 @@ import {
   DEFAULT_DB_NAME
 } from './mongoStore';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
+import { isValidIranianPhone, normalizeIranianPhone } from './src/utils/phone';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1242,7 +1243,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const db = await readDb();
     if ((db.users || []).some((u: any) => normalizePhone(u.phone) === phone)) {
-      return res.status(400).json({ success: false, error: 'این شماره موبایل قبلاً ثبت‌نام شده است' });
+      return res.status(400).json({ success: false, error: 'این شماره موبایل قبلا�� ثبت‌نام شده است' });
     }
 
     if (await hitRateLimit(`register:${clientIp(req)}`, 8, 30 * 60 * 1000)) {
@@ -1371,6 +1372,96 @@ app.post('/api/auth/login/otp', async (req, res) => {
   const token = await createSession(user.id, undefined, sessionMeta(req));
   if (token) setSessionCookie(res, token);
   res.json({ success: true, user: sanitizeUser(user) });
+});
+
+app.post('/api/auth/phone/otp/request', async (req: any, res) => {
+  try {
+    const userId = String(req.currentUser?.id || '');
+    if (!userId) return res.status(401).json({ success: false, error: 'برای دسترسی باید وارد حساب شوید' });
+
+    const phone = normalizeIranianPhone(req.body?.phone);
+    if (!isValidIranianPhone(phone)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    }
+
+    const db = await readDb();
+    const phoneOwner = (db.users || []).find(
+      (user: any) => user.id !== userId && normalizeIranianPhone(user.phone) === phone
+    );
+    if (phoneOwner) {
+      return res.status(409).json({ success: false, error: 'این شماره موبایل قبلاً برای حساب دیگری ثبت شده است.' });
+    }
+
+    const [userLimited, phoneLimited, ipLimited] = await Promise.all([
+      hitRateLimit(`profile-phone-user:${userId}`, 3, 15 * 60 * 1000),
+      hitRateLimit(`profile-phone:${phone}`, 3, 15 * 60 * 1000),
+      hitRateLimit(`profile-phone-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)
+    ]);
+    if (userLimited || phoneLimited || ipLimited) {
+      return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
+    }
+
+    const sent = await sendOtpSms(phone);
+    if (!sent.ok) {
+      return res.status(400).json({ success: false, error: sent.error });
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+  }
+});
+
+app.post('/api/auth/phone/otp/verify', async (req: any, res) => {
+  try {
+    const userId = String(req.currentUser?.id || '');
+    if (!userId) return res.status(401).json({ success: false, error: 'برای دسترسی باید وارد حساب شوید' });
+
+    const phone = normalizeIranianPhone(req.body?.phone);
+    const code = normalizePhone(req.body?.code).replace(/\D/g, '');
+    if (!isValidIranianPhone(phone)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    }
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({ success: false, error: 'کد تأیید ۶ رقمی را وارد کنید' });
+    }
+
+    const [userLimited, ipLimited] = await Promise.all([
+      hitRateLimit(`profile-phone-verify-user:${userId}:${phone}`, 8, 15 * 60 * 1000),
+      hitRateLimit(`profile-phone-verify-ip:${clientIp(req)}`, 20, 15 * 60 * 1000)
+    ]);
+    if (userLimited || ipLimited) {
+      return res.status(429).json({ success: false, error: 'تلاش‌های تأیید بیش از حد مجاز است. کمی بعد تلاش کنید.' });
+    }
+
+    const db = await readDb();
+    const currentUser = (db.users || []).find((user: any) => user.id === userId);
+    if (!currentUser) return res.status(401).json({ success: false, error: 'حساب کاربری یافت نشد' });
+
+    const phoneOwner = (db.users || []).find(
+      (user: any) => user.id !== userId && normalizeIranianPhone(user.phone) === phone
+    );
+    if (phoneOwner) {
+      return res.status(409).json({ success: false, error: 'این شماره موبایل قبلاً برای حساب دیگری ثبت شده است.' });
+    }
+
+    const verification = await verifyOtpCode(phone, code);
+    if (!verification.ok) {
+      return res.status(400).json({ success: false, error: verification.error });
+    }
+
+    const updatedUser = {
+      ...currentUser,
+      phone,
+      phoneVerifiedAt: new Date().toISOString()
+    };
+    db.users = (db.users || []).map((user: any) => user.id === userId ? updatedUser : user);
+    await writeDb(db);
+
+    return res.json({ success: true, user: sanitizeUser(updatedUser) });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+  }
 });
 
 // Keeps an active session alive (called while the user is interacting)
@@ -1555,6 +1646,17 @@ app.post('/api/orders', async (req, res) => {
   const newOrder = req.body || {};
   const existingIdx = (db.orders || []).findIndex((o: any) => o.id === newOrder.id);
   const isNew = existingIdx < 0;
+
+  if (isNew && req.currentUser?.role !== 'admin') {
+    const currentUserId = String(req.currentUser?.id || '');
+    if (!currentUserId || String(newOrder.userId || '') !== currentUserId) {
+      return res.status(403).json({ success: false, error: 'ثبت سفارش فقط برای حساب واردشده مجاز است.' });
+    }
+    if (req.currentUser?.category !== 'colleague' && !isValidIranianPhone(req.currentUser?.phone)) {
+      return res.status(403).json({ success: false, error: 'برای ثبت سفارش ابتدا شماره موبایل خود را تأیید کنید.' });
+    }
+  }
+
   // Date + exact time of the order (authoritative, set once on creation)
   if (isNew) {
     if (!newOrder.createdAt) newOrder.createdAt = new Date().toISOString();
@@ -2133,7 +2235,7 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
       return res.status(400).json({
         success: false,
         error: 'invalid_amount',
-        message: 'مبلغ ارسالی برای صدور فاکتور نامعتبر است.'
+        message: 'م��لغ ارسالی برای صدور فاکتور نامعتبر است.'
       });
     }
 
@@ -2501,7 +2603,7 @@ app.post('/api/blupal/test-connection', async (req, res) => {
 
     return res.json({
       success: false,
-      message: `خطا در صدور فاکتور توسط سرور بلوپال (کد ${response.status}): ${blupalErrorMessage(
+      message: `خطا در صدور فاکتو�� توسط سرور بلوپال (کد ${response.status}): ${blupalErrorMessage(
         payload,
         response.status
       )}`,
