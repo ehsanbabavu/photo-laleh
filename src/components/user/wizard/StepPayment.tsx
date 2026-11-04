@@ -466,11 +466,9 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
           <div className="inline-block px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 font-mono font-black text-sm tracking-wider dir-ltr">
             {paymentRef || draft.paymentReference || 'BLU-CONFIRMED'}
           </div>
-          <p className="text-xs text-emerald-200">
-            {isOrderRegistered
-              ? 'سفارش در مرحلهٔ ثبت و پرداخت باقی می‌ماند؛ رتوش پس از شروع از پنل مدیریت انجام می‌شود.'
-              : 'در حال نهایی‌سازی ثبت سفارش...'}
-          </p>
+          {!isOrderRegistered && (
+            <p className="text-xs text-emerald-200">در حال نهایی‌سازی ثبت سفارش...</p>
+          )}
         </div>
       )}
 
