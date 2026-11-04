@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod, PrintImageKey } from './types';
+import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
@@ -793,29 +793,6 @@ export default function App() {
     );
   };
 
-  const handleUpdatePrintSelection = async (
-    orderId: string,
-    selectedPrintImages: PrintImageKey[]
-  ): Promise<boolean> => {
-    try {
-      const result = await apiClient.updateOrderPrintSelection(orderId, selectedPrintImages);
-      const savedSelection = Array.isArray(result?.selectedPrintImages)
-        ? (result.selectedPrintImages as PrintImageKey[])
-        : selectedPrintImages;
-      setOrders((prev) =>
-        prev.map((order) =>
-          order.id === orderId ? { ...order, selectedPrintImages: savedSelection } : order
-        )
-      );
-      showToast('انتخاب عکس‌های چاپ ذخیره شد.');
-      return true;
-    } catch (error) {
-      console.error('Failed to save print image selection:', error);
-      showToast('ذخیره انتخاب عکس‌های چاپ ناموفق بود. دوباره تلاش کنید.');
-      return false;
-    }
-  };
-
   const handleUpdateOrder = (updatedOrder: Order) => {
     setOrders((prev) => {
       const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
@@ -1256,7 +1233,6 @@ export default function App() {
                   orders={orders}
                   user={currentUser}
                   onStartNewOrder={() => setUserTab('wizard')}
-                  onUpdatePrintSelection={handleUpdatePrintSelection}
                 />
               )}
 
