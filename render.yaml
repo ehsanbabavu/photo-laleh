@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: photo-laleh
+    runtime: node
+    plan: starter
+    buildCommand: npm install --include=dev && node scripts/generate-favicons.mjs && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: photo-laleh-postgres
+          property: connectionString
+      - key: DEFAULT_DATABASE_PROVIDER
+        value: postgres
+      - key: POSTGRES_AUTO_CREATE_SCHEMA
+        value: "true"
+
+databases:
+  - name: photo-laleh-postgres
+    databaseName: photo_laleh
+    user: photo_laleh
+    plan: 0.1c-256mb

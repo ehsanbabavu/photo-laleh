@@ -1,10 +1,10 @@
 /**
  * MongoDB persistence layer.
  *
- * All application data (users, orders, tickets, print types, announcements,
- * prompts, settings, BluPal invoices and webhook logs) lives in MongoDB.
- * The only thing kept on local disk is the connection config that an admin
- * enters in the panel (or, preferably, the MONGODB_URI environment variable).
+ * MongoDB adapter for the shared storage layer. Application state (users,
+ * orders, tickets, print types, settings and related records) is routed here
+ * only while MongoDB is the active provider. The connection config is read from
+ * the admin panel or, preferably, the MONGODB_URI environment variable.
  */
 import crypto from 'crypto';
 import fs from 'fs';

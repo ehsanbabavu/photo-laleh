@@ -118,7 +118,7 @@ export const AdminDatabaseSettings: React.FC<AdminDatabaseSettingsProps> = ({ sh
 
         <p className="text-[11px] text-slate-500">{existingConnection}</p>
         <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-          برای ماندگاری اتصال MongoDB روی Vercel، متغیر محیطی MONGODB_URI را تنظیم کنید؛ فایل تنظیمات این فرم روی دیسک موقت سرورلس ذخیره می‌شود.
+          برای ماندگاری اتصال MongoDB روی هاست، متغیر محیطی MONGODB_URI را تنظیم کنید؛ فایل تنظیمات این فرم روی دیسک موقت بعضی هاست‌ها پایدار نمی‌ماند.
         </p>
         {savedMask && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">

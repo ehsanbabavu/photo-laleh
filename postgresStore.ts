@@ -76,14 +76,71 @@ const schema = { appRecords, storageControl, sessions, otps, rateLimits, auditLo
 export type PgDatabase = NodePgDatabase<typeof schema>;
 
 const POSTGRES_LOCK_KEY = '7216031492871';
+const POSTGRES_SCHEMA_LOCK_KEY = '7216031492872';
 const APP_STATE_SNAPSHOT = Symbol.for('laleh.postgres.state-signatures');
 const PROVIDER_CONTROL_KEY = 'active_provider';
 
 type CachedPool = { connectionString: string; pool: Pool };
 const globalForPool = globalThis as typeof globalThis & { __lalehPostgresPool?: CachedPool };
+const globalForSchema = globalThis as typeof globalThis & {
+  __lalehPostgresSchema?: { connectionString: string; promise: Promise<void> };
+};
+
+const POSTGRES_SCHEMA_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS laleh_app_records (
+    collection text NOT NULL,
+    record_id text NOT NULL,
+    position integer NOT NULL DEFAULT 0,
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (collection, record_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS laleh_storage_control (
+    key text PRIMARY KEY,
+    value text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS laleh_sessions (
+    token text PRIMARY KEY,
+    user_id text NOT NULL,
+    device_id text NOT NULL DEFAULT '',
+    user_agent text NOT NULL DEFAULT '',
+    ip text NOT NULL DEFAULT '',
+    created_at bigint NOT NULL,
+    last_seen_at bigint NOT NULL,
+    expires_at timestamptz NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS laleh_otps (
+    phone text PRIMARY KEY,
+    code text NOT NULL,
+    attempts integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL,
+    expires_at timestamptz NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS laleh_rate_limits (
+    key text PRIMARY KEY,
+    count integer NOT NULL,
+    reset_at timestamptz NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS laleh_audit_logs (
+    id bigserial PRIMARY KEY,
+    entry jsonb NOT NULL,
+    created_at timestamptz NOT NULL
+  )`
+] as const;
 
 function hasPostgresConfig() {
   return Boolean(process.env.DATABASE_URL?.trim());
+}
+
+function getDefaultProvider(): StorageProvider {
+  return String(process.env.DEFAULT_DATABASE_PROVIDER || '').trim().toLowerCase() === 'postgres'
+    ? 'postgres'
+    : 'mongodb';
+}
+
+function shouldCreatePostgresSchema() {
+  return String(process.env.POSTGRES_AUTO_CREATE_SCHEMA || '').trim().toLowerCase() === 'true';
 }
 
 function getPool(): Pool {
@@ -104,6 +161,39 @@ function getPool(): Pool {
   return pool;
 }
 
+async function ensurePostgresSchema() {
+  if (!hasPostgresConfig() || !shouldCreatePostgresSchema()) return;
+
+  const connectionString = String(process.env.DATABASE_URL || '').trim();
+  const cached = globalForSchema.__lalehPostgresSchema;
+  if (cached?.connectionString === connectionString) return cached.promise;
+
+  const promise = (async () => {
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [POSTGRES_SCHEMA_LOCK_KEY]);
+      for (const statement of POSTGRES_SCHEMA_STATEMENTS) await client.query(statement);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  })();
+
+  globalForSchema.__lalehPostgresSchema = { connectionString, promise };
+  try {
+    await promise;
+  } catch (error) {
+    if (globalForSchema.__lalehPostgresSchema?.promise === promise) {
+      globalForSchema.__lalehPostgresSchema = undefined;
+    }
+    throw error;
+  }
+}
+
 function createDatabase(client: Pool | PoolClient): PgDatabase {
   return drizzle(client as any, { schema }) as PgDatabase;
 }
@@ -119,13 +209,14 @@ async function readActiveProviderFrom(db: PgDatabase): Promise<StorageProvider> 
     .where(eq(storageControl.key, PROVIDER_CONTROL_KEY))
     .limit(1);
 
-  if (!row) return 'mongodb';
-  if (row.value !== 'postgres') throw new Error('نشانگر دیتابیس فعال نامعتبر است');
-  return 'postgres';
+  if (!row) return getDefaultProvider();
+  if (row.value !== 'postgres' && row.value !== 'mongodb') throw new Error('نشانگر دیتابیس فعال نامعتبر است');
+  return row.value;
 }
 
 export async function getActiveProvider(): Promise<StorageProvider> {
   if (!hasPostgresConfig()) return 'mongodb';
+  await ensurePostgresSchema();
   return readActiveProviderFrom(createDatabase(getPool()));
 }
 
@@ -133,6 +224,7 @@ export async function withStorageWriteLease<T>(
   callback: (provider: StorageProvider, db: PgDatabase | null) => Promise<T>
 ): Promise<T> {
   if (!hasPostgresConfig()) return callback('mongodb', null);
+  await ensurePostgresSchema();
 
   const client = await getPool().connect();
   try {
@@ -155,6 +247,7 @@ export async function withExclusiveStorageLock<T>(
   callback: (provider: StorageProvider, db: PgDatabase) => Promise<T>
 ): Promise<T> {
   if (!hasPostgresConfig()) throw new Error('اتصال PostgreSQL در پروژه تنظیم نشده است');
+  await ensurePostgresSchema();
 
   const client = await getPool().connect();
   try {
@@ -174,24 +267,20 @@ export async function withExclusiveStorageLock<T>(
 }
 
 export async function setActiveProvider(db: PgDatabase, provider: StorageProvider) {
-  if (provider === 'postgres') {
-    await db
-      .insert(storageControl)
-      .values({ key: PROVIDER_CONTROL_KEY, value: 'postgres' })
-      .onConflictDoUpdate({
-        target: storageControl.key,
-        set: { value: 'postgres', updatedAt: new Date() }
-      });
-    return;
-  }
-
-  await db.delete(storageControl).where(eq(storageControl.key, PROVIDER_CONTROL_KEY));
+  await db
+    .insert(storageControl)
+    .values({ key: PROVIDER_CONTROL_KEY, value: provider })
+    .onConflictDoUpdate({
+      target: storageControl.key,
+      set: { value: provider, updatedAt: new Date() }
+    });
 }
 
 export async function getPostgresStatus(): Promise<{ configured: boolean; connected: boolean; error?: string }> {
   if (!hasPostgresConfig()) return { configured: false, connected: false };
 
   try {
+    await ensurePostgresSchema();
     await createDatabase(getPool()).execute(sql`select 1`);
     return { configured: true, connected: true };
   } catch (error: any) {

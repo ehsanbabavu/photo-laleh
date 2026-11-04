@@ -117,7 +117,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     },
     {
       id: 'database' as AdminTab,
-      label: 'اتصال به دیتابیس MongoDB',
+      label: 'اتصال به دیتابیس',
       icon: Database
     },
     {

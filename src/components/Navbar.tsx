@@ -105,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const settingsItems = [
     { id: 'chatgpt' as AdminTab, label: 'اتصال به هوش مصنوعی', icon: BotMessageSquare },
-    { id: 'database' as AdminTab, label: 'اتصال به دیتابیس MongoDB', icon: Database },
+    { id: 'database' as AdminTab, label: 'اتصال به دیتابیس', icon: Database },
     { id: 'telegram_bot' as AdminTab, label: 'اتصال به ربات تلگرام', icon: Send },
     { id: 'blupal' as AdminTab, label: 'تنظیمات بلوپال', icon: CreditCard },
     { id: 'backup' as AdminTab, label: 'پشتیبان‌گیری و بازیابی', icon: HardDrive },
