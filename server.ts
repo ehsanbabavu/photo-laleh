@@ -28,6 +28,7 @@ import {
   revokeSession,
   getStorageStatus,
   testPostgresConnection,
+  bootstrapPostgresAdminCredentials,
   copyStorageProviderData,
   switchStorageProvider
 } from './storage';
@@ -4181,7 +4182,24 @@ app.get('/api/auth/telegram/pending', async (req: any, res) => {
 // Start Express + Vite Server
 const PORT = Number(process.env.PORT) || 3000;
 
+async function bootstrapInitialAdmin() {
+  const rawPhone = String(process.env.INITIAL_ADMIN_PHONE || '');
+  const rawPassword = String(process.env.INITIAL_ADMIN_PASSWORD || '');
+  if (!rawPhone && !rawPassword && process.env.DEFAULT_DATABASE_PROVIDER !== 'postgres') return;
+
+  try {
+    const phone = normalizePhone(rawPhone);
+    const passwordHash = rawPassword ? hashPassword(rawPassword) : '';
+    const result = await bootstrapPostgresAdminCredentials(phone, passwordHash);
+    if (result.created) console.log('[v0] Initial PostgreSQL admin account initialized.');
+  } finally {
+    delete process.env.INITIAL_ADMIN_PHONE;
+    delete process.env.INITIAL_ADMIN_PASSWORD;
+  }
+}
+
 async function startServer() {
+  await bootstrapInitialAdmin();
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

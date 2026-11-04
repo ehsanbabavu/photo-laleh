@@ -16,6 +16,10 @@ services:
         value: postgres
       - key: POSTGRES_AUTO_CREATE_SCHEMA
         value: "true"
+      - key: INITIAL_ADMIN_PHONE
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
 
 databases:
   - name: photo-laleh-postgres

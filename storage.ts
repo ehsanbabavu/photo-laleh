@@ -277,6 +277,31 @@ async function copyProviderData(source: StorageProvider, target: StorageProvider
   }
 }
 
+export async function bootstrapPostgresAdminCredentials(phone: string, passwordHash: string) {
+  return postgres.withExclusiveStorageLock(async (activeProvider, db) => {
+    if (activeProvider !== 'postgres') throw new Error('برای راه‌اندازی ادمین اولیه، PostgreSQL باید دیتابیس فعال باشد.');
+
+    const state = await postgres.readDb(db);
+    const users = Array.isArray(state.users) ? state.users : [];
+    const admin = users.find((user: any) => user?.role === 'admin');
+    if (!admin) throw new Error('کاربر ادمین اولیه در داده‌های شروع پیدا نشد.');
+    if (admin.password) return { created: false };
+    if (!/^09\d{9}$/.test(phone)) throw new Error('شماره ادمین معتبر نیست.');
+    if (!/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i.test(passwordHash)) {
+      throw new Error('فرمت رمز هش‌شده معتبر نیست.');
+    }
+
+    const phoneInUse = users.some((user: any) => user?.id !== admin.id && String(user?.phone || '') === phone);
+    if (phoneInUse) throw new Error('این شماره قبلاً برای کاربر دیگری ثبت شده است.');
+
+    state.users = users.map((user: any) =>
+      user?.id === admin.id ? { ...user, phone, username: phone, password: passwordHash } : user
+    );
+    await postgres.writeDb(db, state);
+    return { created: true };
+  });
+}
+
 export async function copyStorageProviderData(source: StorageProvider, target: StorageProvider) {
   if (!['mongodb', 'postgres'].includes(source) || !['mongodb', 'postgres'].includes(target) || source === target) {
     throw new Error('جهت کپی دیتابیس معتبر نیست.');
