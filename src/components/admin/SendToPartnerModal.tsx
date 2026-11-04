@@ -13,8 +13,9 @@ import {
   Building2,
   Printer
 } from 'lucide-react';
-import { Order, PartnerChannel, User } from '../../types';
+import { Order, PartnerChannel, User, PrintImageKey } from '../../types';
 import { formatPrice } from '../../utils/formatters';
+import { getOrderPrintAssets } from '../../utils/orderPrintAssets';
 
 interface SendToPartnerModalProps {
   order: Order;
@@ -26,8 +27,8 @@ interface SendToPartnerModalProps {
 }
 
 /**
- * Two-step flow: pick exactly one colleague → pick the channel (Eitaa/Telegram).
- * The backend sends the print files + production details and issues the
+ * Three-step flow: choose print images, select one colleague, then choose a channel.
+ * The backend sends the selected files with production details and issues the
  * internal partner invoice (cost price based).
  */
 export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
@@ -38,7 +39,14 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
   onClose,
   onSent
 }) => {
-  const [step, setStep] = useState<1 | 2>(1);
+  const availableImages = useMemo(() => getOrderPrintAssets(order), [order]);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedImageKeys, setSelectedImageKeys] = useState<PrintImageKey[]>(() => {
+    const availableKeys = new Set(availableImages.map((asset) => asset.key));
+    return Array.isArray(order.selectedPrintImages)
+      ? order.selectedPrintImages.filter((key) => availableKeys.has(key))
+      : availableImages.map((asset) => asset.key);
+  });
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [channel, setChannel] = useState<PartnerChannel | null>(null);
@@ -73,11 +81,12 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
       const res = await fetch('/api/print/send-to-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: order.id,
-          partnerId: selected.id,
-          channel
-        })
+          body: JSON.stringify({
+            orderId: order.id,
+            partnerId: selected.id,
+            channel,
+            imageKeys: selectedImageKeys
+          })
       });
       const data: any = await res.json().catch(() => null);
 
@@ -109,7 +118,7 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
                 ارسال برای چاپ {order.trackingCode ? `— ${order.trackingCode}` : ''}
               </h3>
               <p className="text-[10px] text-slate-500">
-                مرحله {step} از ۲ — {step === 1 ? 'انتخاب همکار' : 'انتخاب روش ارسال'}
+                مرحله {step} از ۳ — {step === 1 ? 'انتخاب تصاویر' : step === 2 ? 'انتخاب همکار' : 'انتخاب روش ارسال'}
               </p>
             </div>
           </div>
@@ -123,8 +132,8 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
 
         {/* Steps indicator */}
         <div className="px-4 pt-3 flex items-center gap-2 flex-shrink-0">
-          {[1, 2].map((n) => (
-            <div key={n} className="flex-1 flex items-center gap-2">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="flex-1 flex items-center gap-2 min-w-0">
               <span
                 className={`w-6 h-6 rounded-full text-[11px] font-black flex items-center justify-center flex-shrink-0 ${
                   step >= n ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-400'
@@ -132,10 +141,10 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
               >
                 {step > n ? <CheckCircle2 className="w-3.5 h-3.5" /> : n}
               </span>
-              <span className={`text-[10px] font-bold ${step >= n ? 'text-slate-800' : 'text-slate-400'}`}>
-                {n === 1 ? 'همکار' : 'ایتا / تلگرام'}
+              <span className={`text-[10px] font-bold truncate ${step >= n ? 'text-slate-800' : 'text-slate-400'}`}>
+                {n === 1 ? 'عکس‌ها' : n === 2 ? 'همکار' : 'ارسال'}
               </span>
-              {n === 1 && <span className="flex-1 h-px bg-slate-200" />}
+              {n < 3 && <span className="flex-1 h-px bg-slate-200" />}
             </div>
           ))}
         </div>
@@ -157,6 +166,61 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
           )}
 
           {step === 1 ? (
+            <>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-black text-slate-900">عکس‌های موردنظر برای چاپ را انتخاب کنید</h4>
+                  <p className="text-[10px] text-slate-500 mt-1">فقط خروجی‌های آماده در فهرست دیده می‌شوند.</p>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 whitespace-nowrap">
+                  {selectedImageKeys.length} انتخاب
+                </span>
+              </div>
+
+              {availableImages.length === 0 ? (
+                <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                  هنوز خروجی تصویری برای ارسال به چاپ آماده نیست.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {availableImages.map((asset) => {
+                    const isSelected = selectedImageKeys.includes(asset.key);
+                    return (
+                      <label
+                        key={asset.key}
+                        className={`cursor-pointer rounded-xl border p-2 transition-colors ${
+                          isSelected ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={isSelected}
+                          aria-label={`ارسال ${asset.label} برای چاپ`}
+                          onChange={(event) => {
+                            setSelectedImageKeys((previous) =>
+                              event.target.checked
+                                ? [...previous, asset.key]
+                                : previous.filter((key) => key !== asset.key)
+                            );
+                          }}
+                        />
+                        <img
+                          src={asset.imageUrl}
+                          alt={`پیش‌نمایش ${asset.label}`}
+                          className="h-32 w-full rounded-lg bg-slate-100 object-contain"
+                        />
+                        <span className="mt-1.5 flex items-center justify-between gap-1 text-[10px] font-bold text-slate-700">
+                          <span className="truncate">{asset.label}</span>
+                          {isSelected && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 text-emerald-600" />}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : step === 2 ? (
             <>
               <div className="relative">
                 <input
@@ -228,7 +292,6 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
             </>
           ) : (
             <>
-              {/* Order summary (production details only) */}
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-[11px]">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">همکار:</span>
@@ -242,9 +305,17 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
                   <span className="text-slate-500">تعداد:</span>
                   <span className="font-bold font-mono text-slate-900">{quantity} سری</span>
                 </div>
-                <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-200 leading-relaxed">
-                  عکس‌های سفارش به‌صورت فایل + مشخصات چاپ (سایز و تعداد) برای همکار ارسال می‌شود؛
-                  اطلاعات مشتری و مبلغ فاکتور ارسال نمی‌شود.
+                <div className="pt-1 border-t border-slate-200">
+                  <span className="text-slate-500">عکس‌های انتخاب‌شده:</span>
+                  <p className="mt-0.5 font-bold text-slate-800">
+                    {availableImages
+                      .filter((asset) => selectedImageKeys.includes(asset.key))
+                      .map((asset) => asset.label)
+                      .join('، ')}
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-500 pt-1 leading-relaxed">
+                  فقط عکس‌های انتخاب‌شده و مشخصات چاپ برای همکار ارسال می‌شود؛ اطلاعات مشتری و مبلغ فاکتور ارسال نمی‌شود.
                 </p>
               </div>
 
@@ -311,7 +382,7 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
               </button>
               <button
                 type="button"
-                disabled={!selected}
+                disabled={selectedImageKeys.length === 0}
                 onClick={() => setStep(2)}
                 className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
@@ -319,7 +390,7 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
                 <ChevronLeft className="w-4 h-4" />
               </button>
             </>
-          ) : (
+          ) : step === 2 ? (
             <>
               <button
                 type="button"
@@ -332,8 +403,29 @@ export const SendToPartnerModal: React.FC<SendToPartnerModalProps> = ({
               </button>
               <button
                 type="button"
+                disabled={!selected}
+                onClick={() => setStep(3)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                مرحله بعد
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                disabled={isSending}
+                className="inline-flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer disabled:opacity-60"
+              >
+                <ChevronRight className="w-4 h-4" />
+                بازگشت
+              </button>
+              <button
+                type="button"
                 onClick={handleSend}
-                disabled={!channel || isSending}
+                disabled={!channel || isSending || selectedImageKeys.length === 0}
                 className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSending ? (

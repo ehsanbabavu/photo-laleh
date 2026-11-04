@@ -13,13 +13,16 @@ import {
   CheckCircle2,
   FileImage,
   RefreshCw,
+  Upload,
   Info,
   Send,
   Clock
 } from 'lucide-react';
 import { Order } from '../../types';
+import type { PrintImageKey } from '../../types';
 import { formatPrice, getStatusBadge, formatOrderDateTime, deriveOrderCreatedAt } from '../../utils/formatters';
 import { generateNinePackSheet, downloadImage } from '../../utils/sheetGenerator';
+import { getOrderPrintAssets } from '../../utils/orderPrintAssets';
 import { QueueStateInfo } from '../../utils/aiQueueManager';
 import { PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
 import type { PrintDimension, User } from '../../types';
@@ -30,6 +33,7 @@ interface AdminOrdersProps {
   queueInfo?: QueueStateInfo;
   onUpdateOrderStatus: (orderId: string, newStatus: Order['status']) => void;
   onUpdateOrder?: (updatedOrder: Order) => void;
+  onGenerateOrderImage?: (order: Order, asset: 'ai' | 'commercial') => void;
   onDeleteOrder?: (orderId: string) => void;
   onClearAllOrders?: () => void;
   telegramToken?: string;
@@ -43,6 +47,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   queueInfo,
   onUpdateOrderStatus,
   onUpdateOrder,
+  onGenerateOrderImage,
   onDeleteOrder,
   onClearAllOrders,
   telegramToken,
@@ -57,12 +62,26 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [generatingSheetId, setGeneratingSheetId] = useState<string | null>(null);
+  const [uploadingImageAsset, setUploadingImageAsset] = useState<PrintImageKey | null>(null);
+  const imageInputRefs = React.useRef<Record<PrintImageKey, HTMLInputElement | null>>({
+    sheet: null,
+    ai: null,
+    commercial: null
+  });
   const [activeImageTab, setActiveImageTab] = useState<'sheet' | 'ai' | 'commercial' | 'original'>('sheet');
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [sentOrderIds, setSentOrderIds] = useState<Record<string, boolean>>({});
   const [partners, setPartners] = useState<User[]>([]);
   const [sendPartnerOrder, setSendPartnerOrder] = useState<Order | null>(null);
   const [partnerToast, setPartnerToast] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!selectedOrder) return;
+    const latestOrder = orders.find((order) => order.id === selectedOrder.id);
+    if (latestOrder && latestOrder !== selectedOrder) {
+      setSelectedOrder(latestOrder);
+    }
+  }, [orders, selectedOrder]);
 
   // Colleagues that can receive print jobs (admin-only endpoint)
   React.useEffect(() => {
@@ -87,6 +106,12 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
 
   const handleSendToTelegramPrint = async () => {
     if (!selectedOrder) return;
+    const selectedPrintImages =
+      selectedOrder.selectedPrintImages ?? getOrderPrintAssets(selectedOrder).map((asset) => asset.key);
+    if (selectedPrintImages.length === 0) {
+      showToast('ابتدا دست‌کم یک عکس را برای چاپ انتخاب کنید.');
+      return;
+    }
     const token = telegramToken || '';
     const chatId = telegramChatId || '';
 
@@ -106,14 +131,14 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
         body: JSON.stringify({
           botToken: token,
           chatId: chatId,
-          order: selectedOrder,
+          order: { ...selectedOrder, selectedPrintImages },
           dimensionTitle: dimObj?.title,
           materialName: materialObj?.name
         })
       });
       const data = await res.json();
       if (data.success) {
-        showToast?.('فایل‌های شیت ۹تایی، عکس تبلیغاتی و مشخصات سفارش با موفقیت به تلگرام مدیر ارسال شد!');
+        showToast?.('عکس‌های انتخاب‌شده برای چاپ با موفقیت به تلگرام ارسال شدند.');
         setSentOrderIds((prev) => {
           const next = { ...prev, [selectedOrder.id]: true };
           return next;
@@ -210,6 +235,149 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
     } finally {
       setGeneratingSheetId(null);
     }
+  };
+
+  const handleReplaceImage = async (asset: PrintImageKey, file: File) => {
+    if (!selectedOrder) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      showToast('فقط فایل JPEG، PNG یا WebP قابل استفاده است.');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('حجم عکس نباید بیشتر از ۱۵ مگابایت باشد.');
+      return;
+    }
+
+    setUploadingImageAsset(asset);
+    try {
+      const { upload } = await import('@vercel/blob/client');
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      const uploaded = await upload(
+        `orders/${selectedOrder.id}/${asset}-${Date.now()}-${safeName}`,
+        file,
+        {
+          access: 'public',
+          handleUploadUrl: '/api/uploads/blob',
+          contentType: file.type
+        }
+      );
+      const latestOrder = orders.find((order) => order.id === selectedOrder.id) || selectedOrder;
+      const replacedAt = new Intl.DateTimeFormat('fa-IR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(new Date());
+      const updatedOrder: Order =
+        asset === 'sheet'
+          ? { ...latestOrder, printSheetImage: uploaded.url, printSheetCreatedAt: replacedAt }
+          : asset === 'ai'
+          ? {
+              ...latestOrder,
+              aiProcessedImage: uploaded.url,
+              aiStatus: 'completed',
+              aiCompletedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+            }
+          : {
+              ...latestOrder,
+              commercialImage: uploaded.url,
+              commercialSheet10x15Image: uploaded.url
+            };
+
+      setSelectedOrder(updatedOrder);
+      onUpdateOrder?.(updatedOrder);
+      showToast(`عکس «${asset === 'sheet' ? 'شیت ۹تایی' : asset === 'ai' ? 'خروجی هوش مصنوعی' : 'تبلیغاتی'}» جایگزین شد.`);
+    } catch (error) {
+      console.error('Failed to replace order image:', error);
+      showToast('جایگزینی عکس ناموفق بود. لطفاً دوباره تلاش کنید.');
+    } finally {
+      setUploadingImageAsset(null);
+    }
+  };
+
+  const isSelectedOrderQueued = Boolean(
+    selectedOrder &&
+      (queueInfo?.currentOrderId === selectedOrder.id ||
+        queueInfo?.queueList.some((item) => item.orderId === selectedOrder.id))
+  );
+
+  const renderOutputActions = (asset: PrintImageKey, imageUrl: string | undefined, fileName: string) => {
+    const isGenerating =
+      asset === 'sheet'
+        ? generatingSheetId === selectedOrder?.id
+        : isSelectedOrderQueued;
+    const canGenerate =
+      asset === 'sheet'
+        ? Boolean(selectedOrder?.aiProcessedImage || selectedOrder?.uploadedImage)
+        : Boolean(selectedOrder?.uploadedImage && onGenerateOrderImage);
+    const generateLabel =
+      asset === 'sheet'
+        ? 'تولید شیت ۹تایی'
+        : asset === 'ai'
+        ? 'تولید خروجی هوش مصنوعی'
+        : 'تولید عکس تبلیغاتی';
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <input
+          ref={(element) => {
+            imageInputRefs.current[asset] = element;
+          }}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="sr-only"
+          aria-label={`انتخاب عکس جایگزین برای ${asset}`}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (file) void handleReplaceImage(asset, file);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => imageInputRefs.current[asset]?.click()}
+          disabled={Boolean(uploadingImageAsset) || isSelectedOrderQueued}
+          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {uploadingImageAsset === asset ? (
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Upload className="w-3.5 h-3.5" />
+          )}
+          {uploadingImageAsset === asset ? 'در حال آپلود...' : 'جایگزین کردن عکس'}
+        </button>
+        <button
+          type="button"
+          onClick={() => imageUrl && void downloadImage(imageUrl, fileName)}
+          disabled={!imageUrl}
+          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download className="w-3.5 h-3.5" />
+          دانلود عکس
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!selectedOrder) return;
+            if (asset === 'sheet') {
+              void handleGenerateSheet(selectedOrder);
+            } else {
+              onGenerateOrderImage?.(selectedOrder, asset);
+            }
+          }}
+          disabled={!canGenerate || isGenerating || Boolean(uploadingImageAsset)}
+          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-bold text-violet-800 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isGenerating ? (
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="w-3.5 h-3.5" />
+          )}
+          {isGenerating ? 'در حال تولید...' : generateLabel}
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -594,70 +762,24 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                   </button>
                 </div>
 
-                {/* Quick Tool Button */}
-                {!selectedOrder.printSheetImage && (
-                  <div className="flex justify-end w-full">
-                    <button
-                      type="button"
-                      onClick={() => handleGenerateSheet(selectedOrder)}
-                      disabled={generatingSheetId === selectedOrder.id}
-                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${generatingSheetId === selectedOrder.id ? 'animate-spin' : ''}`} />
-                      <span>تولید شیت ۹تایی چاپ</span>
-                    </button>
-                  </div>
-                )}
+
               </div>
 
               {/* Tab Content 1: 9-Pack Sheet */}
               {activeImageTab === 'sheet' && (
                 <div className="space-y-3">
                   {selectedOrder.printSheetImage ? (
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
-                        <span className="font-bold text-slate-800">
-                          شیت ۹ عددی ۳×۴ عمودی روی کاغذ استاندارد ۱۰×۱۵ سانتیمتر (کیفیت ۳۰۰ DPI با خط کم‌رنگ دور عکس‌ها):
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadImage(
-                              selectedOrder.printSheetImage!,
-                              `laleh-studio-9pack-sheet-${selectedOrder.trackingCode}.jpg`
-                            )
-                          }
-                          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>دانلود فایل شیت ۹تایی (High-Res)</span>
-                        </button>
-                      </div>
-
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-slate-800">
+                        شیت ۹ عددی ۳×۴ روی کاغذ استاندارد ۱۰×۱۵ سانتی‌متر با کیفیت ۳۰۰ DPI:
+                      </p>
                       <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 relative flex items-center justify-center">
                         <img
                           src={selectedOrder.printSheetImage}
-                          alt="شیت ۹ تایی"
+                          alt="شیت ۹تایی چاپ"
                           className="max-h-[420px] w-auto object-contain rounded-lg shadow-md border border-white"
                         />
                         <PrintedGlassButton order={selectedOrder} />
-                      </div>
-
-                      {/* Mobile-only download button under the photo */}
-                      <div className="flex sm:hidden justify-center mt-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadImage(
-                              selectedOrder.printSheetImage!,
-                              `laleh-studio-9pack-sheet-${selectedOrder.trackingCode}.jpg`
-                            )
-                          }
-                          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span>دانلود فایل شیت ۹تایی (High-Res)</span>
-                        </button>
                       </div>
                     </div>
                   ) : (
@@ -666,21 +788,17 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         <LayoutGrid className="w-6 h-6" />
                       </div>
                       <div className="max-w-md mx-auto">
-                        <h4 className="text-sm font-black text-slate-900">شیت ۹ تایی هنوز تولید نشده است</h4>
+                        <h4 className="text-sm font-black text-slate-900">شیت ۹تایی هنوز تولید نشده است</h4>
                         <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          با کلیک بر روی دکمه زیر، عکس خروجی به‌صورت خودکار ۹ بار در قالب ۳ در ۳ روی کاغذ عمودی ۱۰×۱۵ با حفظ فاصله و خط کم‌رنگ دور هر عکس چیده می‌شود.
+                          عکس خروجی به‌صورت خودکار ۹ بار روی کاغذ عمودی ۱۰×۱۵ چیده می‌شود.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleGenerateSheet(selectedOrder)}
-                        disabled={generatingSheetId === selectedOrder.id}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        <span>ایجاد فوری شیت ۹ تایی چاپ</span>
-                      </button>
                     </div>
+                  )}
+                  {renderOutputActions(
+                    'sheet',
+                    selectedOrder.printSheetImage,
+                    `laleh-studio-9pack-sheet-${selectedOrder.trackingCode}.jpg`
                   )}
                 </div>
               )}
@@ -689,54 +807,30 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               {activeImageTab === 'ai' && (
                 <div className="space-y-3">
                   {selectedOrder.aiProcessedImage ? (
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
-                        <span className="font-bold text-slate-800">تصویر تک پرسنلی رتوش شده توسط هوش مصنوعی:</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadImage(
-                              selectedOrder.aiProcessedImage!,
-                              `ai-processed-${selectedOrder.trackingCode}.jpg`
-                            )
-                          }
-                          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>دانلود خروجی AI</span>
-                        </button>
-                      </div>
-
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-slate-800">
+                        تصویر پرسنلی رتوش‌شده توسط هوش مصنوعی:
+                      </p>
                       <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 relative flex items-center justify-center">
                         <img
                           src={selectedOrder.aiProcessedImage}
-                          alt="خروجی AI"
+                          alt="خروجی هوش مصنوعی"
                           className="max-h-[380px] w-auto object-contain rounded-lg shadow-md border border-white"
                         />
                         <PrintedGlassButton order={selectedOrder} />
                       </div>
-
-                      {/* Mobile-only download button under the photo */}
-                      <div className="flex sm:hidden justify-center mt-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadImage(
-                              selectedOrder.aiProcessedImage!,
-                              `ai-processed-${selectedOrder.trackingCode}.jpg`
-                            )
-                          }
-                          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span>دانلود خروجی AI</span>
-                        </button>
-                      </div>
                     </div>
                   ) : (
                     <div className="p-8 text-center bg-white border border-slate-200 rounded-xl">
-                      <p className="text-xs text-slate-500">تصویر پردازش شده با هوش مصنوعی برای این سفارش ثبت نشده است.</p>
+                      <p className="text-xs text-slate-500">
+                        تصویر پردازش‌شده با هوش مصنوعی برای این سفارش ثبت نشده است.
+                      </p>
                     </div>
+                  )}
+                  {renderOutputActions(
+                    'ai',
+                    selectedOrder.aiProcessedImage,
+                    `ai-processed-${selectedOrder.trackingCode}.jpg`
                   )}
                 </div>
               )}
@@ -745,26 +839,10 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               {activeImageTab === 'commercial' && (
                 <div className="space-y-3">
                   {selectedOrder.commercialSheet10x15Image || selectedOrder.commercialImage ? (
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
-                        <span className="font-bold text-slate-800">
-                          عکس تبلیغاتی هوش مصنوعی - سایزبندی شده در قالب استاندارد ۱۰×۱۵ سانتی‌متر (۳۰۰ DPI):
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadImage(
-                              selectedOrder.commercialSheet10x15Image || selectedOrder.commercialImage!,
-                              `laleh-commercial-10x15-${selectedOrder.trackingCode}.jpg`
-                            )
-                          }
-                          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>دانلود عکس تبلیغاتی ۱۰×۱۵ (High-Res)</span>
-                        </button>
-                      </div>
-
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-slate-800">
+                        عکس تبلیغاتی در قالب استاندارد ۱۰×۱۵ سانتی‌متر:
+                      </p>
                       <div className="bg-slate-900/5 p-3 rounded-2xl border border-slate-200 relative flex items-center justify-center">
                         <img
                           src={selectedOrder.commercialSheet10x15Image || selectedOrder.commercialImage}
@@ -773,32 +851,20 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         />
                         <PrintedGlassButton order={selectedOrder} />
                       </div>
-
-                      {/* Mobile-only download button under the photo */}
-                      <div className="flex sm:hidden justify-center mt-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            downloadImage(
-                              selectedOrder.commercialSheet10x15Image || selectedOrder.commercialImage!,
-                              `laleh-commercial-10x15-${selectedOrder.trackingCode}.jpg`
-                            )
-                          }
-                          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span>دانلود عکس تبلیغاتی ۱۰×۱۵ (High-Res)</span>
-                        </button>
-                      </div>
                     </div>
                   ) : (
                     <div className="p-8 text-center bg-white border border-slate-200 rounded-xl space-y-2">
                       <Sparkles className="w-10 h-10 text-purple-400 mx-auto" />
                       <h4 className="text-xs font-bold text-slate-800">عکس تبلیغاتی این سفارش هنوز آماده نشده است</h4>
                       <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                        در سفارشات پرسنلی، درخواست ویرایش عکس اولیه به پرامپت تبلیغاتی به‌صورت خودکار پس از خروجی پرسنلی به صف اضافه شده و سایز ۱۰×۱۵ آن ذخیره می‌گردد.
+                        عکس تبلیغاتی پس از تولید در این بخش نمایش داده می‌شود.
                       </p>
                     </div>
+                  )}
+                  {renderOutputActions(
+                    'commercial',
+                    selectedOrder.commercialSheet10x15Image || selectedOrder.commercialImage,
+                    `laleh-commercial-10x15-${selectedOrder.trackingCode}.jpg`
                   )}
                 </div>
               )}
@@ -809,7 +875,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                   {selectedOrder.uploadedImage ? (
                     <div>
                       <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
-                        <span className="font-bold text-slate-800">عکس اولیه ارسالی توسط مشتری:</span>
+                        <span className="font-bold text-slate-800">عکس اولیه ار��الی توسط مشتری:</span>
                         <button
                           type="button"
                           onClick={() =>

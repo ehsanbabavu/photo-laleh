@@ -1,21 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Package,
   Plus,
   CheckCircle2,
   RefreshCw,
-  Calendar
+  Calendar,
+  Printer
 } from 'lucide-react';
-import { Order, User } from '../../types';
+import { Order, User, PrintImageKey } from '../../types';
 import { formatPrice, formatOrderDateTime, deriveOrderCreatedAt } from '../../utils/formatters';
+import { getOrderPrintAssets } from '../../utils/orderPrintAssets';
 
 interface UserOrdersProps {
   orders: Order[];
   user: User;
   onStartNewOrder: () => void;
+  onUpdatePrintSelection: (
+    orderId: string,
+    selectedPrintImages: PrintImageKey[]
+  ) => Promise<boolean>;
 }
 
-export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNewOrder }) => {
+export const UserOrders: React.FC<UserOrdersProps> = ({
+  orders,
+  user,
+  onStartNewOrder,
+  onUpdatePrintSelection
+}) => {
+  const [selectionDrafts, setSelectionDrafts] = useState<Record<string, PrintImageKey[]>>({});
+  const [savingSelectionIds, setSavingSelectionIds] = useState<Record<string, boolean>>({});
   const myOrders = orders.filter(
     (o) =>
       o.userId === user.id ||
@@ -26,6 +39,22 @@ export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNew
 
   // Check if any order is currently undergoing background processing
   const hasProcessingOrder = myOrders.some((o) => o.status === 'ai_processing' || o.aiStatus === 'processing');
+
+  const handleSavePrintSelection = async (orderId: string, selection: PrintImageKey[]) => {
+    setSavingSelectionIds((previous) => ({ ...previous, [orderId]: true }));
+    try {
+      const saved = await onUpdatePrintSelection(orderId, selection).catch(() => false);
+      if (saved) {
+        setSelectionDrafts((previous) => {
+          const next = { ...previous };
+          delete next[orderId];
+          return next;
+        });
+      }
+    } finally {
+      setSavingSelectionIds((previous) => ({ ...previous, [orderId]: false }));
+    }
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -54,6 +83,14 @@ export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNew
             const isProcessing = order.status === 'ai_processing' || order.aiStatus === 'processing';
             const isInQueue = order.aiStatus === 'in_queue';
             const displayPhoto = order.uploadedImage;
+            const printAssets = getOrderPrintAssets(order);
+            const availablePrintKeys = new Set(printAssets.map((asset) => asset.key));
+            const savedPrintImages = (
+              order.selectedPrintImages ?? printAssets.map((asset) => asset.key)
+            ).filter((key) => availablePrintKeys.has(key));
+            const selectedPrintImages = selectionDrafts[order.id] ?? savedPrintImages;
+            const selectionHasChanges =
+              [...selectedPrintImages].sort().join('|') !== [...savedPrintImages].sort().join('|');
 
             return (
               <div
@@ -220,6 +257,90 @@ export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNew
                     <span className="truncate text-[11px]">۴. بسته‌بندی و تحویل</span>
                   </div>
                 </div>
+
+                {order.paymentStatus === 'paid' && (
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="flex items-center gap-1.5 text-[11px] font-black text-slate-800">
+                        <Printer className="w-3.5 h-3.5 text-emerald-700" />
+                        عکس‌های ارسالی برای چاپ
+                      </h4>
+                      {printAssets.length > 0 && (
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {selectedPrintImages.length} انتخاب
+                        </span>
+                      )}
+                    </div>
+
+                    {printAssets.length === 0 ? (
+                      <p className="text-[10px] leading-relaxed text-slate-500">
+                        بعد از آماده‌شدن خروجی‌ها، می‌توانید انتخاب کنید کدام عکس‌ها برای چاپ ارسال شوند.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-2">
+                          {printAssets.map((asset) => {
+                            const isSelected = selectedPrintImages.includes(asset.key);
+                            return (
+                              <label
+                                key={asset.key}
+                                className={`cursor-pointer rounded-xl border p-1.5 transition-colors ${
+                                  isSelected
+                                    ? 'border-emerald-400 bg-emerald-50'
+                                    : 'border-slate-200 bg-white hover:border-slate-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="sr-only"
+                                  checked={isSelected}
+                                  aria-label={`ارسال ${asset.label} برای چاپ`}
+                                  onChange={() => {
+                                    const next = isSelected
+                                      ? selectedPrintImages.filter((key) => key !== asset.key)
+                                      : [...selectedPrintImages, asset.key];
+                                    setSelectionDrafts((previous) => ({
+                                      ...previous,
+                                      [order.id]: next
+                                    }));
+                                  }}
+                                />
+                                <img
+                                  src={asset.imageUrl}
+                                  alt={`پیش‌نمایش ${asset.label}`}
+                                  loading="lazy"
+                                  className="h-20 sm:h-28 w-full rounded-lg bg-slate-100 object-contain"
+                                />
+                                <span className="mt-1.5 flex items-center justify-between gap-1 text-[9px] sm:text-[10px] font-bold text-slate-700">
+                                  <span className="truncate">{asset.label}</span>
+                                  {isSelected && <CheckCircle2 className="w-3 h-3 flex-shrink-0 text-emerald-600" />}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-2">
+                          <p className="text-[9px] leading-relaxed text-slate-500">
+                            انتخاب شما هنگام ارسال سفارش برای چاپ استفاده می‌شود.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => void handleSavePrintSelection(order.id, selectedPrintImages)}
+                            disabled={!selectionHasChanges || Boolean(savingSelectionIds[order.id])}
+                            className="inline-flex min-h-9 flex-shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {savingSelectionIds[order.id] ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-3 h-3" />
+                            )}
+                            ذخیره انتخاب
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </section>
+                )}
 
                 {/* 3. Bottom Single Line: کد رهگیری در راست | مبلغ فاکتور در چپ (کوچک و یکپارچه در یک خط) */}
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500">
