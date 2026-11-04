@@ -27,7 +27,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'db-config.json');
 export const DEFAULT_DB_NAME = process.env.MONGODB_DB || 'laleh_studio';
 
 /** Collections where every record has its own document (keyed by `id`). */
-const ARRAY_COLLECTIONS = [
+export const ARRAY_COLLECTIONS = [
   'users',
   'orders',
   'tickets',
@@ -42,7 +42,7 @@ const ARRAY_COLLECTIONS = [
 ] as const;
 
 /** Collections that hold a single settings document (`_id: 'main'`). */
-const SINGLETON_COLLECTIONS = ['settings', 'prompts'] as const;
+export const SINGLETON_COLLECTIONS = ['settings', 'prompts'] as const;
 
 type ArrayCollection = (typeof ARRAY_COLLECTIONS)[number];
 type SingletonCollection = (typeof SINGLETON_COLLECTIONS)[number];
@@ -333,7 +333,7 @@ export async function ensureRetiredPrintTypesRemoved(db: Db) {
 }
 
 /** Belt and braces: hide the retired services from every read. */
-function dropRetiredPrintTypes(state: any) {
+export function dropRetiredPrintTypes(state: any) {
   if (Array.isArray(state?.printTypes)) {
     state.printTypes = state.printTypes.filter(
       (type: any) => !RETIRED_PRINT_TYPE_IDS.includes(String(type?.id))
@@ -673,7 +673,113 @@ export async function deleteSessionsByDevice(userId: string, deviceId: string): 
 export async function revokeSession(userId: string, createdAt: string): Promise<void> {
   const collection = await sessionsCollection();
   if (!collection) return;
-  await collection.deleteOne({ userId, createdAt: new Date(createdAt) }).catch(() => undefined);
+  const numeric = Number(createdAt);
+  const storedCreatedAt = Number.isFinite(numeric) ? numeric : new Date(createdAt);
+  await collection.deleteOne({ userId, createdAt: storedCreatedAt }).catch(() => undefined);
+}
+
+export async function readOperationalData() {
+  const db = await getDb();
+  if (!db) return { sessions: [], otps: [], rateLimits: [], auditLogs: [] };
+
+  const [sessions, otps, rateLimitDocs, auditLogs] = await Promise.all([
+    db.collection('sessions').find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection('otps').find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection('rate_limits').find({}).toArray(),
+    db.collection('audit_logs').find({}, { projection: { _id: 0 } }).toArray()
+  ]);
+
+  return {
+    sessions,
+    otps,
+    rateLimits: rateLimitDocs.map((doc: any) => {
+      const { _id, ...rest } = doc;
+      return { key: String(_id), ...rest };
+    }),
+    auditLogs
+  };
+}
+
+export async function replaceAllData(state: any, operational: any) {
+  const db = await getDb();
+  if (!db) throw new Error('اتصال MongoDB در دسترس نیست');
+  await db.command({ ping: 1 });
+
+  const nextState = dropRetiredPrintTypes(JSON.parse(JSON.stringify(state || {})));
+  for (const name of ARRAY_COLLECTIONS) {
+    const items = Array.isArray(nextState[name]) ? nextState[name] : [];
+    const collection = db.collection(name);
+    await collection.deleteMany({});
+    for (let index = 0; index < items.length; index += 250) {
+      const batch = items.slice(index, index + 250).map((item: any) => {
+        const copy = { ...item };
+        delete copy._id;
+        return copy;
+      });
+      if (batch.length) await collection.insertMany(batch, { ordered: true });
+    }
+  }
+
+  for (const name of SINGLETON_COLLECTIONS) {
+    const value = nextState[name] && typeof nextState[name] === 'object' ? nextState[name] : {};
+    const copy = { ...value };
+    delete copy._id;
+    await db.collection(name).replaceOne({ _id: 'main' as any }, copy, { upsert: true });
+  }
+
+  const migratedAt = new Date().toISOString();
+  const meta = db.collection('meta');
+  await meta.deleteMany({});
+  await meta.insertMany([
+    { _id: 'seed', seededAt: migratedAt },
+    { _id: 'print_types_migrated', migratedAt },
+    { _id: 'sizes_migrated', migratedAt },
+    { _id: 'retired_print_types_v1', at: migratedAt }
+  ]);
+
+  const data = operational || { sessions: [], otps: [], rateLimits: [], auditLogs: [] };
+  for (const name of ['sessions', 'otps', 'rate_limits', 'audit_logs']) {
+    await db.collection(name).deleteMany({});
+  }
+  const sessionRows = (data.sessions || []).map((item: any) => ({
+    ...item,
+    expiresAt: item.expiresAt ? new Date(item.expiresAt) : item.expiresAt
+  }));
+  const otpRows = (data.otps || []).map((item: any) => ({
+    ...item,
+    createdAt: item.createdAt ? new Date(item.createdAt) : item.createdAt,
+    expiresAt: item.expiresAt ? new Date(item.expiresAt) : item.expiresAt
+  }));
+  const rateLimitRows = (data.rateLimits || []).map((item: any) => {
+    const { key, ...rest } = item;
+    return { _id: String(key), ...rest, resetAt: item.resetAt ? new Date(item.resetAt) : item.resetAt };
+  });
+  const auditRows = (data.auditLogs || []).map((item: any) => ({
+    ...item,
+    createdAt: item.createdAt ? new Date(item.createdAt) : item.createdAt
+  }));
+
+  const operationalBatches: Array<[string, any[]]> = [
+    ['sessions', sessionRows],
+    ['otps', otpRows],
+    ['rate_limits', rateLimitRows],
+    ['audit_logs', auditRows]
+  ];
+  for (const [name, items] of operationalBatches) {
+    for (let index = 0; index < items.length; index += 250) {
+      const batch = items.slice(index, index + 250);
+      if (batch.length) await db.collection(name).insertMany(batch, { ordered: true });
+    }
+  }
+
+  await db.collection('sessions').createIndex({ token: 1 }, { unique: true });
+  await db.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  await db.collection('otps').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  await db.collection('rate_limits').createIndex({ resetAt: 1 }, { expireAfterSeconds: 0 });
+  await db.collection('audit_logs').createIndex({ createdAt: -1 });
+
+  stateCache = nextState;
+  signatures = buildSignatures(nextState);
 }
 
 // ---------------------------------------------------------------------------
@@ -712,7 +818,7 @@ export async function getDbStatus(): Promise<DbStatus> {
   try {
     const db = await getDb();
     if (!db) return status;
-    await ensureSeeded(db);
+    await db.command({ ping: 1 });
     const counts: Record<string, number> = {};
     for (const name of [...ARRAY_COLLECTIONS, 'meta'] as string[]) {
       counts[name] = await db.collection(name).countDocuments();
