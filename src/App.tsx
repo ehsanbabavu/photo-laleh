@@ -773,19 +773,22 @@ export default function App() {
 
   // Register a paid order without starting retouch automatically.
   const handleNewOrder = (newOrder: Order) => {
-    if (handledOrderIdsRef.current.has(newOrder.id)) {
-      return;
-    }
-    handledOrderIdsRef.current.add(newOrder.id);
+    if (!handledOrderIdsRef.current.has(newOrder.id)) {
+      handledOrderIdsRef.current.add(newOrder.id);
 
-    setOrders((prev) => {
-      if (prev.some((o) => o.id === newOrder.id)) {
-        return prev;
-      }
-      const next = [newOrder, ...prev];
-      apiClient.saveOrder(newOrder);
-      return next;
-    });
+      setOrders((prev) => {
+        if (prev.some((o) => o.id === newOrder.id)) {
+          return prev;
+        }
+        const next = [newOrder, ...prev];
+        apiClient.saveOrder(newOrder);
+        return next;
+      });
+    }
+
+    if (newOrder.paymentStatus === 'paid') {
+      setUserTab(currentUser?.category === 'colleague' ? 'partner_orders' : 'orders');
+    }
   };
 
   // A colleague only has the two partner menus — keep them on a valid tab
