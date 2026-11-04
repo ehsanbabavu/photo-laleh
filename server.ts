@@ -4,13 +4,16 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  readDb,
-  writeDb,
-  getDbStatus,
   clearDbConfig,
   testDbConnection,
   applyDbConfig,
   resolveConfig,
+  disconnectDb,
+  DEFAULT_DB_NAME
+} from './mongoStore';
+import {
+  readDb,
+  writeDb,
   createSession,
   findSession,
   deleteSession,
@@ -23,9 +26,10 @@ import {
   listAudit,
   listUserSessions,
   revokeSession,
-  disconnectDb,
-  DEFAULT_DB_NAME
-} from './mongoStore';
+  getStorageStatus,
+  testPostgresConnection,
+  switchStorageProvider
+} from './storage';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone } from './src/utils/phone';
 
@@ -684,7 +688,7 @@ app.post('/api/backup/restore', async (req, res) => {
     const payload = req.body || {};
     const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
 
-    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'announcements', 'invoices', 'partnerInvoices', 'costRequests', 'webhookLogs'];
+    const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'deliveryMethods', 'announcements', 'invoices', 'partnerInvoices', 'costRequests', 'webhookLogs'];
     const objectKeys = ['settings', 'prompts'];
     const providedKeys = [...arrayKeys, ...objectKeys].filter((key) => data[key] !== undefined);
     if (providedKeys.length === 0) {
@@ -849,7 +853,7 @@ async function messengerSignup(
       if (!/^\d{4,20}$/.test(verifiedId)) {
         return res.status(401).json({
           success: false,
-          error: 'شناسه تلگرام قابل تأیید نیست. صفحه را از داخل وب‌اپ تلگرام باز کنید.'
+          error: 'شناسه تلگرام قابل تأیید نیست. صفحه را از داخل وب‌اپ تلگرام با�� کنید.'
         });
       }
       rawId = verifiedId;
@@ -1460,7 +1464,7 @@ app.post('/api/auth/phone/otp/verify', async (req: any, res) => {
 
     return res.json({ success: true, user: sanitizeUser(updatedUser) });
   } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
+    return res.status(500).json({ success: false, error: err?.message || 'خطای س��ور' });
   }
 });
 
@@ -1533,7 +1537,7 @@ app.post('/api/auth/logout', async (req, res) => {
   res.json({ success: true });
 });
 
-// --- MongoDB connection settings (admin panel) ---
+// --- Database provider settings (admin panel) ---
 // Optional extra protection: set ADMIN_SETUP_KEY in the environment and the
 // panel must send the same value in the x-setup-key header.
 function checkSetupKey(req: any, res: any) {
@@ -1545,10 +1549,10 @@ function checkSetupKey(req: any, res: any) {
   return true;
 }
 
-// Connection status of the MongoDB database
+// Connection status and active provider for MongoDB/PostgreSQL
 app.get('/api/db/status', async (_req, res) => {
   try {
-    const status = await getDbStatus();
+    const status = await getStorageStatus();
     res.json({ success: true, ...status });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطا در بررسی وضعیت دیتابیس' });
@@ -1587,7 +1591,35 @@ app.post('/api/db/test', async (req, res) => {
   res.json({ success: true, message: 'اتصال با موفقیت برقرار شد', collections: result.collections });
 });
 
-// Save the connection string and connect to it
+app.post('/api/db/postgres/test', async (req, res) => {
+  if (!checkSetupKey(req, res)) return;
+  const status = await testPostgresConnection();
+  if (!status.connected) {
+    return res.status(400).json({ success: false, error: status.error || 'اتصال PostgreSQL برقرار نشد' });
+  }
+  res.json({ success: true, message: 'اتصال PostgreSQL برقرار شد', status });
+});
+
+app.post('/api/db/switch', async (req: any, res) => {
+  if (!checkSetupKey(req, res)) return;
+  const provider = req.body?.provider;
+  if (provider !== 'mongodb' && provider !== 'postgres') {
+    return res.status(400).json({ success: false, error: 'دیتابیس انتخاب‌شده معتبر نیست' });
+  }
+  if (req.body?.confirm !== true) {
+    return res.status(400).json({ success: false, error: 'تأیید انتقال داده الزامی است' });
+  }
+
+  try {
+    const result = await switchStorageProvider(provider);
+    const status = await getStorageStatus();
+    res.json({ success: true, ...result, status });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'تغییر دیتابیس ناموفق بود' });
+  }
+});
+
+// Save the MongoDB connection string and connect to it
 app.post('/api/db/config', async (req, res) => {
   if (!checkSetupKey(req, res)) return;
   const { keepExisting } = req.body || {};
@@ -1604,15 +1636,15 @@ app.post('/api/db/config', async (req, res) => {
   if (!result.ok) {
     return res.status(400).json({ success: false, error: result.error });
   }
-  const status = await getDbStatus();
-  res.json({ success: true, message: 'دیتابیس متصل شد', status });
+  const status = await getStorageStatus();
+  res.json({ success: true, message: 'اتصال MongoDB ذخیره شد', status });
 });
 
 // Remove the saved connection string (falls back to the MONGODB_URI env var)
 app.delete('/api/db/config', async (_req, res) => {
   clearDbConfig();
   await disconnectDb();
-  const status = await getDbStatus();
+  const status = await getStorageStatus();
   res.json({ success: true, status });
 });
 
@@ -3560,7 +3592,7 @@ app.post('/api/print/send-to-partner', async (req, res) => {
 
     const partner = (db.users || []).find((u: any) => u.id === partnerId);
     if (!partner || partner.category !== 'colleague') {
-      return res.status(400).json({ success: false, error: 'invalid_partner', message: 'همکار انتخاب‌شده معتبر نیست.' });
+      return res.status(400).json({ success: false, error: 'invalid_partner', message: 'هم��ار انتخاب‌شده معتبر نیست.' });
     }
 
     const chatId =
@@ -3966,7 +3998,7 @@ async function ensureTelegramWebhook(force = false, baseUrl?: string) {
   if (!/^\d{5,}:[\w-]{20,}$/.test(token)) {
     return {
       ok: false,
-      error: 'قالب توکن تلگرام درست نیست (باید شبیه 123456789:AA… باشد).',
+      error: 'قالب توکن تلگ��ام درست نیست (باید شبیه 123456789:AA… باشد).',
       tokenPreview: `${token.slice(0, 6)}…`
     };
   }
