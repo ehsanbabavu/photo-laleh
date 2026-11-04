@@ -253,22 +253,20 @@ export const UserOrders: React.FC<UserOrdersProps> = ({ orders, user, onStartNew
                 )}
 
                 {/* 3. Tracking code and invoice amount */}
-                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 text-[10px] text-slate-500 sm:text-[11px]">
-                  <div className="min-w-0">
-                    <span className="block text-slate-400">کد رهگیری جهت تحویل</span>
-                    <span
-                      dir="ltr"
-                      className="mt-1 inline-flex whitespace-nowrap rounded-md border border-slate-200/60 bg-slate-50 px-2 py-0.5 font-mono text-xs font-bold text-sky-700 sm:text-sm"
-                    >
+                <div className="border-t border-slate-100 pt-2">
+                  <div className="flex items-center justify-center gap-2 text-sm font-bold text-red-700 sm:text-base">
+                    <span>کد رهگیری جهت تحویل:</span>
+                    <span dir="ltr" className="whitespace-nowrap font-mono text-base font-bold text-red-700 sm:text-lg">
                       #{order.trackingCode}
                     </span>
                   </div>
-
-                  <div className="flex shrink-0 items-center gap-1 text-slate-600">
-                    <span className="text-slate-400">مبلغ فاکتور:</span>
-                    <span className="font-bold font-mono text-slate-900">
-                      {formatPrice(order.totalPrice)}
-                    </span>
+                  <div className="mt-2 flex justify-end text-[10px] text-slate-500 sm:text-[11px]">
+                    <div className="flex items-center gap-1 text-slate-600">
+                      <span className="text-slate-400">مبلغ فاکتور:</span>
+                      <span className="font-bold font-mono text-slate-900">
+                        {formatPrice(order.totalPrice)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
