@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import {
   clearDbConfig,
@@ -438,6 +439,67 @@ app.get('/api/storage/usage', async (req: any, res) => {
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خواندن وضعیت فضا ناموفق بود' });
+  }
+});
+
+// Destructive storage migration: format destination, then copy files while preserving paths.
+app.post('/api/storage/migrate', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  const target = req.body?.target === 'blob' ? 'blob' : req.body?.target === 'local' ? 'local' : '';
+  if (!target || req.body?.confirm !== 'FORMAT_AND_COPY') return res.status(400).json({ success: false, error: 'تأیید مهاجرت نامعتبر است' });
+  const root = path.join(__dirname, 'uploads');
+  try {
+    const db = await readDb();
+    const source = db.settings?.storageMode === 'blob' ? 'blob' : 'local';
+    if (source === target) return res.json({ success: true, source, target, copied: 0, message: 'ذخیره‌ساز فعلی همین حالت است.' });
+    const files: Array<{ relative: string; url: string }> = [];
+    const collect = (value: any) => {
+      if (Array.isArray(value)) return value.forEach(collect);
+      if (!value || typeof value !== 'object') return;
+      for (const [key, child] of Object.entries(value)) {
+        if (typeof child === 'string' && (child.startsWith('http') || child.startsWith('/uploads/'))) {
+          const match = child.match(/(?:https?:\/\/[^/]+)?\/(uploads\/.*)$/);
+          files.push({ relative: match?.[1] || key, url: child });
+        } else collect(child);
+      }
+    };
+    collect(db.orders || []);
+    let copied = 0;
+    if (target === 'blob') {
+      const { list, del, put } = await import('@vercel/blob');
+      let cursor: string | undefined;
+      do {
+        const page: any = await list({ cursor, limit: 1000 });
+        for (const item of page.blobs || []) await del(item.url);
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+      for (const file of files.filter((item) => item.url.startsWith('/uploads/'))) {
+        const data = await fs.readFile(path.join(__dirname, file.relative));
+        const uploaded = await put(file.relative.replace(/^uploads\//, ''), data, { access: 'public', addRandomSuffix: false });
+        const replace = (value: any): any => Array.isArray(value) ? value.map(replace) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([k,v]) => [k, replace(v)])) : value === file.url ? uploaded.url : value;
+        db.orders = replace(db.orders);
+        copied++;
+      }
+    } else {
+      await fs.rm(root, { recursive: true, force: true });
+      await fs.mkdir(root, { recursive: true });
+      for (const file of files.filter((item) => item.url.startsWith('http'))) {
+        const response = await fetch(file.url);
+        if (!response.ok) continue;
+        const destination = path.join(__dirname, file.relative);
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+        await fs.writeFile(destination, Buffer.from(await response.arrayBuffer()));
+        const localUrl = '/' + file.relative.replace(/\\/g, '/');
+        const replace = (value: any): any => Array.isArray(value) ? value.map(replace) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([k,v]) => [k, replace(v)])) : value === file.url ? localUrl : value;
+        db.orders = replace(db.orders);
+        copied++;
+      }
+    }
+    db.settings = { ...(db.settings || {}), storageMode: target };
+    await writeDb(db);
+    res.json({ success: true, source, target, copied });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'مهاجرت ذخیره‌سازی ناموفق بود' });
   }
 });
 
