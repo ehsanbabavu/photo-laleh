@@ -1200,6 +1200,12 @@ async function sendOtpSms(phone: string): Promise<{ ok: boolean; error?: string 
   return { ok: true };
 }
 
+function resolveAdminPhone(req: any, db: any): string {
+  const sessionUser = req.currentUser || {};
+  const storedUser = (db.users || []).find((user: any) => user.id === sessionUser.id);
+  return normalizeIranianPhone(sessionUser.phone || sessionUser.phoneNumber || sessionUser.mobile || storedUser?.phone || storedUser?.phoneNumber || storedUser?.mobile || '');
+}
+
 // Request a one-time code before permanently deleting an order.
 app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
   try {
@@ -1207,7 +1213,7 @@ app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
     const orderId = String(req.params.id || '').trim();
     const db = await readDb();
     if (!(db.orders || []).some((order: any) => order.id === orderId)) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
-    const phone = normalizeIranianPhone(String(req.currentUser.phone || ''));
+    const phone = resolveAdminPhone(req, db);
     if (!/^09\\d{9}$/.test(phone)) return res.status(400).json({ success: false, error: 'شماره موبایل ادمین معتبر نیست' });
     const sent = await sendOtpSms(phone);
     if (!sent.ok) return res.status(400).json({ success: false, error: sent.error });
@@ -1219,7 +1225,7 @@ app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
 app.post('/api/admin/orders/:id/delete/confirm', async (req: any, res) => {
   try {
     if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
-    const phone = normalizeIranianPhone(String(req.currentUser.phone || ''));
+        const phone = resolveAdminPhone(req, db);
     const code = String(req.body?.code || '').replace(/\\D/g, '');
     if (!/^09\\d{9}$/.test(phone) || !/^\\d{6}$/.test(code)) return res.status(400).json({ success: false, error: 'کد واردشده معتبر نیست' });
     const verified = await verifyOtpCode(phone, code);
