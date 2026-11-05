@@ -32,6 +32,7 @@ const AdminBackup = React.lazy(() => import('./components/admin/AdminBackup').th
 const AdminTransport = React.lazy(() => import('./components/admin/AdminTransport').then((m) => ({ default: m.AdminTransport })));
 const AdminBackupSchedule = React.lazy(() => import('./components/admin/AdminBackupSchedule').then((m) => ({ default: m.AdminBackupSchedule })));
 const AdminSmsSettings = React.lazy(() => import('./components/admin/AdminSmsSettings').then((m) => ({ default: m.AdminSmsSettings })));
+const AdminStorageSettings = React.lazy(() => import('./components/admin/AdminStorageSettings'));
 const AdminSessions = React.lazy(() => import('./components/admin/AdminSessions').then((m) => ({ default: m.AdminSessions })));
 const AdminAudit = React.lazy(() => import('./components/admin/AdminAudit').then((m) => ({ default: m.AdminAudit })));
 const OrderWizard = React.lazy(() => import('./components/user/OrderWizard').then((m) => ({ default: m.OrderWizard })));
