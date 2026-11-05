@@ -12,6 +12,18 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
     }).finally(() => setLoading(false));
   }, []);
 
+  const migrate = async (target: 'local' | 'blob') => {
+    const label = target === 'blob' ? 'ابری' : 'داخلی';
+    if (!window.confirm(`تمام فایل‌های مقصد فرمت می‌شود و فایل‌ها با همان نام و پوشه به ذخیره‌سازی ${label} منتقل می‌شوند. ادامه می‌دهید؟`)) return;
+    try {
+      const res = await fetch('/api/storage/migrate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target, confirm: 'FORMAT_AND_COPY' }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'مهاجرت ناموفق بود');
+      setMode(target);
+      showToast(`مهاجرت انجام شد؛ ${data.copied || 0} فایل منتقل شد.`);
+    } catch (error: any) { showToast(error?.message || 'مهاجرت ذخیره‌سازی ناموفق بود.'); }
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -39,6 +51,10 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
     </div>
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] leading-5 text-amber-900"><Database className="mb-1 inline h-4 w-4" /> تغییر این گزینه برای آپلودهای جدید اعمال می‌شود.</div>
     <button type="button" disabled={loading || saving} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'در حال ذخیره...' : 'ذخیره تنظیمات'}</button>
+    <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+      <button type="button" onClick={() => void migrate('local')} className="rounded-lg border border-slate-300 px-3 py-2 text-[11px] font-bold text-slate-700">انتقال کامل به داخلی</button>
+      <button type="button" onClick={() => void migrate('blob')} className="rounded-lg border border-violet-300 px-3 py-2 text-[11px] font-bold text-violet-700">انتقال کامل به ابر</button>
+    </div>
   </div>;
 };
 
