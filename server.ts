@@ -1212,7 +1212,7 @@ app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
     const db = await readDb();
     if (!(db.orders || []).some((order: any) => order.id === orderId)) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
     const phone = resolveAdminPhone(req, db);
-    if (!/^09\\d{9}$/.test(phone)) return res.status(400).json({ success: false, error: 'شماره موبایل ادمین معتبر نیست' });
+    if (!/^09\d{9}$/.test(phone)) return res.status(400).json({ success: false, error: 'شماره موبایل ادمین معتبر نیست' });
     const sent = await sendOtpSms(phone);
     if (!sent.ok) return res.status(400).json({ success: false, error: sent.error });
     res.json({ success: true, phone: phone.replace(/^(\\d{3})\\d{5}(\\d{2})$/, '$1*****$2') });
@@ -1222,20 +1222,28 @@ app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
 // Verify the SMS code and delete the order atomically.
 app.post('/api/admin/orders/:id/delete/confirm', async (req: any, res) => {
   try {
-    if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
-        const phone = resolveAdminPhone(req, db);
-    const code = String(req.body?.code || '').replace(/\\D/g, '');
-    if (!/^09\\d{9}$/.test(phone) || !/^\\d{6}$/.test(code)) return res.status(400).json({ success: false, error: 'کد واردشده معتبر نیست' });
-    const verified = await verifyOtpCode(phone, code);
-    if (!verified) return res.status(400).json({ success: false, error: 'کد تأیید نادرست یا منقضی شده است' });
-    const orderId = String(req.params.id || '').trim();
+    if (req.currentUser?.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
+    }
     const db = await readDb();
+    const phone = resolveAdminPhone(req, db);
+    const code = String(req.body?.code || '').replace(/\D/g, '');
+    if (!/^09\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ success: false, error: 'کد واردشده معتبر نیست' });
+    }
+    const verified = await verifyOtpCode(phone, code);
+    if (!verified) {
+      return res.status(400).json({ success: false, error: 'کد تأیید نادرست یا منقضی شده است' });
+    }
+    const orderId = String(req.params.id || '').trim();
     const before = (db.orders || []).length;
     db.orders = (db.orders || []).filter((order: any) => order.id !== orderId);
     if (db.orders.length === before) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
     await writeDb(db);
     res.json({ success: true });
-  } catch (err: any) { res.status(500).json({ success: false, error: err?.message || 'حذف سفارش ناموفق بود' }); }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'حذف سفارش ناموفق بود' });
+  }
 });
 
 // Request an SMS one-time code for registration
