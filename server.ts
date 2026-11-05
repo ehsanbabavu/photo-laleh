@@ -1841,12 +1841,15 @@ app.patch('/api/orders/:id/print-selection', async (req: any, res) => {
   res.json({ success: true, selectedPrintImages });
 });
 
-app.delete('/api/orders/:id', async (req, res) => {
+app.delete('/api/orders/:id', async (_req, res) => {
+  return res.status(403).json({ success: false, error: 'حذف سفارش فقط پس از تأیید پیامکی امکان‌پذیر است.' });
+  /*
   const db = await readDb();
   const orderId = req.params.id;
   db.orders = (db.orders || []).filter((o: any) => o.id !== orderId);
   await writeDb(db);
   res.json({ success: true });
+  */
 });
 
 app.delete('/api/orders', async (_req, res) => {
