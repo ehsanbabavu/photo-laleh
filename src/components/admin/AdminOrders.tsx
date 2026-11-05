@@ -27,6 +27,7 @@ import { QueueStateInfo } from '../../utils/aiQueueManager';
 import { PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
 import type { PrintDimension, User } from '../../types';
 import { SendToPartnerModal } from './SendToPartnerModal';
+import { apiClient } from '../../services/apiClient';
 
 interface AdminOrdersProps {
   orders: Order[];
