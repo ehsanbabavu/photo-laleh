@@ -22,7 +22,8 @@ export type AdminTab =
   | 'backup'
   | 'sms'
   | 'sessions'
-  | 'audit';
+  | 'audit'
+  | 'storage';
 
 interface AdminSidebarProps {
   currentTab: AdminTab;
@@ -139,6 +140,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'sms' as AdminTab,
       label: 'تنظیمات پیامک',
       icon: MessageSquare
+    },
+    {
+      id: 'storage' as AdminTab,
+      label: 'ذخیره‌سازی',
+      icon: HardDrive
     },
     {
       id: 'sessions' as AdminTab,
