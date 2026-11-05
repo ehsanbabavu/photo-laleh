@@ -1169,6 +1169,8 @@ export default function App() {
 
               {adminTab === 'sms' && <AdminSmsSettings showToast={showToast} />}
 
+              {adminTab === 'storage' && <AdminStorageSettings showToast={showToast} />}
+
               {adminTab === 'sessions' && <AdminSessions showToast={showToast} />}
 
               {adminTab === 'audit' && <AdminAudit showToast={showToast} />}
