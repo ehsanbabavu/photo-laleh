@@ -75,6 +75,22 @@ export const apiClient = {
     return data;
   },
 
+  async requestOrderDeletionCode(orderId: string) {
+    const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/delete/request`, { method: 'POST' });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || 'ارسال کد تأیید ناموفق بود');
+    return data;
+  },
+
+  async confirmOrderDeletion(orderId: string, code: string) {
+    const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/delete/confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || 'کد تأیید نادرست است');
+    return data;
+  },
+
   async deleteOrder(orderId: string) {
     try {
       await fetch(`/api/orders/${orderId}`, {
