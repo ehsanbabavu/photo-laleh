@@ -41,3 +41,5 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
     <button type="button" disabled={loading || saving} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'در حال ذخیره...' : 'ذخیره تنظیمات'}</button>
   </div>;
 };
+
+export default AdminStorageSettings;
