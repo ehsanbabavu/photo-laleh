@@ -167,12 +167,20 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   };
 
   const requestDeleteOrder = async (order: Order) => {
-    setDeleteError(null); setDeleteCode(''); setIsRequestingDeleteCode(true);
+    setDeleteError(null);
+    setDeleteCode('');
+    setDeleteVerification({ order });
+    setIsRequestingDeleteCode(true);
     try {
       const result = await apiClient.requestOrderDeletionCode(order.id);
-      setDeleteVerification({ order, phone: result.phone });
-    } catch (error: any) { setDeleteError(error?.message || 'ارسال کد تأیید ناموفق بود'); }
-    finally { setIsRequestingDeleteCode(false); }
+      setDeleteVerification((current) =>
+        current?.order.id === order.id ? { ...current, phone: result.phone } : current
+      );
+    } catch (error: any) {
+      setDeleteError(error?.message || 'ارسال کد تأیید ناموفق بود');
+    } finally {
+      setIsRequestingDeleteCode(false);
+    }
   };
 
   const confirmDeleteOrder = async () => {
@@ -413,7 +421,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" dir="rtl">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-3">
-              <div><h3 className="text-base font-black text-slate-900">تأیید حذف سفارش</h3><p className="mt-1 text-xs leading-6 text-slate-500">کد تأیید به شماره ادمین {deleteVerification.phone || 'ثبت‌شده'} ارسال شد.</p></div>
+              <div><h3 className="text-base font-black text-slate-900">تأیید حذف سفارش</h3><p className="mt-1 text-xs leading-6 text-slate-500">{isRequestingDeleteCode ? 'در حال ارسال کد تأیید به شماره ادمین...' : deleteVerification.phone ? `کد تأیید به شماره ادمین ${deleteVerification.phone} ارسال شد.` : 'کد تأیید را وارد کنید.'}</p></div>
               <button type="button" onClick={() => setDeleteVerification(null)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
             </div>
             <input autoFocus value={deleteCode} onChange={(e) => setDeleteCode(e.target.value.replace(/\\D/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="کد ۶ رقمی پیامک" className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg tracking-[0.4em] focus:border-sky-500 focus:outline-none" />
