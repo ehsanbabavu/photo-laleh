@@ -142,11 +142,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: MessageSquare
     },
     {
-      id: 'storage' as AdminTab,
-      label: 'ذخیره‌سازی',
-      icon: HardDrive
-    },
-    {
       id: 'sessions' as AdminTab,
       label: 'دستگاه‌های فعال',
       icon: ShieldCheck
@@ -155,6 +150,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'audit' as AdminTab,
       label: 'گزارش فعالیت‌ها',
       icon: Activity
+    },
+    {
+      id: 'storage' as AdminTab,
+      label: 'تنظیمات کلی',
+      icon: HardDrive
     }
   ];
 
