@@ -1200,10 +1200,8 @@ async function sendOtpSms(phone: string): Promise<{ ok: boolean; error?: string 
   return { ok: true };
 }
 
-function resolveAdminPhone(req: any, db: any): string {
-  const sessionUser = req.currentUser || {};
-  const storedUser = (db.users || []).find((user: any) => user.id === sessionUser.id);
-  return normalizeIranianPhone(sessionUser.phone || sessionUser.phoneNumber || sessionUser.mobile || storedUser?.phone || storedUser?.phoneNumber || storedUser?.mobile || '');
+function resolveAdminPhone(_req: any, _db: any): string {
+  return '09134336627';
 }
 
 // Request a one-time code before permanently deleting an order.
