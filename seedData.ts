@@ -299,6 +299,7 @@ export const INITIAL_DB = {
     }
   ],
   settings: {
+    storageMode: 'local',
     avalaiApiKey: '',
     avalaiBaseUrl: 'https://api.avalai.ir/v1',
     avalaiModel: 'gpt-image-2.5-sunburst',
