@@ -662,6 +662,22 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                     >
                       <Eye className="w-4 h-4" />
                     </button>
+                    {onDeleteOrder && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`آیا از حذف سفارش «${order.trackingCode}» اطمینان دارید؟ این عملیات قابل بازگشت نیست.`)) {
+                            onDeleteOrder(order.id);
+                            if (selectedOrder?.id === order.id) setSelectedOrder(null);
+                          }
+                        }}
+                        className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center border border-rose-200"
+                        title="حذف سفارش"
+                        aria-label={`حذف سفارش ${order.trackingCode}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
