@@ -14,6 +14,7 @@ export const ADMIN_TABS = [
   'blupal',
   'backup',
   'sms',
+  'storage',
   'sessions',
   'audit'
 ] as const;
