@@ -99,7 +99,7 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
     });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -108,13 +108,18 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCardBgImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const { upload } = await import('@vercel/blob/client');
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_') || 'service-card.jpg';
+      const result = await upload(`service-cards/${Date.now()}-${safeName}`, file, {
+        access: 'public',
+        handleUploadUrl: '/api/uploads/blob',
+        contentType: file.type
+      });
+      setCardBgImage(result.url);
+    } catch {
+      setFormError('آپلود تصویر ناموفق بود. دوباره تلاش کنید.');
+    }
   };
 
   const handleSave = (e: React.FormEvent) => {
