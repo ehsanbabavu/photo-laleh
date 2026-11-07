@@ -34,7 +34,7 @@ import {
   switchStorageProvider
 } from './storage';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
-import { isValidIranianPhone, normalizeIranianPhone } from './src/utils/phone';
+import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
 import { getPaidBluPalTransactions } from './src/utils/bluPalTransactions';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -117,6 +117,7 @@ const PUBLIC_API_PATHS = new Set([
 ]);
 
 const ADMIN_ONLY_PREFIXES = [
+  '/api/admin/transactions',
   '/api/users',
   '/api/settings',
   '/api/db',
@@ -1330,16 +1331,17 @@ app.post('/api/auth/eitaa', (req: any, res) => messengerSignup(req, res, 'eitaa'
 app.post('/api/auth/telegram', (req: any, res) => messengerSignup(req, res, 'telegram'));
 
 // Send a one-time code with the api.ir SMS service
-async function sendOtpSms(phone: string): Promise<{ ok: boolean; error?: string }> {
+async function sendOtpSms(phone: string, otpKey = phone): Promise<{ ok: boolean; error?: string }> {
   const db = await readDb();
   const token = String(db.settings?.smsApiToken || process.env.SMS_API_TOKEN || '').trim();
   if (!token) return { ok: false, error: 'توکن پیامک در تنظیمات ثبت نشده است' };
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(crypto.randomInt(100000, 1000000));
   try {
     const smsRes = await fetch('https://s.api.ir/api/sw1/SmsOTP', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({ code, mobile: phone, template: 2 })
     });
     const smsData: any = await smsRes.json().catch(() => null);
@@ -1349,14 +1351,19 @@ async function sendOtpSms(phone: string): Promise<{ ok: boolean; error?: string 
     return { ok: false, error: err?.message || 'ارسال پیامک ناموفق بود' };
   }
 
-  const saved = await saveOtpCode(phone, code, 2 * 60 * 1000);
+  const saved = await saveOtpCode(otpKey, code, 2 * 60 * 1000);
   if (!saved) return { ok: false, error: 'ذخیره کد ناموفق بود' };
   return { ok: true };
 }
 
-function resolveAdminPhone(_req: any, db: any): string {
-  const admin = (db.users || []).find((user: any) => user.role === 'admin');
-  return normalizeIranianPhone(admin?.phone || admin?.phoneNumber || admin?.mobile || '09123456789');
+function resolveAdminPhone(req: any, db: any): string {
+  const admin = (db.users || []).find((user: any) => user.role === 'admin' && user.id === req.currentUser?.id);
+  return normalizeIranianPhone(admin?.phone || admin?.phoneNumber || admin?.mobile || '');
+}
+
+function deletionOtpKey(kind: 'order' | 'transaction', req: any, id: string, phone: string): string {
+  const digest = crypto.createHash('sha256').update(JSON.stringify([req.currentUser.id, id, phone])).digest('hex');
+  return `delete-${kind}:${digest}`;
 }
 
 async function deleteOrderAssets(order: any): Promise<void> {
@@ -1384,14 +1391,13 @@ app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
   try {
     if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
     const orderId = String(req.params.id || '').trim();
-    const deletedOrder = (db.orders || []).find((order: any) => order.id === orderId);
     const db = await readDb();
     if (!(db.orders || []).some((order: any) => order.id === orderId)) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
     const phone = resolveAdminPhone(req, db);
     if (!/^09\d{9}$/.test(phone)) return res.status(400).json({ success: false, error: 'شماره موبایل ادمین معتبر نیست' });
-    const sent = await sendOtpSms(phone);
+    const sent = await sendOtpSms(phone, deletionOtpKey('order', req, orderId, phone));
     if (!sent.ok) return res.status(400).json({ success: false, error: sent.error });
-    res.json({ success: true, phone: phone.replace(/^(\\d{3})\\d{5}(\\d{2})$/, '$1*****$2') });
+    res.json({ success: true, phone: phone.replace(/^(\d{3})\d{5}(\d{3})$/, '$1*****$2') });
   } catch (err: any) { res.status(500).json({ success: false, error: err?.message || 'ارسال کد ناموفق بود' }); }
 });
 
@@ -1403,15 +1409,17 @@ app.post('/api/admin/orders/:id/delete/confirm', async (req: any, res) => {
     }
     const db = await readDb();
     const phone = resolveAdminPhone(req, db);
-    const code = String(req.body?.code || '').replace(/\D/g, '');
+    const orderId = String(req.params.id || '').trim();
+    const deletedOrder = (db.orders || []).find((order: any) => order.id === orderId);
+    if (!deletedOrder) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
+    const code = toAsciiDigits(req.body?.code).trim();
     if (!/^09\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
       return res.status(400).json({ success: false, error: 'کد واردشده معتبر نیست' });
     }
-    const verified = await verifyOtpCode(phone, code);
-    if (!verified) {
+    const verified = await verifyOtpCode(deletionOtpKey('order', req, orderId, phone), code);
+    if (!verified.ok) {
       return res.status(400).json({ success: false, error: 'کد تأیید نادرست یا منقضی شده است' });
     }
-    const orderId = String(req.params.id || '').trim();
     const before = (db.orders || []).length;
     db.orders = (db.orders || []).filter((order: any) => order.id !== orderId);
     if (db.orders.length === before) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
@@ -3114,6 +3122,62 @@ app.get('/api/blupal/transactions', async (_req, res) => {
   } catch (err) {
     console.error('Error loading BluPal transactions:', err);
     res.status(500).json({ success: false, error: 'دریافت تراکنش‌های بلوپال ناموفق بود.' });
+  }
+});
+
+// Request an SMS code for this administrator and this exact transaction.
+app.post('/api/admin/transactions/:id/delete/request', async (req: any, res) => {
+  try {
+    if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
+    const transactionId = String(req.params.id || '').trim();
+    const db = await readDb();
+    if (!getPaidBluPalTransactions(db).some((transaction) => transaction.id === transactionId)) {
+      return res.status(404).json({ success: false, error: 'تراکنش یافت نشد' });
+    }
+    const phone = resolveAdminPhone(req, db);
+    if (!isValidIranianPhone(phone)) return res.status(400).json({ success: false, error: 'شماره موبایل ادمین معتبر نیست' });
+    if (await hitRateLimit(`transaction-delete:${req.currentUser.id}:${transactionId}`, 3, 15 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'درخواست‌های ارسال پیامک بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.' });
+    }
+    const sent = await sendOtpSms(phone, deletionOtpKey('transaction', req, transactionId, phone));
+    if (!sent.ok) return res.status(400).json({ success: false, error: sent.error });
+    res.json({ success: true, phone: phone.replace(/^(\d{3})\d{5}(\d{3})$/, '$1*****$2'), expiresIn: 120 });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'ارسال کد تأیید ناموفق بود' });
+  }
+});
+
+// Delete only after successful, single-use SMS verification.
+app.post('/api/admin/transactions/:id/delete/confirm', async (req: any, res) => {
+  try {
+    if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
+    const transactionId = String(req.params.id || '').trim();
+    const db = await readDb();
+    if (!getPaidBluPalTransactions(db).some((transaction) => transaction.id === transactionId)) {
+      return res.status(404).json({ success: false, error: 'تراکنش یافت نشد' });
+    }
+    const phone = resolveAdminPhone(req, db);
+    const code = toAsciiDigits(req.body?.code).trim();
+    if (!isValidIranianPhone(phone) || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ success: false, error: 'کد واردشده معتبر نیست' });
+    }
+    const verified = await verifyOtpCode(deletionOtpKey('transaction', req, transactionId, phone), code);
+    if (!verified.ok) return res.status(400).json({ success: false, error: verified.error || 'کد تأیید نادرست یا منقضی شده است' });
+
+    const latest = await readDb();
+    if (!getPaidBluPalTransactions(latest).some((transaction) => transaction.id === transactionId)) {
+      return res.status(404).json({ success: false, error: 'تراکنش یافت نشد' });
+    }
+    const next = {
+      ...latest,
+      invoices: (latest.invoices || []).filter((invoice: any) =>
+        String(invoice.id || invoice.localInvoiceId || invoice.remoteInvoiceId || invoice.invoiceId || '').trim() !== transactionId
+      )
+    };
+    await writeDb(next);
+    res.json({ success: true, deletedId: transactionId });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'حذف تراکنش ناموفق بود' });
   }
 });
 

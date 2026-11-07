@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { AlertCircle, CheckCircle2, CreditCard, Loader2, RefreshCw, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle2, CreditCard, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 import { BluPalTransaction } from '../../types';
 import { formatNumber, formatOrderDateTime, formatPrice, formatRialDirect } from '../../utils/formatters';
+import { toAsciiDigits } from '../../utils/phone';
 
 const PAGE_SIZE = 10;
 const normalizeSearch = (value: string) => value
@@ -19,6 +20,16 @@ const formatDate = (value: string) => formatOrderDateTime(value, value || '—')
 export const AdminTransactions = () => {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<BluPalTransaction | null>(null);
+  const [deletePhone, setDeletePhone] = useState('');
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
+  const deleteDialogRef = useRef<HTMLDialogElement>(null);
+  const deleteCodeInputRef = useRef<HTMLInputElement>(null);
+  const codeRequestVersion = useRef(0);
   const { data, error, isLoading, isValidating, mutate } = useSWR<BluPalTransaction[]>(
     '/api/blupal/transactions',
     () => apiClient.getBluPalTransactions(),
@@ -44,8 +55,120 @@ export const AdminTransactions = () => {
   const currentPage = Math.min(page, pageCount);
   const visibleTransactions = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
+  useEffect(() => {
+    const dialog = deleteDialogRef.current;
+    if (deleteTarget && !dialog?.open) dialog?.showModal();
+    else if (!deleteTarget && dialog?.open) dialog.close();
+  }, [deleteTarget]);
+
+  useEffect(() => {
+    if (deleteTarget && deletePhone && !isSendingCode) deleteCodeInputRef.current?.focus();
+  }, [deleteTarget, deletePhone, isSendingCode]);
+
+  const closeDeleteDialog = () => {
+    if (isDeleting) return;
+    codeRequestVersion.current += 1;
+    setDeleteTarget(null);
+    setDeletePhone('');
+    setDeleteCode('');
+    setDeleteError('');
+    setIsSendingCode(false);
+  };
+
+  const sendDeleteCode = async (transaction: BluPalTransaction) => {
+    const version = ++codeRequestVersion.current;
+    setIsSendingCode(true);
+    setDeleteError('');
+    setDeletePhone('');
+    setDeleteCode('');
+    try {
+      const result = await apiClient.requestTransactionDeletionCode(transaction.id);
+      if (codeRequestVersion.current === version) setDeletePhone(result.phone);
+    } catch (error: any) {
+      if (codeRequestVersion.current === version) setDeleteError(error?.message || 'ارسال کد تأیید ناموفق بود');
+    } finally {
+      if (codeRequestVersion.current === version) setIsSendingCode(false);
+    }
+  };
+
+  const requestDeleteTransaction = (transaction: BluPalTransaction) => {
+    setDeleteSuccess(false);
+    setDeleteTarget(transaction);
+    void sendDeleteCode(transaction);
+  };
+
+  const confirmDeleteTransaction = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!deleteTarget || !deletePhone || isSendingCode || isDeleting || deleteCode.length !== 6) return;
+    const target = deleteTarget;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      await apiClient.confirmTransactionDeletion(target.id, deleteCode);
+      await mutate((items) => items?.filter((transaction) => transaction.id !== target.id), { revalidate: false });
+      setDeleteTarget(null);
+      setDeleteCode('');
+      setDeletePhone('');
+      setDeleteSuccess(true);
+      void mutate().catch(() => undefined);
+    } catch (error: any) {
+      setDeleteError(error?.message || 'حذف تراکنش ناموفق بود');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <section className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 space-y-4 min-h-[200px]" aria-labelledby="transactions-title">
+      <dialog
+        ref={deleteDialogRef}
+        aria-labelledby="transaction-delete-title"
+        aria-describedby="transaction-delete-description"
+        onCancel={(event) => { event.preventDefault(); closeDeleteDialog(); }}
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border-0 bg-white p-6 shadow-2xl backdrop:bg-slate-950/60 backdrop:backdrop-blur-sm"
+        dir="rtl"
+      >
+        {deleteTarget && (
+          <form onSubmit={(event) => { void confirmDeleteTransaction(event); }}>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 id="transaction-delete-title" className="text-base font-black text-slate-900">تأیید حذف تراکنش</h3>
+                <p id="transaction-delete-description" className="mt-1 text-xs leading-6 text-slate-500">
+                  {isSendingCode ? 'در حال ارسال کد تأیید به شماره ادمین…' : deletePhone ? <>کد تأیید به شماره ادمین <bdi dir="ltr">{deletePhone}</bdi> ارسال شد. کد تا ۲ دقیقه معتبر است.</> : 'برای حذف تراکنش، کد تأیید پیامکی لازم است.'}
+                </p>
+              </div>
+              <button type="button" onClick={closeDeleteDialog} disabled={isDeleting} aria-label="بستن پنجره حذف تراکنش" className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="h-5 w-5" aria-hidden="true" /></button>
+            </div>
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-700">
+              <p>فاکتور: <bdi dir="ltr" className="font-mono font-bold">{deleteTarget.invoiceId}</bdi></p>
+              <p>{deleteTarget.customerName || '—'} · {formatPrice(deleteTarget.amountRial / 10)}</p>
+            </div>
+            <button type="button" disabled={isSendingCode || isDeleting} onClick={() => { void sendDeleteCode(deleteTarget); }} className="mb-3 w-full rounded-xl bg-sky-600 py-3 text-xs font-bold text-white disabled:opacity-50">
+              {isSendingCode ? 'در حال ارسال…' : deletePhone ? 'ارسال مجدد پیامک' : 'ارسال پیامک کد تأیید'}
+            </button>
+            <label htmlFor="transaction-delete-code" className="sr-only">کد تأیید پیامکی</label>
+            <input
+              id="transaction-delete-code"
+              ref={deleteCodeInputRef}
+              autoFocus
+              value={deleteCode}
+              onChange={(event) => setDeleteCode(toAsciiDigits(event.target.value).replace(/\D/g, '').slice(0, 6))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              disabled={isSendingCode || isDeleting || !deletePhone}
+              placeholder="کد ۶ رقمی پیامک"
+              dir="ltr"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg tracking-[0.4em] focus:border-sky-500 focus:outline-none disabled:bg-slate-50"
+            />
+            {deleteError && <p role="alert" className="mt-2 text-xs font-bold text-rose-600">{deleteError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={closeDeleteDialog} disabled={isDeleting} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 disabled:opacity-50">انصراف</button>
+              <button type="submit" disabled={isDeleting || isSendingCode || !deletePhone || deleteCode.length !== 6} className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white disabled:opacity-50">{isDeleting ? 'در حال بررسی…' : 'تأیید و حذف'}</button>
+            </div>
+          </form>
+        )}
+      </dialog>
       <div className="flex items-start sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -89,6 +212,8 @@ export const AdminTransactions = () => {
         />
       </div>
 
+      {deleteSuccess && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">تراکنش با موفقیت حذف شد.</p>}
+
       {error && (
         <div role="alert" className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
           <AlertCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
@@ -111,7 +236,7 @@ export const AdminTransactions = () => {
             <caption className="sr-only">فهرست تراکنش‌های موفق بلوپال</caption>
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                {['مشتری', 'مبلغ پرداخت', 'فاکتور / سفارش', 'کد پیگیری', 'پرداخت‌کننده', 'زمان پرداخت', 'وضعیت'].map((heading) => (
+                {['عملیات', 'مشتری', 'مبلغ پرداخت', 'فاکتور / سفارش', 'کد پیگیری', 'پرداخت‌کننده', 'زمان پرداخت', 'وضعیت'].map((heading) => (
                   <th key={heading} scope="col" className="px-3 py-3 font-bold whitespace-nowrap">{heading}</th>
                 ))}
               </tr>
@@ -119,6 +244,19 @@ export const AdminTransactions = () => {
             <tbody className="divide-y divide-slate-100">
               {visibleTransactions.map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-slate-50/70">
+                  <td className="px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={() => requestDeleteTransaction(transaction)}
+                      disabled={Boolean(deleteTarget)}
+                      title="حذف تراکنش"
+                      aria-label={`حذف تراکنش ${transaction.invoiceId}`}
+                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-100 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      حذف
+                    </button>
+                  </td>
                   <td className="px-3 py-3">
                     <p className="font-bold text-slate-900">{transaction.customerName || '—'}</p>
                     <p className="text-slate-500 mt-1"><bdi dir="ltr">{transaction.customerPhone || '—'}</bdi></p>

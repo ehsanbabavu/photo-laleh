@@ -367,6 +367,24 @@ export const apiClient = {
     return data;
   },
 
+  async requestTransactionDeletionCode(transactionId: string) {
+    const res = await fetch(`/api/admin/transactions/${encodeURIComponent(transactionId)}/delete/request`, { method: 'POST' });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) throw new Error(data?.error || 'ارسال کد تأیید ناموفق بود');
+    return data as { success: true; phone: string; expiresIn: number };
+  },
+
+  async confirmTransactionDeletion(transactionId: string, code: string) {
+    const res = await fetch(`/api/admin/transactions/${encodeURIComponent(transactionId)}/delete/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) throw new Error(data?.error || 'حذف تراکنش ناموفق بود');
+    return data;
+  },
+
   async getBluPalWebhookLogs() {
     try {
       const res = await fetch('/api/blupal/webhook-logs');
