@@ -2,7 +2,7 @@
  * API Client for interacting with real internal database server (/api/*)
  */
 
-import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder } from '../types';
+import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder, BluPalTransaction } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -356,6 +356,15 @@ export const apiClient = {
     } catch (err: any) {
       return { success: false, message: err.message || 'خطا در شبکه' };
     }
+  },
+
+  async getBluPalTransactions(): Promise<BluPalTransaction[]> {
+    const res = await fetch('/api/blupal/transactions', { cache: 'no-store' });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error(data?.error || 'دریافت تراکنش‌های بلوپال ناموفق بود.');
+    }
+    return data;
   },
 
   async getBluPalWebhookLogs() {

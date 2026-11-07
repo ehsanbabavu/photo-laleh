@@ -349,3 +349,19 @@ export interface BluPalInvoice {
   payerBankName?: string;
 }
 
+export interface BluPalTransaction {
+  id: string;
+  invoiceId: string;
+  orderId: string;
+  orderTrackingCode: string;
+  customerName: string;
+  customerPhone: string;
+  amountRial: number;
+  referenceCode: string;
+  paidAt: string;
+  createdAt: string;
+  payerName: string;
+  payerCard: string;
+  payerBankName: string;
+}
+

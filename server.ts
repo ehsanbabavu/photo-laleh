@@ -35,6 +35,7 @@ import {
 } from './storage';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone } from './src/utils/phone';
+import { getPaidBluPalTransactions } from './src/utils/bluPalTransactions';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,6 +124,7 @@ const ADMIN_ONLY_PREFIXES = [
   '/api/prompts',
   '/api/blupal/test',
   '/api/blupal/webhook-logs',
+  '/api/blupal/transactions',
   '/api/partner-invoices',
   '/api/print',
   '/api/eitaa',
@@ -3100,6 +3102,18 @@ app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) =
   } catch (err: any) {
     console.error('Error handling BluPal webhook:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Confirmed BluPal payments, readable by administrators only.
+app.get('/api/blupal/transactions', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  try {
+    const db = await readDb();
+    res.json(getPaidBluPalTransactions(db));
+  } catch (err) {
+    console.error('Error loading BluPal transactions:', err);
+    res.status(500).json({ success: false, error: 'دریافت تراکنش‌های بلوپال ناموفق بود.' });
   }
 });
 

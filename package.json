@@ -7,6 +7,7 @@
     "dev": "tsx server.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:transactions": "tsx --test scripts/test-blupal-transactions.ts",
     "preview": "tsx server.ts",
     "start": "tsx server.ts"
   },
