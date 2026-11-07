@@ -16,9 +16,10 @@ import {
   Upload,
   Info,
   Send,
-  Clock
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
-import { Order } from '../../types';
+import { LostOrder, Order } from '../../types';
 import type { PrintImageKey } from '../../types';
 import { formatPrice, getStatusBadge, formatOrderDateTime, deriveOrderCreatedAt } from '../../utils/formatters';
 import { generateNinePackSheet, downloadImage } from '../../utils/sheetGenerator';
@@ -43,6 +44,20 @@ interface AdminOrdersProps {
   dimensions?: PrintDimension[];
 }
 
+const formatLostOrderDateTime = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat('fa-IR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(date);
+};
+
 export const AdminOrders: React.FC<AdminOrdersProps> = ({
   orders,
   queueInfo,
@@ -61,6 +76,8 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
     allDimensions.find((d) => d.id === id) || PRINT_DIMENSIONS.find((d) => d.id === id);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [lostOrders, setLostOrders] = useState<LostOrder[]>([]);
+  const [lostOrdersLoading, setLostOrdersLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [generatingSheetId, setGeneratingSheetId] = useState<string | null>(null);
   const [uploadingImageAsset, setUploadingImageAsset] = useState<PrintImageKey | null>(null);
@@ -80,6 +97,20 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isRequestingDeleteCode, setIsRequestingDeleteCode] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+
+  const refreshLostOrders = React.useCallback(async (showLoading = false) => {
+    if (showLoading) setLostOrdersLoading(true);
+    const data = await apiClient.getLostOrders();
+    setLostOrders(data);
+    setLostOrdersLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (statusFilter !== 'lost') return;
+    void refreshLostOrders(true);
+    const interval = window.setInterval(() => void refreshLostOrders(), 10_000);
+    return () => window.clearInterval(interval);
+  }, [refreshLostOrders, statusFilter]);
 
   React.useEffect(() => {
     if (!selectedOrder) return;
@@ -230,8 +261,23 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
       order.trackingCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.customerInfo?.phoneNumber?.includes(searchQuery);
 
+    if (statusFilter === 'lost') return false;
     if (statusFilter === 'all') return matchesSearch;
     return matchesSearch && order.status === statusFilter;
+  });
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredLostOrders = lostOrders.filter((order) => {
+    if (!normalizedSearch) return true;
+    return [
+      order.userName,
+      order.userPhone,
+      order.customerName,
+      order.customerPhone,
+      order.printTypeTitle,
+      order.dimensionTitle,
+      order.paymentInvoiceId
+    ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
   });
 
   // Handle generating 9-pack sheet without AI using HTML5 Canvas
@@ -540,6 +586,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
         <div className="relative flex-1">
           <input
             type="text"
+            aria-label="جستجو در سفارشات چاپ عکس"
             placeholder="جستجو با نام مشتری، کد پیگیری یا شماره تماس..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -555,14 +602,20 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
             { id: 'ai_processing', label: 'پردازش AI' },
             { id: 'printing', label: 'در حال چاپ' },
             { id: 'ready_to_ship', label: 'آماده ارسال' },
-            { id: 'delivered', label: 'تحویل شده' }
+            { id: 'delivered', label: 'تحویل شده' },
+            {
+              id: 'lost',
+              label: `سفارشات از دست رفته${lostOrders.length > 0 ? ` (${lostOrders.length.toLocaleString('fa-IR')})` : ''}`
+            }
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
               className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer font-bold ${
                 statusFilter === tab.id
-                  ? 'bg-gradient-to-r from-sky-500 to-emerald-500 text-white shadow-xs'
+                  ? tab.id === 'lost'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-gradient-to-r from-sky-500 to-emerald-500 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -572,8 +625,90 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
         </div>
       </div>
 
+      {statusFilter === 'lost' && (
+        <div className="space-y-3">
+          <div className="flex flex-col gap-2 rounded-2xl border border-rose-200 bg-rose-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+              <div>
+                <h3 className="text-xs font-black text-rose-900">سفارش‌های رسیده به پرداخت بدون تکمیل تراکنش</h3>
+                <p className="mt-0.5 text-[10px] leading-5 text-rose-700 sm:text-[11px]">
+                  زمان نمایش‌داده‌شده لحظهٔ اولین ورود کاربر به مرحله پرداخت و بر اساس ساعت سرور است.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refreshLostOrders(true)}
+              disabled={lostOrdersLoading}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-[10px] font-black text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${lostOrdersLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              به‌روزرسانی
+            </button>
+          </div>
+
+          {lostOrdersLoading ? (
+            <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-10 text-xs font-bold text-slate-500">
+              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+              در حال دریافت سفارشات از دست رفته...
+            </div>
+          ) : filteredLostOrders.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xs sm:p-12">
+              <p className="text-xs text-slate-500 sm:text-sm">سفارش پرداخت‌نشده‌ای با این جستجو یافت نشد.</p>
+            </div>
+          ) : (
+            filteredLostOrders.map((order) => (
+              <article
+                key={order.id}
+                className="flex flex-col gap-4 rounded-2xl border border-rose-200 bg-white p-4 shadow-xs transition-colors hover:border-rose-300 sm:p-5 lg:flex-row lg:items-center lg:justify-between"
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-600">
+                    <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-xs font-black text-slate-900 sm:text-sm">
+                        {order.customerName || order.userName}
+                      </h3>
+                      <span className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-black text-rose-700 sm:text-[10px]">
+                        پرداخت نشده
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:text-[11px]">
+                      <span className="flex items-center gap-1" dir="ltr">
+                        <Phone className="h-3 w-3 text-slate-400" aria-hidden="true" />
+                        {order.customerPhone || order.userPhone || 'بدون شماره'}
+                      </span>
+                      <span className="font-bold text-slate-700">
+                        {order.printTypeTitle || order.printType} · {order.dimensionTitle || order.dimensionId} · {order.quantity.toLocaleString('fa-IR')} عدد
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-slate-500 sm:text-[11px]">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-rose-500" aria-hidden="true" />
+                        ورود به پرداخت: {formatLostOrderDateTime(order.reachedPaymentAt)}
+                      </span>
+                      {order.paymentInvoiceId && (
+                        <span className="font-mono text-slate-400" dir="ltr">#{order.paymentInvoiceId}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 text-right lg:border-t-0 lg:pt-0 lg:text-left">
+                  <p className="text-[10px] font-bold text-slate-400">مبلغ پرداخت‌نشده</p>
+                  <p className="mt-1 text-sm font-black text-rose-700">{formatPrice(order.totalPrice)}</p>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Orders List */}
-      <div className="space-y-3">
+      {statusFilter !== 'lost' && <div className="space-y-3">
         {filteredOrders.length === 0 ? (
           <div className="p-8 sm:p-12 text-center bg-white border border-slate-200 rounded-2xl shadow-xs">
             <p className="text-slate-500 text-xs sm:text-sm">سفارشی با این فیلتر یافت نشد.</p>
@@ -734,7 +869,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
             );
           })
         )}
-      </div>
+      </div>}
 
       {/* Order Detail Modal with Multi-Image History & 6-Pack Sheet */}
       {selectedOrder && (
@@ -1129,3 +1264,4 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
     </div>
   );
 };
+
