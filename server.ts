@@ -1803,6 +1803,51 @@ app.get('/api/orders', async (req: any, res) => {
   res.json(mine);
 });
 
+// Track signed-in customers who reached payment but did not complete it.
+app.post('/api/lost-orders', async (req: any, res) => {
+  const db = await readDb();
+  const currentUser = req.currentUser;
+  const draftId = String(req.body?.draftId || '').trim().slice(0, 180);
+  if (!draftId || !currentUser?.id) {
+    return res.status(400).json({ success: false, error: 'شناسه پیش‌نویس سفارش معتبر نیست.' });
+  }
+  const clean = (value: unknown, max = 160) => String(value || '').trim().slice(0, max);
+  const now = new Date().toISOString();
+  const items = Array.isArray(db.lostOrders) ? db.lostOrders : [];
+  const existing = items.find((item: any) => item.draftId === draftId && item.userId === currentUser.id);
+  const lostOrder = {
+    ...(existing || {}),
+    id: existing?.id || `lost-${currentUser.id}-${draftId}`.slice(0, 240),
+    draftId,
+    userId: currentUser.id,
+    userName: clean(currentUser.name, 120),
+    userPhone: clean(currentUser.phone, 30),
+    customerName: clean(req.body?.customerName || currentUser.name, 120),
+    customerPhone: clean(req.body?.customerPhone || currentUser.phone, 30),
+    printType: clean(req.body?.printType, 80),
+    printTypeTitle: clean(req.body?.printTypeTitle, 120),
+    dimensionId: clean(req.body?.dimensionId, 80),
+    dimensionTitle: clean(req.body?.dimensionTitle, 120),
+    quantity: Math.max(1, Math.min(1000, Number(req.body?.quantity) || 1)),
+    totalPrice: Math.max(0, Number(req.body?.totalPrice) || 0),
+    paymentInvoiceId: clean(req.body?.paymentInvoiceId, 160) || undefined,
+    reachedPaymentAt: existing?.reachedPaymentAt || now,
+    lastSeenAt: now
+  };
+  db.lostOrders = [lostOrder, ...items.filter((item: any) => item.id !== lostOrder.id)].slice(0, 2000);
+  await writeDb(db);
+  res.json({ success: true, lostOrder });
+});
+
+app.get('/api/lost-orders', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  const db = await readDb();
+  const items = Array.isArray(db.lostOrders) ? db.lostOrders : [];
+  res.json([...items].sort((a: any, b: any) =>
+    new Date(b.reachedPaymentAt || 0).getTime() - new Date(a.reachedPaymentAt || 0).getTime()
+  ));
+});
+
 app.post('/api/orders', async (req, res) => {
   const db = await readDb();
   const newOrder = req.body || {};
@@ -1828,6 +1873,13 @@ app.post('/api/orders', async (req, res) => {
     db.orders[existingIdx] = newOrder;
   } else {
     db.orders = [newOrder, ...(db.orders || [])];
+  }
+
+  const sourceDraftId = String(newOrder.sourceDraftId || '').trim();
+  if (isNew && newOrder.paymentStatus === 'paid' && sourceDraftId) {
+    db.lostOrders = (db.lostOrders || []).filter(
+      (item: any) => !(item.draftId === sourceDraftId && item.userId === newOrder.userId)
+    );
   }
 
   // Wallet credit is one-time: an order that consumes it zeroes the balance for good.
