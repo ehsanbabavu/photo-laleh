@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeftRight,
   Check,
@@ -8,7 +8,8 @@ import {
   Info,
   Loader2,
   RefreshCw,
-  Save
+  Save,
+  Upload
 } from 'lucide-react';
 
 type StorageMode = 'local' | 'blob';
@@ -21,6 +22,8 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
   const [migrating, setMigrating] = useState<StorageMode | null>(null);
   const [maxUploadImages, setMaxUploadImages] = useState(50);
   const [gallery, setGallery] = useState<Array<{ src: string; alt: string }>>([]);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [galleryUploading, setGalleryUploading] = useState(false);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -80,6 +83,20 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
     } finally {
       setSaving(false);
     }
+  };
+
+  const uploadGalleryImage = async (file: File) => {
+    if (!file.type.startsWith('image/')) return showToast('فقط فایل تصویری انتخاب کنید.');
+    setGalleryUploading(true);
+    try {
+      const { upload } = await import('@vercel/blob/client');
+      const result = await upload(`gallery/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`, file, {
+        access: 'public', handleUploadUrl: '/api/uploads/blob', contentType: file.type
+      });
+      setGallery((current) => [...current, { src: result.url, alt: 'گالری آتلیه لاله' }]);
+      showToast('عکس گالری آپلود شد؛ برای ثبت نهایی ذخیره تنظیمات را بزنید.');
+    } catch { showToast('آپلود عکس گالری ناموفق بود.'); }
+    finally { setGalleryUploading(false); }
   };
 
   const actionsDisabled = loading || loadError || saving || Boolean(migrating);
@@ -171,8 +188,9 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
             <button type="button" onClick={() => setGallery((current) => current.filter((_entry, itemIndex) => itemIndex !== index))} className="absolute right-1 top-1 rounded-md bg-rose-600 px-2 py-1 text-[9px] font-bold text-white">حذف</button>
           </div>)}
         </div>
-        <input type="url" placeholder="آدرس تصویر گالری (https://...)" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); const value = event.currentTarget.value.trim(); if (value) { setGallery((current) => [...current, { src: value, alt: 'گالری آتلیه لاله' }]); event.currentTarget.value = ''; } } }} className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs" />
-        <p className="mt-1 text-[9px] text-slate-400">برای افزودن، آدرس را وارد کرده و Enter بزنید؛ سپس دکمه ذخیره تنظیمات را بزنید.</p>
+        <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadGalleryImage(file); event.currentTarget.value = ''; }} />
+        <button type="button" disabled={galleryUploading} onClick={() => galleryInputRef.current?.click()} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-[10px] font-black text-violet-700 hover:bg-violet-50 disabled:opacity-50"><Upload className="h-3.5 w-3.5" /> {galleryUploading ? 'در حال آپلود...' : 'آپلود عکس جدید'}</button>
+        <p className="mt-1 text-[9px] text-slate-400">آپلود از محل ذخیره‌سازی فعال ({mode === 'blob' ? 'ابری' : 'داخلی'}) انجام می‌شود؛ سپس ذخیره تنظیمات را بزنید.</p>
       </div>
 
       <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 lg:flex-row lg:items-center lg:justify-between">
