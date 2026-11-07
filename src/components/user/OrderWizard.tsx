@@ -283,6 +283,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     const newOrder: Order = {
       ...paidDraft,
       id: 'ord-' + Date.now(),
+      sourceDraftId: paidDraft.id,
       trackingCode: 'Laleh-' + Math.floor(10000 + Math.random() * 90000),
       userId: user.id,
       userName: paidDraft.customerInfo.fullName || user.name,
@@ -488,3 +489,4 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     </div>
   );
 };
+
