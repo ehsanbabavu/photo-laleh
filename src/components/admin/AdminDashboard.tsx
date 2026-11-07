@@ -232,7 +232,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
       )}
 
       {/* 2 Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
         <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-xs">
           <p className="text-[11px] font-bold text-slate-500">سفارشات از دست رفته</p>
           <p className="mt-2 text-2xl font-black text-rose-700">{lostCounts.total.toLocaleString('fa-IR')}</p>
@@ -272,7 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
         </div>
 
         {/* Blob storage usage */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-violet-300 hover:shadow-md transition-all shadow-xs sm:col-span-2">
+        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-violet-300 hover:shadow-md transition-all shadow-xs sm:col-span-2 xl:col-span-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] sm:text-xs text-slate-500 font-medium">فضای آپلود عکس‌ها</span>
             <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-100">
