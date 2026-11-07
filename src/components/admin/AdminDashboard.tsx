@@ -9,7 +9,10 @@ import {
   ArrowUpRight,
   LifeBuoy,
   HardDrive,
-  Loader2
+  Loader2,
+  X,
+  Trash2,
+  Files
 } from 'lucide-react';
 import { Order, SupportTicket } from '../../types';
 import { AdminTab } from './AdminSidebar';
@@ -29,6 +32,14 @@ interface StorageUsage {
   remainingBytes: number;
   limitBytes: number;
   count: number;
+}
+
+interface StorageFile {
+  url: string;
+  pathname?: string;
+  size?: number;
+  uploadedAt?: string;
+  contentType?: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -51,6 +62,10 @@ function formatBytes(bytes: number): string {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInfo, tickets = [], onNavigateTab }) => {
   const [storage, setStorage] = useState<StorageUsage | null>(null);
   const [storageLoading, setStorageLoading] = useState(true);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [files, setFiles] = useState<StorageFile[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -87,6 +102,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
   const totalRevenue = orders.reduce((sum, o) => sum + (o.paymentStatus === 'paid' ? o.totalPrice : 0), 0);
   const pendingPrintCount = orders.filter((o) => o.status === 'printing' || o.status === 'ai_processing').length;
   const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
+
+  const loadFiles = async () => {
+    setFilesLoading(true);
+    try {
+      const res = await fetch('/api/storage/files', { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data?.files)) setFiles(data.files);
+    } finally {
+      setFilesLoading(false);
+    }
+  };
+
+  const deleteFiles = async (urls: string[]) => {
+    if (!urls.length || !window.confirm(`حذف ${urls.length.toLocaleString('fa-IR')} فایل انتخاب‌شده؟`)) return;
+    const res = await fetch('/api/storage/files', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls })
+    });
+    if (res.ok) {
+      setFiles((current) => current.filter((file) => !urls.includes(file.url)));
+      setSelectedFiles([]);
+      setStorage(null);
+    }
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -275,11 +313,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
                   <span className="text-slate-500">تعداد فایل</span>
                   <span className="font-bold text-slate-700 font-mono">{storage.count.toLocaleString('fa-IR')}</span>
                 </div>
+                <button type="button" onClick={() => { setFilesOpen(true); void loadFiles(); }} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-[10px] font-bold text-violet-700 hover:bg-violet-50">
+                  <Files className="h-3.5 w-3.5" /> لیست فایل‌ها
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {filesOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setFilesOpen(false)}>
+          <div className="max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 p-4">
+              <h3 className="text-sm font-black text-slate-900">فهرست فایل‌های آپلودشده</h3>
+              <div className="flex items-center gap-2">
+                {selectedFiles.length > 0 && <button type="button" onClick={() => void deleteFiles(selectedFiles)} className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-2 text-[10px] font-bold text-white"><Trash2 className="h-3.5 w-3.5" /> حذف انتخاب‌شده‌ها</button>}
+                <button type="button" onClick={() => setFilesOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-4">
+              {filesLoading ? <div className="py-12 text-center text-sm text-slate-500">در حال دریافت فایل‌ها...</div> : files.length === 0 ? <div className="py-12 text-center text-sm text-slate-500">فایلی وجود ندارد.</div> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {files.map((file) => { const image = String(file.contentType || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|avif)$/i.test(file.url); const selected = selectedFiles.includes(file.url); return <div key={file.url} className={`relative overflow-hidden rounded-xl border ${selected ? 'border-violet-500 ring-2 ring-violet-200' : 'border-slate-200'}`}>
+                  <label className="absolute left-2 top-2 z-10 rounded-md bg-white/90 p-1"><input type="checkbox" checked={selected} onChange={() => setSelectedFiles((current) => selected ? current.filter((url) => url !== file.url) : [...current, file.url])} /></label>
+                  {image ? <img src={file.url} alt={file.pathname || 'uploaded file'} className="h-32 w-full object-cover" loading="lazy" /> : <div className="flex h-32 items-center justify-center bg-slate-50 text-xs text-slate-400">فایل</div>}
+                  <div className="truncate px-2 py-2 text-[10px] text-slate-600" title={file.pathname || file.url}>{file.pathname || file.url}</div>
+                  <button type="button" onClick={() => void deleteFiles([file.url])} className="m-2 inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-[10px] font-bold text-rose-600"><Trash2 className="h-3 w-3" /> حذف</button>
+                </div>; })}
+              </div>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Recent Orders Section */}
       <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs">

@@ -442,6 +442,38 @@ app.get('/api/storage/usage', async (req: any, res) => {
   }
 });
 
+app.get('/api/storage/files', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  try {
+    const { list } = await import('@vercel/blob');
+    const files: any[] = [];
+    let cursor: string | undefined;
+    do {
+      const page: any = await list({ cursor, limit: 1000 });
+      for (const blob of page.blobs || []) files.push(blob);
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor && files.length < 10000);
+    res.json({ success: true, files });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'خواندن فایل‌ها ناموفق بود' });
+  }
+});
+
+app.delete('/api/storage/files', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  const urls = Array.from(new Set((Array.isArray(req.body?.urls) ? req.body.urls : [req.body?.url])
+    .map((value: any) => String(value || '').trim())
+    .filter((value: string) => /^https:\/\//.test(value))));
+  if (!urls.length) return res.status(400).json({ success: false, error: 'فایلی برای حذف انتخاب نشده است' });
+  try {
+    const { del } = await import('@vercel/blob');
+    await Promise.all(urls.map((url) => del(url)));
+    res.json({ success: true, deleted: urls.length });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'حذف فایل ناموفق بود' });
+  }
+});
+
 // Destructive storage migration: format destination, then copy files while preserving paths.
 app.post('/api/storage/migrate', async (req: any, res) => {
   if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
@@ -1267,11 +1299,32 @@ function resolveAdminPhone(_req: any, db: any): string {
   return normalizeIranianPhone(admin?.phone || admin?.phoneNumber || admin?.mobile || '09123456789');
 }
 
+async function deleteOrderAssets(order: any): Promise<void> {
+  const urls = new Set<string>();
+  const collect = (value: any) => {
+    if (Array.isArray(value)) return value.forEach(collect);
+    if (!value || typeof value !== 'object') return;
+    for (const child of Object.values(value)) {
+      if (typeof child === 'string' && /^https:\/\//.test(child)) urls.add(child);
+      else collect(child);
+    }
+  };
+  collect(order);
+  if (!urls.size) return;
+  try {
+    const { del } = await import('@vercel/blob');
+    await Promise.all(Array.from(urls).map((url) => del(url)));
+  } catch (err: any) {
+    console.error('[storage] failed to delete order assets', err?.message || err);
+  }
+}
+
 // Request a one-time code before permanently deleting an order.
 app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
   try {
     if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
     const orderId = String(req.params.id || '').trim();
+    const deletedOrder = (db.orders || []).find((order: any) => order.id === orderId);
     const db = await readDb();
     if (!(db.orders || []).some((order: any) => order.id === orderId)) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
     const phone = resolveAdminPhone(req, db);
@@ -1303,6 +1356,7 @@ app.post('/api/admin/orders/:id/delete/confirm', async (req: any, res) => {
     db.orders = (db.orders || []).filter((order: any) => order.id !== orderId);
     if (db.orders.length === before) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
     await writeDb(db);
+    await deleteOrderAssets(deletedOrder);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'حذف سفارش ناموفق بود' });
