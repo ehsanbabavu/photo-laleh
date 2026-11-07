@@ -235,7 +235,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-xs">
           <p className="text-[11px] font-bold text-slate-500">سفارشات از دست رفته</p>
-          <p className="mt-2 text-2xl font-black text-rose-700">{lostCounts.total.toLocaleString('fa-IR')}</p>
+          <p className="mt-2 text-2xl font-black text-rose-700">{lostCounts.untracked.toLocaleString('fa-IR')}</p>
           <div className="mt-2 flex gap-3 text-[10px] font-bold"><span className="text-amber-700">پیگیری نشده: {lostCounts.untracked.toLocaleString('fa-IR')}</span><span className="text-emerald-700">پیگیری شده: {lostCounts.tracked.toLocaleString('fa-IR')}</span></div>
         </div>
         {/* Total Orders */}
