@@ -30,6 +30,7 @@ export const DEFAULT_DB_NAME = process.env.MONGODB_DB || 'laleh_studio';
 export const ARRAY_COLLECTIONS = [
   'users',
   'orders',
+  'lostOrders',
   'tickets',
   'printTypes',
   'dimensions',
@@ -853,3 +854,4 @@ export async function applyDbConfig(uri: string, dbName: string): Promise<{ ok: 
   await getDb();
   return { ok: true };
 }
+
