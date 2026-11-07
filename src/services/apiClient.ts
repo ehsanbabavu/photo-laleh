@@ -2,7 +2,7 @@
  * API Client for interacting with real internal database server (/api/*)
  */
 
-import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder, BluPalTransaction, TransactionDeletionChannel } from '../types';
+import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder, BluPalTransaction, DeletionChannel, DeletionCodeDelivery } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -110,19 +110,21 @@ export const apiClient = {
     return data;
   },
 
-  async requestOrderDeletionCode(orderId: string) {
-    const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/delete/request`, { method: 'POST' });
+  async requestOrderDeletionCode(orderId: string, channel: DeletionChannel = 'sms'): Promise<DeletionCodeDelivery> {
+    const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/delete/request`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel })
+    });
     const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(data?.error || 'ارسال کد تأیید ناموفق بود');
+    if (!res.ok || !data?.success) throw new Error(data?.error || 'ارسال کد تأیید ناموفق بود');
     return data;
   },
 
-  async confirmOrderDeletion(orderId: string, code: string) {
+  async confirmOrderDeletion(orderId: string, code: string, channel: DeletionChannel = 'sms') {
     const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/delete/confirm`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, channel })
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(data?.error || 'کد تأیید نادرست است');
+    if (!res.ok || !data?.success) throw new Error(data?.error || 'کد تأیید نادرست است');
     return data;
   },
 
@@ -367,7 +369,7 @@ export const apiClient = {
     return data;
   },
 
-  async requestTransactionDeletionCode(transactionId: string, channel: TransactionDeletionChannel = 'sms') {
+  async requestTransactionDeletionCode(transactionId: string, channel: DeletionChannel = 'sms'): Promise<DeletionCodeDelivery> {
     const res = await fetch(`/api/admin/transactions/${encodeURIComponent(transactionId)}/delete/request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -375,10 +377,10 @@ export const apiClient = {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) throw new Error(data?.error || 'ارسال کد تأیید ناموفق بود');
-    return data as { success: true; channel: TransactionDeletionChannel; destination: string; expiresIn: number };
+    return data;
   },
 
-  async confirmTransactionDeletion(transactionId: string, code: string, channel: TransactionDeletionChannel = 'sms') {
+  async confirmTransactionDeletion(transactionId: string, code: string, channel: DeletionChannel = 'sms') {
     const res = await fetch(`/api/admin/transactions/${encodeURIComponent(transactionId)}/delete/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

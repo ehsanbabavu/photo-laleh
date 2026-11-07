@@ -36,7 +36,7 @@ import {
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
 import { getPaidBluPalTransactions } from './src/utils/bluPalTransactions';
-import type { TransactionDeletionChannel } from './src/types';
+import type { DeletionChannel } from './src/types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1367,12 +1367,12 @@ function deletionOtpKey(kind: 'order' | 'transaction', req: any, id: string, pho
   return `delete-${kind}:${digest}`;
 }
 
-function transactionDeletionChannel(value: unknown): TransactionDeletionChannel | null {
+function deletionChannel(value: unknown): DeletionChannel | null {
   if (value === undefined) return 'sms';
   return value === 'sms' || value === 'telegram' || value === 'eitaa' ? value : null;
 }
 
-function transactionDeletionRecipient(req: any, db: any, channel: TransactionDeletionChannel): { recipient?: string; error?: string } {
+function deletionRecipient(req: any, db: any, channel: DeletionChannel): { recipient?: string; error?: string } {
   if (channel === 'sms') {
     const phone = resolveAdminPhone(req, db);
     return isValidIranianPhone(phone) ? { recipient: phone } : { error: 'شماره موبایل ادمین معتبر نیست' };
@@ -1387,14 +1387,14 @@ function transactionDeletionRecipient(req: any, db: any, channel: TransactionDel
   return { recipient };
 }
 
-async function sendTransactionMessengerCode(db: any, channel: 'telegram' | 'eitaa', recipient: string, otpKey: string, invoiceId: string): Promise<{ ok: boolean; error?: string }> {
+async function sendDeletionMessengerCode(db: any, channel: 'telegram' | 'eitaa', recipient: string, otpKey: string, recordLabel: string): Promise<{ ok: boolean; error?: string }> {
   const token = String(channel === 'telegram'
     ? db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || ''
     : db.settings?.eitaaToken || process.env.EITAA_TOKEN || '').trim();
   const label = channel === 'telegram' ? 'تلگرام' : 'ایتا';
   if (!token) return { ok: false, error: `توکن ربات ${label} در تنظیمات ثبت نشده است` };
   const code = String(crypto.randomInt(100000, 1000000));
-  const message = `کد تأیید حذف تراکنش فاکتور ${invoiceId}: ${code}\nاین کد تا ۲ دقیقه معتبر است. فقط برای حذف این تراکنش استفاده کنید.`;
+  const message = `کد تأیید حذف ${recordLabel}: ${code}\nاین کد تا ۲ دقیقه معتبر است. فقط برای حذف همین مورد استفاده کنید.`;
   const sent = channel === 'telegram'
     ? await sendTelegramMessage(token, recipient, message)
     : await sendEitaaMessage(token, recipient, message);
@@ -1429,40 +1429,54 @@ app.post('/api/admin/orders/:id/delete/request', async (req: any, res) => {
     if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
     const orderId = String(req.params.id || '').trim();
     const db = await readDb();
-    if (!(db.orders || []).some((order: any) => order.id === orderId)) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
-    const phone = resolveAdminPhone(req, db);
-    if (!/^09\d{9}$/.test(phone)) return res.status(400).json({ success: false, error: 'شماره موبایل ادمین معتبر نیست' });
-    const sent = await sendOtpSms(phone, deletionOtpKey('order', req, orderId, phone));
+    const order = (db.orders || []).find((order: any) => order.id === orderId);
+    if (!order) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
+    const channel = deletionChannel(req.body?.channel);
+    if (!channel) return res.status(400).json({ success: false, error: 'روش ارسال کد معتبر نیست' });
+    const target = deletionRecipient(req, db, channel);
+    if (!target.recipient) return res.status(400).json({ success: false, error: target.error });
+    if (await hitRateLimit(`order-delete:${req.currentUser.id}:${orderId}`, 3, 15 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'درخواست‌های ارسال کد بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.' });
+    }
+    const recipient = target.recipient;
+    const otpKey = deletionOtpKey('order', req, orderId, JSON.stringify([channel, recipient]));
+    const sent = channel === 'sms'
+      ? await sendOtpSms(recipient, otpKey)
+      : await sendDeletionMessengerCode(db, channel, recipient, otpKey, `سفارش ${order.trackingCode || orderId}`);
     if (!sent.ok) return res.status(400).json({ success: false, error: sent.error });
-    res.json({ success: true, phone: phone.replace(/^(\d{3})\d{5}(\d{3})$/, '$1*****$2') });
+    const destination = channel === 'sms' ? recipient.replace(/^(\d{3})\d{5}(\d{3})$/, '$1*****$2') : recipient;
+    res.json({ success: true, channel, destination, ...(channel === 'sms' ? { phone: destination } : {}), expiresIn: 120 });
   } catch (err: any) { res.status(500).json({ success: false, error: err?.message || 'ارسال کد ناموفق بود' }); }
 });
 
-// Verify the SMS code and delete the order atomically.
+// Verify the code for this channel and recipient before deleting the selected order.
 app.post('/api/admin/orders/:id/delete/confirm', async (req: any, res) => {
   try {
     if (req.currentUser?.role !== 'admin') {
       return res.status(403).json({ success: false, error: 'دسترسی غیرمجاز' });
     }
     const db = await readDb();
-    const phone = resolveAdminPhone(req, db);
     const orderId = String(req.params.id || '').trim();
-    const deletedOrder = (db.orders || []).find((order: any) => order.id === orderId);
-    if (!deletedOrder) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
+    if (!(db.orders || []).some((order: any) => order.id === orderId)) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
+    const channel = deletionChannel(req.body?.channel);
+    if (!channel) return res.status(400).json({ success: false, error: 'روش ارسال کد معتبر نیست' });
+    const target = deletionRecipient(req, db, channel);
+    if (!target.recipient) return res.status(400).json({ success: false, error: target.error });
     const code = toAsciiDigits(req.body?.code).trim();
-    if (!/^09\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
+    if (!/^\d{6}$/.test(code)) {
       return res.status(400).json({ success: false, error: 'کد واردشده معتبر نیست' });
     }
-    const verified = await verifyOtpCode(deletionOtpKey('order', req, orderId, phone), code);
+    const verified = await verifyOtpCode(deletionOtpKey('order', req, orderId, JSON.stringify([channel, target.recipient])), code);
     if (!verified.ok) {
-      return res.status(400).json({ success: false, error: 'کد تأیید نادرست یا منقضی شده است' });
+      return res.status(400).json({ success: false, error: verified.error || 'کد تأیید نادرست یا منقضی شده است' });
     }
-    const before = (db.orders || []).length;
-    db.orders = (db.orders || []).filter((order: any) => order.id !== orderId);
-    if (db.orders.length === before) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
-    await writeDb(db);
+    const latest = await readDb();
+    const deletedOrder = (latest.orders || []).find((order: any) => order.id === orderId);
+    if (!deletedOrder) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
+    const next = { ...latest, orders: (latest.orders || []).filter((order: any) => order.id !== orderId) };
+    await writeDb(next);
     await deleteOrderAssets(deletedOrder);
-    res.json({ success: true });
+    res.json({ success: true, deletedId: orderId });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'حذف سفارش ناموفق بود' });
   }
@@ -2140,7 +2154,7 @@ app.patch('/api/orders/:id/print-selection', async (req: any, res) => {
 });
 
 app.delete('/api/orders/:id', async (_req, res) => {
-  return res.status(403).json({ success: false, error: 'حذف سفارش فقط پس از تأیید پیامکی امکان‌پذیر است.' });
+  return res.status(403).json({ success: false, error: 'حذف سفارش فقط پس از تأیید کد امکان‌پذیر است.' });
   /*
   const db = await readDb();
   const orderId = req.params.id;
@@ -3184,9 +3198,9 @@ app.post('/api/admin/transactions/:id/delete/request', async (req: any, res) => 
     if (!transaction) {
       return res.status(404).json({ success: false, error: 'تراکنش یافت نشد' });
     }
-    const channel = transactionDeletionChannel(req.body?.channel);
+    const channel = deletionChannel(req.body?.channel);
     if (!channel) return res.status(400).json({ success: false, error: 'روش ارسال کد معتبر نیست' });
-    const target = transactionDeletionRecipient(req, db, channel);
+    const target = deletionRecipient(req, db, channel);
     if (!target.recipient) return res.status(400).json({ success: false, error: target.error });
     const recipient = target.recipient;
     if (await hitRateLimit(`transaction-delete:${req.currentUser.id}:${transactionId}`, 3, 15 * 60 * 1000)) {
@@ -3195,7 +3209,7 @@ app.post('/api/admin/transactions/:id/delete/request', async (req: any, res) => 
     const otpKey = deletionOtpKey('transaction', req, transactionId, JSON.stringify([channel, recipient]));
     const sent = channel === 'sms'
       ? await sendOtpSms(recipient, otpKey)
-      : await sendTransactionMessengerCode(db, channel, recipient, otpKey, transaction.invoiceId);
+      : await sendDeletionMessengerCode(db, channel, recipient, otpKey, `تراکنش فاکتور ${transaction.invoiceId}`);
     if (!sent.ok) return res.status(400).json({ success: false, error: sent.error });
     const destination = channel === 'sms' ? recipient.replace(/^(\d{3})\d{5}(\d{3})$/, '$1*****$2') : recipient;
     res.json({ success: true, channel, destination, ...(channel === 'sms' ? { phone: destination } : {}), expiresIn: 120 });
@@ -3213,9 +3227,9 @@ app.post('/api/admin/transactions/:id/delete/confirm', async (req: any, res) => 
     if (!getPaidBluPalTransactions(db).some((transaction) => transaction.id === transactionId)) {
       return res.status(404).json({ success: false, error: 'تراکنش یافت نشد' });
     }
-    const channel = transactionDeletionChannel(req.body?.channel);
+    const channel = deletionChannel(req.body?.channel);
     if (!channel) return res.status(400).json({ success: false, error: 'روش ارسال کد معتبر نیست' });
-    const target = transactionDeletionRecipient(req, db, channel);
+    const target = deletionRecipient(req, db, channel);
     if (!target.recipient) return res.status(400).json({ success: false, error: target.error });
     const code = toAsciiDigits(req.body?.code).trim();
     if (!/^\d{6}$/.test(code)) {

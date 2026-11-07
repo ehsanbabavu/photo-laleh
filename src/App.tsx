@@ -814,11 +814,7 @@ export default function App() {
   };
 
   const handleDeleteOrder = (orderId: string) => {
-    setOrders((prev) => {
-      const next = prev.filter((o) => o.id !== orderId);
-      apiClient.deleteOrder(orderId);
-      return next;
-    });
+    setOrders((prev) => prev.filter((order) => order.id !== orderId));
     showToast('سفارش با موفقیت حذف گردید.');
   };
 

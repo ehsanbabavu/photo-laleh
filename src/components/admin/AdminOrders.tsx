@@ -29,6 +29,7 @@ import { PRINT_DIMENSIONS, PAPER_MATERIALS } from '../../data/mockData';
 import type { PrintDimension, User } from '../../types';
 import { SendToPartnerModal } from './SendToPartnerModal';
 import { apiClient } from '../../services/apiClient';
+import { DeleteConfirmationDialog } from './DeleteConfirmationDialog';
 
 interface AdminOrdersProps {
   orders: Order[];
@@ -96,11 +97,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [partners, setPartners] = useState<User[]>([]);
   const [sendPartnerOrder, setSendPartnerOrder] = useState<Order | null>(null);
   const [partnerToast, setPartnerToast] = useState<string | null>(null);
-  const [deleteVerification, setDeleteVerification] = useState<{ order: Order; phone?: string } | null>(null);
-  const [deleteCode, setDeleteCode] = useState('');
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [isRequestingDeleteCode, setIsRequestingDeleteCode] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
 
   const refreshLostOrders = React.useCallback(async (showLoading = false) => {
     if (pendingLostOrderUpdates.current.size > 0) return;
@@ -235,38 +232,13 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
     setTimeout(() => setSuccessToast(null), 3500);
   };
 
-  const requestDeleteOrder = (order: Order) => {
-    setDeleteError(null);
-    setDeleteCode('');
-    setDeleteVerification({ order });
-  };
+  const requestDeleteOrder = (order: Order) => setDeleteTarget(order);
 
-  const sendDeleteCode = async () => {
-    if (!deleteVerification) return;
-    setDeleteError(null);
-    setIsRequestingDeleteCode(true);
-    try {
-      const result = await apiClient.requestOrderDeletionCode(deleteVerification.order.id);
-      setDeleteVerification((current) =>
-        current ? { ...current, phone: result.phone } : current
-      );
-    } catch (error: any) {
-      setDeleteError(error?.message || 'ارسال کد تأیید ناموفق بود');
-    } finally {
-      setIsRequestingDeleteCode(false);
-    }
-  };
-
-  const confirmDeleteOrder = async () => {
-    if (!deleteVerification) return;
-    setDeleteError(null); setIsConfirmingDelete(true);
-    try {
-      await apiClient.confirmOrderDeletion(deleteVerification.order.id, deleteCode);
-      onDeleteOrder?.(deleteVerification.order.id);
-      if (selectedOrder?.id === deleteVerification.order.id) setSelectedOrder(null);
-      setDeleteVerification(null); setDeleteCode(''); showToast('سفارش با موفقیت حذف شد.');
-    } catch (error: any) { setDeleteError(error?.message || 'کد تأیید نادرست است'); }
-    finally { setIsConfirmingDelete(false); }
+  const onOrderDeleted = () => {
+    if (!deleteTarget) return;
+    onDeleteOrder?.(deleteTarget.id);
+    if (selectedOrder?.id === deleteTarget.id) setSelectedOrder(null);
+    showToast('سفارش با موفقیت حذف شد.');
   };
 
   const handleMarkAsReadyToShip = (order: Order) => {
@@ -506,19 +478,17 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {deleteVerification && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" dir="rtl">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div><h3 className="text-base font-black text-slate-900">تأیید حذف سفارش</h3><p className="mt-1 text-xs leading-6 text-slate-500">{isRequestingDeleteCode ? 'در حال ارسال کد تأیید به شماره ادمین...' : deleteVerification.phone ? `کد تأیید به شماره ادمین ${deleteVerification.phone} ارسال شد.` : 'کد تأیید را وارد کنید.'}</p></div>
-              <button type="button" onClick={() => setDeleteVerification(null)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
-            </div>
-            <button type="button" disabled={isRequestingDeleteCode} onClick={() => void sendDeleteCode()} className="mb-3 w-full rounded-xl bg-sky-600 py-3 text-xs font-bold text-white disabled:opacity-50">{isRequestingDeleteCode ? 'در حال ارسال...' : deleteVerification.phone ? 'ارسال مجدد پیامک' : 'ارسال پیامک کد تأیید'}</button>
-            <input autoFocus value={deleteCode} onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="کد ۶ رقمی پیامک" className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg tracking-[0.4em] focus:border-sky-500 focus:outline-none" />
-            {deleteError && <p className="mt-2 text-xs font-bold text-rose-600">{deleteError}</p>}
-            <div className="mt-5 flex gap-2"><button type="button" onClick={() => setDeleteVerification(null)} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600">انصراف</button><button type="button" disabled={isConfirmingDelete || deleteCode.length !== 6} onClick={() => void confirmDeleteOrder()} className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white disabled:opacity-50">{isConfirmingDelete ? 'در حال بررسی...' : 'تأیید و حذف'}</button></div>
-          </div>
-        </div>
+      {deleteTarget && (
+        <DeleteConfirmationDialog
+          key={deleteTarget.id}
+          kind="order"
+          recordId={deleteTarget.id}
+          onClose={() => setDeleteTarget(null)}
+          onConfirmed={onOrderDeleted}
+        >
+          <p>کد پیگیری: <bdi dir="ltr" className="font-mono font-bold">{deleteTarget.trackingCode || deleteTarget.id}</bdi></p>
+          <p>{deleteTarget.userName || '—'} · {formatPrice(deleteTarget.totalPrice)}</p>
+        </DeleteConfirmationDialog>
       )}
 
       {/* Toast Notification */}

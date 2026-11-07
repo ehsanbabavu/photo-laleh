@@ -28,7 +28,14 @@ export interface User {
   hasUsedFirstOrderGift?: boolean;
 }
 
-export type TransactionDeletionChannel = 'sms' | 'telegram' | 'eitaa';
+export type DeletionChannel = 'sms' | 'telegram' | 'eitaa';
+
+export interface DeletionCodeDelivery {
+  success: true;
+  channel: DeletionChannel;
+  destination: string;
+  expiresIn: number;
+}
 
 export type PrintTypeId = 'personnel' | 'bw_to_color' | 'memorial' | 'wedding' | string;
 

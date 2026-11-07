@@ -1,13 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { AlertCircle, CheckCircle2, CreditCard, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, CreditCard, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
-import { BluPalTransaction, TransactionDeletionChannel } from '../../types';
+import { BluPalTransaction } from '../../types';
 import { formatNumber, formatOrderDateTime, formatPrice, formatRialDirect } from '../../utils/formatters';
-import { toAsciiDigits } from '../../utils/phone';
+import { DeleteConfirmationDialog } from './DeleteConfirmationDialog';
 
 const PAGE_SIZE = 10;
-const deletionChannelLabels: Record<TransactionDeletionChannel, string> = { sms: 'پیامک', telegram: 'تلگرام', eitaa: 'ایتا' };
 const normalizeSearch = (value: string) => value
   .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
   .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
@@ -22,16 +21,7 @@ export const AdminTransactions = () => {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<BluPalTransaction | null>(null);
-  const [deleteChannel, setDeleteChannel] = useState<TransactionDeletionChannel>('sms');
-  const [deleteDestination, setDeleteDestination] = useState('');
-  const [deleteCode, setDeleteCode] = useState('');
-  const [deleteError, setDeleteError] = useState('');
-  const [isSendingCode, setIsSendingCode] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState(false);
-  const deleteDialogRef = useRef<HTMLDialogElement>(null);
-  const deleteCodeInputRef = useRef<HTMLInputElement>(null);
-  const codeRequestVersion = useRef(0);
   const { data, error, isLoading, isValidating, mutate } = useSWR<BluPalTransaction[]>(
     '/api/blupal/transactions',
     () => apiClient.getBluPalTransactions(),
@@ -57,145 +47,33 @@ export const AdminTransactions = () => {
   const currentPage = Math.min(page, pageCount);
   const visibleTransactions = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  useEffect(() => {
-    const dialog = deleteDialogRef.current;
-    if (deleteTarget && !dialog?.open) dialog?.showModal();
-    else if (!deleteTarget && dialog?.open) dialog.close();
-  }, [deleteTarget]);
-
-  useEffect(() => {
-    if (deleteTarget && deleteDestination && !isSendingCode) deleteCodeInputRef.current?.focus();
-  }, [deleteTarget, deleteDestination, isSendingCode]);
-
-  const closeDeleteDialog = () => {
-    if (isDeleting) return;
-    codeRequestVersion.current += 1;
-    setDeleteTarget(null);
-    setDeleteDestination('');
-    setDeleteCode('');
-    setDeleteError('');
-    setIsSendingCode(false);
-  };
-
-  const sendDeleteCode = async (transaction: BluPalTransaction) => {
-    const version = ++codeRequestVersion.current;
-    setIsSendingCode(true);
-    setDeleteError('');
-    setDeleteDestination('');
-    setDeleteCode('');
-    try {
-      const result = await apiClient.requestTransactionDeletionCode(transaction.id, deleteChannel);
-      if (codeRequestVersion.current === version) setDeleteDestination(result.destination);
-    } catch (error: any) {
-      if (codeRequestVersion.current === version) setDeleteError(error?.message || 'ارسال کد تأیید ناموفق بود');
-    } finally {
-      if (codeRequestVersion.current === version) setIsSendingCode(false);
-    }
-  };
-
   const requestDeleteTransaction = (transaction: BluPalTransaction) => {
-    codeRequestVersion.current += 1;
     setDeleteSuccess(false);
-    setDeleteChannel('sms');
-    setDeleteDestination('');
-    setDeleteCode('');
-    setDeleteError('');
-    setIsSendingCode(false);
     setDeleteTarget(transaction);
   };
 
-  const changeDeleteChannel = (channel: TransactionDeletionChannel) => {
-    codeRequestVersion.current += 1;
-    setDeleteChannel(channel);
-    setDeleteDestination('');
-    setDeleteCode('');
-    setDeleteError('');
-  };
-
-  const confirmDeleteTransaction = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!deleteTarget || !deleteDestination || isSendingCode || isDeleting || deleteCode.length !== 6) return;
-    const target = deleteTarget;
-    setIsDeleting(true);
-    setDeleteError('');
-    try {
-      await apiClient.confirmTransactionDeletion(target.id, deleteCode, deleteChannel);
-      await mutate((items) => items?.filter((transaction) => transaction.id !== target.id), { revalidate: false });
-      setDeleteTarget(null);
-      setDeleteCode('');
-      setDeleteDestination('');
-      setDeleteSuccess(true);
-      void mutate().catch(() => undefined);
-    } catch (error: any) {
-      setDeleteError(error?.message || 'حذف تراکنش ناموفق بود');
-    } finally {
-      setIsDeleting(false);
-    }
+  const onTransactionDeleted = async () => {
+    if (!deleteTarget) return;
+    const targetId = deleteTarget.id;
+    await mutate((items) => items?.filter((transaction) => transaction.id !== targetId), { revalidate: false });
+    setDeleteSuccess(true);
+    void mutate().catch(() => undefined);
   };
 
   return (
     <section className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 space-y-4 min-h-[200px]" aria-labelledby="transactions-title">
-      <dialog
-        ref={deleteDialogRef}
-        aria-labelledby="transaction-delete-title"
-        aria-describedby="transaction-delete-description"
-        onCancel={(event) => { event.preventDefault(); closeDeleteDialog(); }}
-        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border-0 bg-white p-6 shadow-2xl backdrop:bg-slate-950/60 backdrop:backdrop-blur-sm"
-        dir="rtl"
-      >
-        {deleteTarget && (
-          <form onSubmit={(event) => { void confirmDeleteTransaction(event); }}>
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h3 id="transaction-delete-title" className="text-base font-black text-slate-900">تأیید حذف تراکنش</h3>
-                <p id="transaction-delete-description" className="mt-1 text-xs leading-6 text-slate-500">
-                  {isSendingCode ? `در حال ارسال کد تأیید از طریق ${deletionChannelLabels[deleteChannel]}…` : deleteDestination ? <>کد تأیید از طریق {deletionChannelLabels[deleteChannel]} به <bdi dir="ltr">{deleteDestination}</bdi> ارسال شد. کد تا ۲ دقیقه معتبر است.</> : 'روش دریافت کد را انتخاب کنید و دکمه ارسال کد را بزنید.'}
-                </p>
-              </div>
-              <button type="button" onClick={closeDeleteDialog} disabled={isDeleting} aria-label="بستن پنجره حذف تراکنش" className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="h-5 w-5" aria-hidden="true" /></button>
-            </div>
-            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-700">
-              <p>فاکتور: <bdi dir="ltr" className="font-mono font-bold">{deleteTarget.invoiceId}</bdi></p>
-              <p>{deleteTarget.customerName || '—'} · {formatPrice(deleteTarget.amountRial / 10)}</p>
-            </div>
-            <label htmlFor="transaction-delete-channel" className="mb-2 block text-xs font-bold text-slate-700">روش دریافت کد</label>
-            <select
-              id="transaction-delete-channel"
-              value={deleteChannel}
-              onChange={(event) => changeDeleteChannel(event.target.value as TransactionDeletionChannel)}
-              disabled={isSendingCode || isDeleting}
-              className="mb-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs focus:border-sky-500 focus:outline-none disabled:opacity-50"
-            >
-              <option value="sms">پیامک به موبایل مدیر</option>
-              <option value="telegram">تلگرام مدیر</option>
-              <option value="eitaa">ایتای مدیر</option>
-            </select>
-            {deleteChannel !== 'sms' && <p className="mb-3 text-xs leading-6 text-slate-500">شناسه مدیر را در بخش کاربران و توکن ربات را در تنظیمات پیام‌رسان ثبت کنید.{deleteChannel === 'telegram' && ' مدیر باید ابتدا ربات تلگرام را شروع کرده باشد.'}</p>}
-            <button type="button" disabled={isSendingCode || isDeleting} onClick={() => { void sendDeleteCode(deleteTarget); }} className="mb-3 w-full rounded-xl bg-sky-600 py-3 text-xs font-bold text-white disabled:opacity-50">
-              {isSendingCode ? 'در حال ارسال…' : deleteDestination ? 'ارسال مجدد کد' : 'ارسال کد تأیید'}
-            </button>
-            <label htmlFor="transaction-delete-code" className="sr-only">کد تأیید</label>
-            <input
-              id="transaction-delete-code"
-              ref={deleteCodeInputRef}
-              value={deleteCode}
-              onChange={(event) => setDeleteCode(toAsciiDigits(event.target.value).replace(/\D/g, '').slice(0, 6))}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              disabled={isSendingCode || isDeleting || !deleteDestination}
-              placeholder="کد تأیید ۶ رقمی"
-              dir="ltr"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg tracking-[0.4em] focus:border-sky-500 focus:outline-none disabled:bg-slate-50"
-            />
-            {deleteError && <p role="alert" className="mt-2 text-xs font-bold text-rose-600">{deleteError}</p>}
-            <div className="mt-5 flex gap-2">
-              <button type="button" onClick={closeDeleteDialog} disabled={isDeleting} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 disabled:opacity-50">انصراف</button>
-              <button type="submit" disabled={isDeleting || isSendingCode || !deleteDestination || deleteCode.length !== 6} className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white disabled:opacity-50">{isDeleting ? 'در حال بررسی…' : 'تأیید و حذف'}</button>
-            </div>
-          </form>
-        )}
-      </dialog>
+      {deleteTarget && (
+        <DeleteConfirmationDialog
+          key={deleteTarget.id}
+          kind="transaction"
+          recordId={deleteTarget.id}
+          onClose={() => setDeleteTarget(null)}
+          onConfirmed={onTransactionDeleted}
+        >
+          <p>فاکتور: <bdi dir="ltr" className="font-mono font-bold">{deleteTarget.invoiceId}</bdi></p>
+          <p>{deleteTarget.customerName || '—'} · {formatPrice(deleteTarget.amountRial / 10)}</p>
+        </DeleteConfirmationDialog>
+      )}
       <div className="flex items-start sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">

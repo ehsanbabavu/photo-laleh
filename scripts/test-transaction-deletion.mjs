@@ -388,3 +388,111 @@ test('administrator messenger identities persist through user creation and editi
   assert.equal(fixture.db.users.at(-1).telegramId, '222222222');
   assert.equal(fixture.db.users.at(-1).eitaaId, '333333333');
 });
+
+const requestOrderCode = (channel = 'sms', id = 'order-1', session = 'admin-1') => post(`/api/admin/orders/${id}/delete/request`, { channel }, session);
+const confirmOrder = (value, channel = 'sms', id = 'order-1', session = 'admin-1') => post(`/api/admin/orders/${id}/delete/confirm`, { code: value, channel }, session);
+
+for (const channel of ['sms', 'telegram', 'eitaa']) {
+  const sentOrderCode = () => channel === 'sms' ? fixture.sent.at(-1).code : fixture.messengerSent.at(-1).code;
+  test(`orders ${channel}: only a verified code deletes the chosen order and preserves invoices`, async () => {
+    fixture.db.orders.push({ id: 'order-2', trackingCode: 'OTHER' });
+    fixture.db.orders[0].trackingCode = 'TRACK-1';
+    const response = await requestOrderCode(channel, 'order-1', 'admin-2');
+    assert.equal(response.status, 200);
+    assert.equal(response.body.channel, channel);
+    assert.equal(response.body.expiresIn, 120);
+    assert.equal('code' in response.body, false);
+    if (channel === 'sms') {
+      assert.equal(response.body.destination, '091*****002');
+      assert.equal(fixture.sent[0].mobile, '09120000002');
+    } else {
+      assert.equal(fixture.messengerSent[0].payload.chat_id, fixture.db.users[1][`${channel}Id`]);
+      assert.match(fixture.messengerSent[0].payload.text, /حذف سفارش TRACK-1/);
+    }
+    const sentCode = sentOrderCode();
+    assert.equal(fixture.db.orders.length, 2);
+    assert.equal((await confirmOrder('000000', channel, 'order-1', 'admin-2')).status, 400);
+    assert.equal(fixture.db.orders.length, 2);
+    const persianCode = sentCode.replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
+    const confirmed = await confirmOrder(persianCode, channel, 'order-1', 'admin-2');
+    assert.equal(confirmed.status, 200);
+    assert.equal(confirmed.body.deletedId, 'order-1');
+    assert.deepEqual(fixture.db.orders, [{ id: 'order-2', trackingCode: 'OTHER' }]);
+    assert.deepEqual(fixture.db.invoices, initialDb.invoices);
+    assert.deepEqual(fixture.db.webhookLogs, initialDb.webhookLogs);
+    assert.equal((await confirmOrder(sentCode, channel, 'order-2', 'admin-2')).status, 400);
+  });
+
+  test(`orders ${channel}: scopes codes to operation, order, administrator, channel and recipient`, async () => {
+    fixture.db.orders[0].id = 'txn-1';
+    fixture.db.orders.push({ id: 'order-2' });
+    await requestOrderCode(channel, 'txn-1');
+    const sentCode = sentOrderCode();
+    assert.equal((await confirm('txn-1', sentCode, 'admin-1', channel)).status, 400);
+    assert.equal((await confirmOrder(sentCode, channel, 'order-2')).status, 400);
+    assert.equal((await confirmOrder(sentCode, channel, 'txn-1', 'admin-2')).status, 400);
+    const otherChannel = channel === 'sms' ? 'telegram' : 'sms';
+    assert.equal((await confirmOrder(sentCode, otherChannel, 'txn-1')).status, 400);
+    const field = channel === 'sms' ? 'phone' : `${channel}Id`;
+    fixture.db.users[0][field] = channel === 'sms' ? '09120000009' : '444444444';
+    assert.equal((await confirmOrder(sentCode, channel, 'txn-1')).status, 400);
+    assert.equal(fixture.db.orders.length, 2);
+  });
+
+  test(`orders ${channel}: rejects unauthenticated requests, missing orders and failed delivery`, async () => {
+    for (const session of [null, 'customer']) {
+      assert.equal((await requestOrderCode(channel, 'order-1', session)).status, session ? 403 : 401);
+      assert.equal((await confirmOrder('123456', channel, 'order-1', session)).status, session ? 403 : 401);
+    }
+    assert.equal((await requestOrderCode(channel, 'missing')).status, 404);
+    fixture[channel === 'sms' ? 'smsFails' : 'messengerFails'] = true;
+    assert.equal((await requestOrderCode(channel)).status, 400);
+    assert.equal(fixture.codes.size, 0);
+    assert.equal((await confirmOrder(sentOrderCode(), channel)).status, 400);
+    assert.deepEqual(fixture.db, initialDb);
+  });
+
+  test(`orders ${channel}: enforces expiry and the five-attempt limit`, async () => {
+    await requestOrderCode(channel);
+    const expired = sentOrderCode();
+    fixture.now += 120001;
+    assert.equal((await confirmOrder(expired, channel)).status, 400);
+    await requestOrderCode(channel);
+    const sentCode = sentOrderCode();
+    for (let index = 0; index < 5; index += 1) assert.equal((await confirmOrder('000000', channel)).status, 400);
+    assert.equal((await confirmOrder(sentCode, channel)).status, 400);
+    assert.deepEqual(fixture.db, initialDb);
+  });
+}
+
+test('order deletion preserves new records added during verification and handles failed writes', async () => {
+  await requestOrderCode();
+  fixture.writeFails = true;
+  assert.equal((await confirmOrder(code())).status, 500);
+  assert.deepEqual(fixture.db, initialDb);
+  fixture.writeFails = false;
+  await requestOrderCode();
+  fixture.beforeVerify = () => fixture.db.orders.push({ id: 'new-order' });
+  assert.equal((await confirmOrder(code())).status, 200);
+  assert.deepEqual(fixture.db.orders, [{ id: 'new-order' }]);
+  assert.deepEqual(fixture.db.invoices, initialDb.invoices);
+});
+
+test('order code requests reject invalid configuration and share rate limits across channels', async () => {
+  for (const channel of ['email', null, '']) {
+    assert.equal((await requestOrderCode(channel)).status, 400);
+    assert.equal((await confirmOrder('123456', channel)).status, 400);
+  }
+  fixture.db.users[0].telegramId = '';
+  assert.equal((await requestOrderCode('telegram')).status, 400);
+  fixture.db.users[0].telegramId = initialDb.users[0].telegramId;
+  fixture.db.settings.eitaaToken = '';
+  assert.equal((await requestOrderCode('eitaa')).status, 400);
+  fixture.db.settings.eitaaToken = initialDb.settings.eitaaToken;
+  fixture.rateKeys = [];
+  for (const channel of ['sms', 'telegram', 'eitaa']) assert.equal((await requestOrderCode(channel)).status, 200);
+  assert.equal(new Set(fixture.rateKeys).size, 1);
+  fixture.rateLimited = true;
+  for (const channel of ['sms', 'telegram', 'eitaa']) assert.equal((await requestOrderCode(channel)).status, 429);
+  assert.deepEqual(fixture.db, initialDb);
+});
