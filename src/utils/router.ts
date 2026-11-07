@@ -6,6 +6,7 @@ export const ADMIN_TABS = [
   'print_types',
   'prompts_manager',
   'orders',
+  'transactions',
   'tickets',
   'users',
   'chatgpt',

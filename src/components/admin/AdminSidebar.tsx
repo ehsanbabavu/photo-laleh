@@ -13,6 +13,7 @@ export type AdminTab =
   | 'announcements'
   | 'prompts_manager'
   | 'orders'
+  | 'transactions'
   | 'tickets'
   | 'blupal'
   | 'chatgpt'
@@ -70,6 +71,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: Printer,
       badge: activeOrdersCount > 0 ? activeOrdersCount : null,
       badgeStyle: 'normal'
+    },
+    {
+      id: 'transactions' as AdminTab,
+      label: 'تراکنش‌ها',
+      icon: CreditCard,
+      badge: null,
+      badgeStyle: null
     },
     {
       id: 'announcements' as AdminTab,

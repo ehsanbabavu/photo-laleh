@@ -18,6 +18,7 @@ const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboar
 const AdminAnnouncements = React.lazy(() => import('./components/admin/AdminAnnouncements').then((m) => ({ default: m.AdminAnnouncements })));
 const ChatGPTConnect = React.lazy(() => import('./components/admin/ChatGPTConnect').then((m) => ({ default: m.ChatGPTConnect })));
 const AdminOrders = React.lazy(() => import('./components/admin/AdminOrders').then((m) => ({ default: m.AdminOrders })));
+const AdminTransactions = React.lazy(() => import('./components/admin/AdminTransactions').then((m) => ({ default: m.AdminTransactions })));
 const PrintTypeManager = React.lazy(() => import('./components/admin/PrintTypeManager').then((m) => ({ default: m.PrintTypeManager })));
 const AdminSizesManager = React.lazy(() => import('./components/admin/AdminSizesManager').then((m) => ({ default: m.AdminSizesManager })));
 const AdminPartnerInvoices = React.lazy(() => import('./components/admin/AdminPartnerInvoices').then((m) => ({ default: m.AdminPartnerInvoices })));
@@ -1049,6 +1050,8 @@ export default function App() {
                   onNavigateTab={(tab) => setAdminTab(tab as AdminTab)}
                 />
               )}
+
+              {adminTab === 'transactions' && <AdminTransactions />}
 
               {adminTab === 'announcements' && (
                 <AdminAnnouncements
