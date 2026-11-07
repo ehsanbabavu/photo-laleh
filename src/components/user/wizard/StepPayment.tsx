@@ -76,6 +76,56 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
   // Base final total from Step 4 (the pre-invoice quote, in Toman)
   const baseTotal = draft.invoiceDetails?.finalTotal ?? draft.totalPrice ?? computedTotal;
 
+  // Reaching this step creates an admin-visible pending-payment record. Repeated
+  // renders only update the snapshot; the server preserves the first timestamp.
+  const lostOrderFingerprintRef = useRef('');
+  useEffect(() => {
+    if (isPaid || draft.paymentReference || !draft.id || baseTotal <= 0) return;
+    const fingerprint = [draft.id, baseTotal, draft.quantity, invoice?.invoiceId || ''].join(':');
+    if (lostOrderFingerprintRef.current === fingerprint) return;
+    lostOrderFingerprintRef.current = fingerprint;
+
+    let active = true;
+    void apiClient.trackLostOrder({
+      draftId: draft.id,
+      customerName: draft.invoiceDetails?.customerFullName || draft.customerInfo?.fullName || user?.name,
+      customerPhone: draft.invoiceDetails?.customerPhone || draft.customerInfo?.phoneNumber || user?.phone,
+      printType: draft.printType,
+      printTypeTitle: draft.invoiceDetails?.printTypeTitle || printType.title,
+      dimensionId: draft.dimensionId,
+      dimensionTitle: draft.invoiceDetails?.dimensionTitle || dimension.title,
+      quantity: Math.max(1, Number(draft.quantity) || 1),
+      totalPrice: Math.max(0, Number(baseTotal) || 0),
+      paymentInvoiceId: invoice?.invoiceId || draft.paymentInvoiceId
+    }).then((saved) => {
+      if (active && !saved) lostOrderFingerprintRef.current = '';
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    baseTotal,
+    dimension.title,
+    draft.customerInfo?.fullName,
+    draft.customerInfo?.phoneNumber,
+    draft.dimensionId,
+    draft.id,
+    draft.invoiceDetails?.customerFullName,
+    draft.invoiceDetails?.customerPhone,
+    draft.invoiceDetails?.dimensionTitle,
+    draft.invoiceDetails?.printTypeTitle,
+    draft.paymentInvoiceId,
+    draft.paymentReference,
+    draft.printType,
+    draft.quantity,
+    invoice?.invoiceId,
+    isPaid,
+    printType.title,
+    user?.name,
+    user?.phone
+  ]);
+
   // Exact payable amount in Rial. BluPal adds a unique 3-digit tracking suffix to
   // `final_amount`, so this value must never be rounded/converted back.
   const payableRial =
@@ -488,3 +538,4 @@ export const StepPayment: React.FC<StepPaymentProps> = ({
     </div>
   );
 };
+
