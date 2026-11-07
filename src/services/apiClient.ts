@@ -2,7 +2,7 @@
  * API Client for interacting with real internal database server (/api/*)
  */
 
-import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey } from '../types';
+import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -23,6 +23,41 @@ export const apiClient = {
       return await res.json();
     } catch {
       return null;
+    }
+  },
+
+  async getLostOrders(): Promise<LostOrder[]> {
+    try {
+      const res = await fetch('/api/lost-orders', { cache: 'no-store' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async trackLostOrder(data: {
+    draftId: string;
+    customerName?: string;
+    customerPhone?: string;
+    printType: string;
+    printTypeTitle: string;
+    dimensionId: string;
+    dimensionTitle: string;
+    quantity: number;
+    totalPrice: number;
+    paymentInvoiceId?: string;
+  }): Promise<boolean> {
+    try {
+      const res = await fetch('/api/lost-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   },
 
@@ -331,3 +366,4 @@ export const apiClient = {
   },
 
 };
+
