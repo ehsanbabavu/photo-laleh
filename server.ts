@@ -616,6 +616,7 @@ function backupScheduleState(settings: any) {
   return {
     // On by default: the panel toggle only turns it off explicitly
     enabled: s.backupTelegramEnabled !== false,
+    mode: s.backupCronMode === 'internal' ? 'internal' : 'external',
     intervalHours: Number.isFinite(hours) && hours > 0 ? hours : BACKUP_DEFAULT_INTERVAL_HOURS,
     chatId: String(s.backupChatId || s.telegramChatId || '').trim(),
     cronToken: String(s.backupCronToken || BACKUP_DEFAULT_CRON_TOKEN),
@@ -710,6 +711,7 @@ app.post('/api/backup/schedule', async (req, res) => {
   const settings = { ...(db.settings || {}) };
 
   if (body.enabled !== undefined) settings.backupTelegramEnabled = body.enabled === true;
+  if (body.mode !== undefined) settings.backupCronMode = body.mode === 'internal' ? 'internal' : 'external';
   if (body.chatId !== undefined) settings.backupChatId = String(body.chatId || '').trim();
   if (body.intervalHours !== undefined) {
     const hours = Number(body.intervalHours);
@@ -731,6 +733,22 @@ app.post('/api/backup/schedule', async (req, res) => {
   await writeDb(db);
   res.json({ success: true, schedule: backupScheduleState(settings) });
 });
+
+function startInternalBackupScheduler() {
+  const timer = setInterval(async () => {
+    try {
+      const db = await readDb();
+      const schedule = backupScheduleState(db.settings);
+      if (schedule.mode !== 'internal' || !schedule.enabled) return;
+      const lastSent = Date.parse(schedule.lastSentAt || '') || 0;
+      if (Date.now() - lastSent < schedule.intervalHours * 3600 * 1000) return;
+      await sendBackupToTelegram(db, 'internal-cron');
+    } catch (err: any) {
+      console.error('[backup] internal scheduler error', err?.message || err);
+    }
+  }, 60 * 1000);
+  timer.unref?.();
+}
 
 // Send a backup right now (used by the "send test" button in the panel)
 app.post('/api/backup/telegram', async (_req, res) => {
@@ -4417,6 +4435,7 @@ async function bootstrapInitialAdmin() {
 
 async function startServer() {
   await bootstrapInitialAdmin();
+  startInternalBackupScheduler();
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
