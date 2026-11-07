@@ -274,7 +274,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
             </div>
           </div>
           <div className="text-sm sm:text-lg lg:text-xl font-black text-slate-900 truncate" aria-live="polite">
-            {transactions ? formatPrice(totalTransactionsRial / 10) : transactionsLoading ? (
+            {transactions ? formatPrice(Math.round(totalTransactionsRial / 10)) : transactionsLoading ? (
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
                 <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                 در حال دریافت تراکنش‌ها…
