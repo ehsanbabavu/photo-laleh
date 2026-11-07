@@ -27,6 +27,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
   onBack,
   printTypes = PRINT_TYPES
 }) => {
+  const MAX_UPLOAD_IMAGES = 50;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -62,8 +63,12 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
       return;
     }
 
-    const selected = allowMultiple ? files : files.slice(0, 1);
-    const baseImages = allowMultiple ? images : [];
+    const selected = allowMultiple ? files.slice(0, Math.max(0, MAX_UPLOAD_IMAGES - images.length)) : files.slice(0, 1);
+    const baseImages = allowMultiple ? images.slice(0, MAX_UPLOAD_IMAGES) : [];
+    if (allowMultiple && files.length > selected.length) {
+      setErrorMessage(`حداکثر ${MAX_UPLOAD_IMAGES.toLocaleString('fa-IR')} عکس قابل انتخاب است.`);
+    }
+    if (selected.length === 0) return;
     setIsUploading(true);
 
     try {
@@ -81,10 +86,10 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
       );
 
       const merged = [...baseImages, ...uploaded];
-      if (merged.length > 8) {
-        setErrorMessage('حداکثر ۸ عکس قابل انتخاب است.');
+      if (merged.length > MAX_UPLOAD_IMAGES) {
+        setErrorMessage(`حداکثر ${MAX_UPLOAD_IMAGES.toLocaleString('fa-IR')} عکس قابل انتخاب است.`);
       }
-      applyImages(merged.slice(0, 8), selected[0]?.name);
+      applyImages(merged.slice(0, MAX_UPLOAD_IMAGES), selected[0]?.name);
     } catch (err: any) {
       setErrorMessage(err?.message ? `آپلود ناموفق بود: ${err.message}` : 'آپلود عکس ناموفق بود. دوباره تلاش کنید.');
     } finally {
@@ -203,7 +208,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
               <span className="text-xs font-bold text-slate-700">
                 {images.length} عکس انتخاب شده
               </span>
-              {images.length < 8 && (
+              {images.length < MAX_UPLOAD_IMAGES && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -233,7 +238,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
                 </div>
               ))}
 
-              {images.length < 8 && (
+              {images.length < MAX_UPLOAD_IMAGES && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
