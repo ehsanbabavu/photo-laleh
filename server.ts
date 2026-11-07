@@ -1952,7 +1952,33 @@ app.patch('/api/orders/:id/print-selection', async (req: any, res) => {
   const db = await readDb();
   const order = (db.orders || []).find((item: any) => item.id === req.params.id);
   if (!order) {
-    …4625 tokens truncated…
+    return res.status(404).json({ success: false, message: 'سفارش یافت نشد.' });
+  }
+
+  const user = req.currentUser;
+  if (!user || (user.role !== 'admin' && order.userId !== user.id)) {
+    return res.status(404).json({ success: false, message: 'سفارش یافت نشد.' });
+  }
+  if (order.paymentStatus !== 'paid') {
+    return res.status(400).json({ success: false, message: 'انتخاب عکس چاپ پس از تأیید پرداخت فعال می‌شود.' });
+  }
+
+  const submitted = req.body?.selectedPrintImages;
+  const allowedKeys = new Set(['sheet', 'ai', 'commercial']);
+  if (!Array.isArray(submitted) || submitted.length > 3 || submitted.some((key: unknown) => typeof key !== 'string' || !allowedKeys.has(key))) {
+    return res.status(400).json({ success: false, message: 'فهرست عکس‌های انتخاب‌شده معتبر نیست.' });
+  }
+
+  const selectedPrintImages = Array.from(new Set(submitted)) as Array<'sheet' | 'ai' | 'commercial'>;
+  const availableKeys = new Set(getOrderPrintAssets(order).map((asset) => asset.key));
+  if (selectedPrintImages.some((key) => !availableKeys.has(key))) {
+    return res.status(400).json({ success: false, message: 'یکی از عکس‌های انتخاب‌شده برای این سفارش آماده نیست.' });
+  }
+
+  order.selectedPrintImages = selectedPrintImages;
+  await writeDb(db);
+  res.json({ success: true, selectedPrintImages });
+});
   if (status === 'EXPIRED') return 'expired';
   if (status === 'CANCELED' || status === 'CANCELLED' || status === 'FAILED') return 'failed';
   return 'pending';
