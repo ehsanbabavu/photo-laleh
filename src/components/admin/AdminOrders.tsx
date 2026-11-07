@@ -78,6 +78,10 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [lostOrders, setLostOrders] = useState<LostOrder[]>([]);
   const [lostOrdersLoading, setLostOrdersLoading] = useState(true);
+  const [savingLostOrderIds, setSavingLostOrderIds] = useState<string[]>([]);
+  const [lostOrderFollowUpErrors, setLostOrderFollowUpErrors] = useState<Record<string, string>>({});
+  const pendingLostOrderUpdates = React.useRef(new Set<string>());
+  const lostOrdersVersion = React.useRef(0);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [generatingSheetId, setGeneratingSheetId] = useState<string | null>(null);
   const [uploadingImageAsset, setUploadingImageAsset] = useState<PrintImageKey | null>(null);
@@ -99,18 +103,44 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const refreshLostOrders = React.useCallback(async (showLoading = false) => {
+    if (pendingLostOrderUpdates.current.size > 0) return;
+    const version = lostOrdersVersion.current;
     if (showLoading) setLostOrdersLoading(true);
     const data = await apiClient.getLostOrders();
-    setLostOrders(data);
+    if (version === lostOrdersVersion.current) setLostOrders(data);
     setLostOrdersLoading(false);
   }, []);
 
-  const toggleLostOrderFollowUp = async (order: LostOrder) => {
-    const status = order.followUpStatus === 'tracked' ? 'untracked' : 'tracked';
-    const response = await fetch(`/api/lost-orders/${encodeURIComponent(order.id)}/status`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status })
-    });
-    if (response.ok) setLostOrders((current) => current.map((item) => item.id === order.id ? { ...item, followUpStatus: status } : item));
+  const updateLostOrderFollowUp = async (order: LostOrder, status: NonNullable<LostOrder['followUpStatus']>) => {
+    if (pendingLostOrderUpdates.current.has(order.id) || (order.followUpStatus || 'untracked') === status) return;
+    pendingLostOrderUpdates.current.add(order.id);
+    lostOrdersVersion.current += 1;
+    setSavingLostOrderIds([...pendingLostOrderUpdates.current]);
+    setLostOrderFollowUpErrors((current) => ({ ...current, [order.id]: '' }));
+    try {
+      const response = await fetch(`/api/lost-orders/${encodeURIComponent(order.id)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || data?.lostOrder?.followUpStatus !== status) {
+        throw new Error(data?.error || 'ذخیره وضعیت پیگیری ناموفق بود. دوباره تلاش کنید.');
+      }
+      setLostOrders((current) => current.map((item) => item.id === order.id ? { ...item, followUpStatus: status } : item));
+      showToast('وضعیت پیگیری سفارش ذخیره شد.');
+    } catch (error) {
+      setLostOrderFollowUpErrors((current) => ({
+        ...current,
+        [order.id]: error instanceof Error && !(error instanceof TypeError)
+          ? error.message
+          : 'ذخیره وضعیت پیگیری ناموفق بود. اتصال اینترنت را بررسی و دوباره تلاش کنید.'
+      }));
+    } finally {
+      lostOrdersVersion.current += 1;
+      pendingLostOrderUpdates.current.delete(order.id);
+      setSavingLostOrderIds([...pendingLostOrderUpdates.current]);
+    }
   };
 
   React.useEffect(() => {
@@ -648,7 +678,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
             <button
               type="button"
               onClick={() => void refreshLostOrders(true)}
-              disabled={lostOrdersLoading}
+              disabled={lostOrdersLoading || savingLostOrderIds.length > 0}
               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-[10px] font-black text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${lostOrdersLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -681,9 +711,9 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                         {order.customerName || order.userName}
                       </h3>
                       <span className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-black text-rose-700 sm:text-[10px]">پرداخت نشده</span>
-                      <button type="button" onClick={() => void toggleLostOrderFollowUp(order)} className={`rounded-lg border px-2 py-0.5 text-[9px] font-black sm:text-[10px] ${order.followUpStatus === 'tracked' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                      <span className={`rounded-lg border px-2 py-0.5 text-[9px] font-black sm:text-[10px] ${order.followUpStatus === 'tracked' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
                         {order.followUpStatus === 'tracked' ? 'پیگیری شده' : 'پیگیری نشده'}
-                      </button>
+                      </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:text-[11px]">
                       <span className="flex items-center gap-1" dir="ltr">
@@ -709,6 +739,31 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                 <div className="border-t border-slate-100 pt-3 text-right lg:border-t-0 lg:pt-0 lg:text-left">
                   <p className="text-[10px] font-bold text-slate-400">مبلغ پرداخت‌نشده</p>
                   <p className="mt-1 text-sm font-black text-rose-700">{formatPrice(order.totalPrice)}</p>
+                  <label className="mt-3 flex flex-col gap-1 text-right text-[10px] font-bold text-slate-600">
+                    وضعیت پیگیری
+                    <select
+                      value={order.followUpStatus || 'untracked'}
+                      onChange={(event) => void updateLostOrderFollowUp(order, event.target.value as NonNullable<LostOrder['followUpStatus']>)}
+                      disabled={savingLostOrderIds.includes(order.id)}
+                      aria-label={`وضعیت پیگیری سفارش ${order.customerName || order.userName}`}
+                      aria-describedby={lostOrderFollowUpErrors[order.id] ? `follow-up-error-${order.id}` : undefined}
+                      className="min-h-10 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none transition-colors focus:border-sky-500 focus:ring-2 focus:ring-sky-200 disabled:cursor-wait disabled:opacity-50"
+                    >
+                      <option value="untracked">پیگیری نشده</option>
+                      <option value="tracked">پیگیری شده</option>
+                    </select>
+                  </label>
+                  {savingLostOrderIds.includes(order.id) && (
+                    <p role="status" className="mt-1 flex items-center gap-1 text-[10px] font-bold text-sky-600">
+                      <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+                      در حال ذخیره...
+                    </p>
+                  )}
+                  {lostOrderFollowUpErrors[order.id] && (
+                    <p id={`follow-up-error-${order.id}`} role="alert" className="mt-1 max-w-xs text-right text-[10px] leading-5 text-rose-700">
+                      {lostOrderFollowUpErrors[order.id]}
+                    </p>
+                  )}
                 </div>
               </article>
             ))
