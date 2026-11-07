@@ -19,6 +19,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [migrating, setMigrating] = useState<StorageMode | null>(null);
+  const [maxUploadImages, setMaxUploadImages] = useState(50);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -28,6 +29,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
       if (!response.ok) throw new Error('دریافت تنظیمات ناموفق بود.');
       const data = await response.json();
       if (data?.storageMode === 'blob' || data?.storageMode === 'local') setMode(data.storageMode);
+      if (Number.isFinite(Number(data?.maxUploadImages))) setMaxUploadImages(Math.max(1, Math.min(500, Number(data.maxUploadImages))));
     } catch {
       setLoadError(true);
     } finally {
@@ -67,7 +69,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storageMode: mode })
+        body: JSON.stringify({ storageMode: mode, maxUploadImages })
       });
       if (!response.ok) throw new Error();
       showToast('تنظیمات ذخیره‌سازی ذخیره شد.');
@@ -151,6 +153,12 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
           );
         })}
       </fieldset>
+
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <label htmlFor="max-upload-images" className="block text-[11px] font-black text-slate-700">حداکثر تعداد عکس در هر سفارش</label>
+        <p className="mt-1 text-[10px] text-slate-500">این مقدار برای قابلیت «چند عکس» در صفحه سفارش اعمال می‌شود.</p>
+        <input id="max-upload-images" type="number" min={1} max={500} value={maxUploadImages} onChange={(event) => setMaxUploadImages(Math.max(1, Math.min(500, Number(event.target.value) || 1)))} className="mt-2 w-32 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold" />
+      </div>
 
       <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-1.5 text-[9px] text-amber-800 sm:text-[10px]">

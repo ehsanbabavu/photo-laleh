@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Upload,
   Trash2,
@@ -27,7 +27,16 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
   onBack,
   printTypes = PRINT_TYPES
 }) => {
-  const MAX_UPLOAD_IMAGES = 50;
+  const [maxUploadImages, setMaxUploadImages] = useState(50);
+  useEffect(() => {
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((settings) => {
+        const value = Number(settings?.maxUploadImages);
+        if (Number.isFinite(value) && value > 0) setMaxUploadImages(Math.min(500, Math.floor(value)));
+      })
+      .catch(() => undefined);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -63,10 +72,10 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
       return;
     }
 
-    const selected = allowMultiple ? files.slice(0, Math.max(0, MAX_UPLOAD_IMAGES - images.length)) : files.slice(0, 1);
-    const baseImages = allowMultiple ? images.slice(0, MAX_UPLOAD_IMAGES) : [];
+    const selected = allowMultiple ? files.slice(0, Math.max(0, maxUploadImages - images.length)) : files.slice(0, 1);
+    const baseImages = allowMultiple ? images.slice(0, maxUploadImages) : [];
     if (allowMultiple && files.length > selected.length) {
-      setErrorMessage(`حداکثر ${MAX_UPLOAD_IMAGES.toLocaleString('fa-IR')} عکس قابل انتخاب است.`);
+      setErrorMessage(`حداکثر ${maxUploadImages.toLocaleString('fa-IR')} عکس قابل انتخاب است.`);
     }
     if (selected.length === 0) return;
     setIsUploading(true);
@@ -86,10 +95,10 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
       );
 
       const merged = [...baseImages, ...uploaded];
-      if (merged.length > MAX_UPLOAD_IMAGES) {
-        setErrorMessage(`حداکثر ${MAX_UPLOAD_IMAGES.toLocaleString('fa-IR')} عکس قابل انتخاب است.`);
+      if (merged.length > maxUploadImages) {
+        setErrorMessage(`حداکثر ${maxUploadImages.toLocaleString('fa-IR')} عکس قابل انتخاب است.`);
       }
-      applyImages(merged.slice(0, MAX_UPLOAD_IMAGES), selected[0]?.name);
+      applyImages(merged.slice(0, maxUploadImages), selected[0]?.name);
     } catch (err: any) {
       setErrorMessage(err?.message ? `آپلود ناموفق بود: ${err.message}` : 'آپلود عکس ناموفق بود. دوباره تلاش کنید.');
     } finally {
@@ -208,7 +217,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
               <span className="text-xs font-bold text-slate-700">
                 {images.length} عکس انتخاب شده
               </span>
-              {images.length < MAX_UPLOAD_IMAGES && (
+              {images.length < maxUploadImages && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -238,7 +247,7 @@ export const StepUploadPhoto: React.FC<StepUploadPhotoProps> = ({
                 </div>
               ))}
 
-              {images.length < MAX_UPLOAD_IMAGES && (
+              {images.length < maxUploadImages && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
