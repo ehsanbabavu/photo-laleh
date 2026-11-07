@@ -11,6 +11,7 @@ import {
   Save,
   Upload
 } from 'lucide-react';
+import { HERO_SLIDES } from '../../data/heroSlides';
 
 type StorageMode = 'local' | 'blob';
 
@@ -21,7 +22,9 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
   const [saving, setSaving] = useState(false);
   const [migrating, setMigrating] = useState<StorageMode | null>(null);
   const [maxUploadImages, setMaxUploadImages] = useState(50);
-  const [gallery, setGallery] = useState<Array<{ src: string; alt: string }>>([]);
+  const [gallery, setGallery] = useState<Array<{ src: string; alt: string }>>(
+    HERO_SLIDES.map((slide) => ({ src: slide.src, alt: slide.alt }))
+  );
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
@@ -34,7 +37,11 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
       const data = await response.json();
       if (data?.storageMode === 'blob' || data?.storageMode === 'local') setMode(data.storageMode);
       if (Number.isFinite(Number(data?.maxUploadImages))) setMaxUploadImages(Math.max(1, Math.min(500, Number(data.maxUploadImages))));
-      if (Array.isArray(data?.landingGallery)) setGallery(data.landingGallery.filter((item: any) => item?.src));
+      if (Array.isArray(data?.landingGallery) && data.landingGallery.length > 0) {
+        setGallery(data.landingGallery.filter((item: any) => item?.src));
+      } else {
+        setGallery(HERO_SLIDES.map((slide) => ({ src: slide.src, alt: slide.alt })));
+      }
     } catch {
       setLoadError(true);
     } finally {
