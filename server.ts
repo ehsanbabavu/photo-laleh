@@ -456,14 +456,21 @@ app.get('/api/storage/files', async (req: any, res) => {
     } while (cursor && files.length < 10000);
     const db = await readDb();
     const galleryUrls = new Set((Array.isArray(db.settings?.landingGallery) ? db.settings.landingGallery : []).map((item: any) => String(item?.src || item?.url || item || '')));
+    const serviceImageUrls = new Set<string>();
+    for (const printType of Array.isArray(db.printTypes) ? db.printTypes : []) {
+      for (const value of [printType?.sampleImage, printType?.cardBgImage]) {
+        if (typeof value === 'string' && value) serviceImageUrls.add(value);
+      }
+    }
     res.json({
       success: true,
       files: files.filter((file) => {
         const url = String(file.url || '');
         const pathname = String(file.pathname || '');
         const isGallery = galleryUrls.has(url);
+        const isServiceImage = serviceImageUrls.has(url);
         const isLicenseAsset = /(?:legal-qr|license|مجوز)/i.test(`${url} ${pathname}`);
-        return !isGallery && !isLicenseAsset;
+        return !isGallery && !isServiceImage && !isLicenseAsset;
       })
     });
   } catch (err: any) {
