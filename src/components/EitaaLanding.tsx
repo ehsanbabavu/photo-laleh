@@ -196,7 +196,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
   messengerIdRef.current = messengerId;
 
   /** How long the mini app waits before it tries to sign the visitor in. */
-  const AUTO_LOGIN_PAUSE_MS = 10_000;
+  const AUTO_LOGIN_PAUSE_MS = 5_000;
 
   useEffect(() => {
     if (autoLoginRef.current) return;
@@ -486,13 +486,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ provider, onEnter }) => {
           className="px-4 pb-5"
           style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
         >
-          {isAutoLoggingIn && (
-            <div className="mb-3 flex items-center justify-center gap-2 rounded-2xl bg-white/95 border border-slate-200 px-3 py-3 shadow-sm">
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-              <p className="text-[11px] font-bold text-slate-600">در حال بررسی حساب…</p>
-            </div>
-          )}
-
           {error && (
             <div className="mb-3 flex items-start gap-2 rounded-2xl bg-rose-50/95 border border-rose-200 px-3 py-2.5">
               <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
