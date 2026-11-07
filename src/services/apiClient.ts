@@ -162,11 +162,14 @@ export const apiClient = {
 
   async savePrintTypes(printTypes: PrintTypeOption[]) {
     try {
-      await fetch('/api/db/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printTypes })
-      });
+      for (const printType of printTypes) {
+        const response = await fetch(`/api/print-types/${encodeURIComponent(String(printType.id))}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(printType)
+        });
+        if (!response.ok) throw new Error('ذخیره نوع چاپ ناموفق بود');
+      }
     } catch (err) {
       console.warn('API savePrintTypes error:', err);
     }
