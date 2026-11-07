@@ -363,7 +363,6 @@ app.get('/api/db/all', async (req: any, res) => {
       : isColleague
       ? (db.orders || []).filter((o: any) => o.partnerId === currentUserId)
       : (db.orders || []).filter((o: any) => o.userId === currentUserId),
-    lostOrders: isAdmin ? db.lostOrders || [] : [],
     partnerInvoices: isAdmin ? db.partnerInvoices || [] : [],
     costRequests: isAdmin
       ? db.costRequests || []
@@ -1804,65 +1803,6 @@ app.get('/api/orders', async (req: any, res) => {
   res.json(mine);
 });
 
-// A draft becomes a lost order when a signed-in customer reaches payment but
-// has not completed it. The first server timestamp is preserved across retries.
-app.post('/api/lost-orders', async (req: any, res) => {
-  const db = await readDb();
-  const body = req.body || {};
-  const currentUser = req.currentUser;
-  const draftId = String(body.draftId || '').trim().slice(0, 180);
-  if (!draftId) {
-    return res.status(400).json({ success: false, error: 'شناسه پیش‌نویس سفارش معتبر نیست.' });
-  }
-
-  const clean = (value: unknown, max = 160) => String(value || '').trim().slice(0, max);
-  const now = new Date().toISOString();
-  const items = Array.isArray(db.lostOrders) ? db.lostOrders : [];
-  const existing = items.find(
-    (item: any) => item.draftId === draftId && item.userId === currentUser.id
-  );
-  const lostOrder = {
-    ...(existing || {}),
-    id: existing?.id || `lost-${currentUser.id}-${draftId}`.slice(0, 240),
-    draftId,
-    userId: currentUser.id,
-    userName: clean(currentUser.name, 120),
-    userPhone: clean(currentUser.phone, 30),
-    customerName: clean(body.customerName || currentUser.name, 120),
-    customerPhone: clean(body.customerPhone || currentUser.phone, 30),
-    printType: clean(body.printType, 80),
-    printTypeTitle: clean(body.printTypeTitle, 120),
-    dimensionId: clean(body.dimensionId, 80),
-    dimensionTitle: clean(body.dimensionTitle, 120),
-    quantity: Math.max(1, Math.min(1000, Number(body.quantity) || 1)),
-    totalPrice: Math.max(0, Number(body.totalPrice) || 0),
-    paymentInvoiceId: clean(body.paymentInvoiceId, 160) || undefined,
-    reachedPaymentAt: existing?.reachedPaymentAt || now,
-    lastSeenAt: now
-  };
-
-  db.lostOrders = [
-    lostOrder,
-    ...items.filter((item: any) => item.id !== lostOrder.id)
-  ].slice(0, 2000);
-  await writeDb(db);
-  res.json({ success: true, lostOrder });
-});
-
-app.get('/api/lost-orders', async (req: any, res) => {
-  if (req.currentUser?.role !== 'admin') {
-    return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
-  }
-  const db = await readDb();
-  const items = Array.isArray(db.lostOrders) ? db.lostOrders : [];
-  res.json(
-    [...items].sort(
-      (a: any, b: any) =>
-        new Date(b.reachedPaymentAt || 0).getTime() - new Date(a.reachedPaymentAt || 0).getTime()
-    )
-  );
-});
-
 app.post('/api/orders', async (req, res) => {
   const db = await readDb();
   const newOrder = req.body || {};
@@ -1888,14 +1828,6 @@ app.post('/api/orders', async (req, res) => {
     db.orders[existingIdx] = newOrder;
   } else {
     db.orders = [newOrder, ...(db.orders || [])];
-  }
-
-  // A successfully registered paid order is no longer considered lost.
-  const sourceDraftId = String(newOrder.sourceDraftId || '').trim();
-  if (isNew && newOrder.paymentStatus === 'paid' && sourceDraftId) {
-    db.lostOrders = (db.lostOrders || []).filter(
-      (item: any) => !(item.draftId === sourceDraftId && item.userId === newOrder.userId)
-    );
   }
 
   // Wallet credit is one-time: an order that consumes it zeroes the balance for good.
@@ -1965,7 +1897,11 @@ app.patch('/api/orders/:id/print-selection', async (req: any, res) => {
 
   const submitted = req.body?.selectedPrintImages;
   const allowedKeys = new Set(['sheet', 'ai', 'commercial']);
-  if (!Array.isArray(submitted) || submitted.length > 3 || submitted.some((key: unknown) => typeof key !== 'string' || !allowedKeys.has(key))) {
+  if (
+    !Array.isArray(submitted) ||
+    submitted.length > 3 ||
+    submitted.some((key: unknown) => typeof key !== 'string' || !allowedKeys.has(key))
+  ) {
     return res.status(400).json({ success: false, message: 'فهرست عکس‌های انتخاب‌شده معتبر نیست.' });
   }
 
@@ -1979,6 +1915,444 @@ app.patch('/api/orders/:id/print-selection', async (req: any, res) => {
   await writeDb(db);
   res.json({ success: true, selectedPrintImages });
 });
+
+app.delete('/api/orders/:id', async (_req, res) => {
+  return res.status(403).json({ success: false, error: 'حذف سفارش فقط پس از تأیید پیامکی امکان‌پذیر است.' });
+  /*
+  const db = await readDb();
+  const orderId = req.params.id;
+  db.orders = (db.orders || []).filter((o: any) => o.id !== orderId);
+  await writeDb(db);
+  res.json({ success: true });
+  */
+});
+
+app.delete('/api/orders', async (_req, res) => {
+  const db = await readDb();
+  db.orders = [];
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Support Tickets APIs
+app.get('/api/tickets', async (req: any, res) => {
+  const db = await readDb();
+  const tickets = db.tickets || [];
+  if (req.currentUser?.role === 'admin') return res.json(tickets);
+  const mine = tickets.filter((t: any) => t.userId === req.currentUser.id || t.userName === req.currentUser.name);
+  res.json(mine);
+});
+
+app.post('/api/tickets', async (req, res) => {
+  const db = await readDb();
+  const newTicket = req.body;
+  const existingIdx = (db.tickets || []).findIndex((t: any) => t.id === newTicket.id);
+  if (existingIdx >= 0) {
+    db.tickets[existingIdx] = newTicket;
+  } else {
+    db.tickets = [newTicket, ...(db.tickets || [])];
+  }
+  await writeDb(db);
+  res.json({ success: true, ticket: newTicket });
+});
+
+app.put('/api/tickets/:id', async (req, res) => {
+  const db = await readDb();
+  const ticketId = req.params.id;
+  const updatedTicket = req.body;
+  db.tickets = (db.tickets || []).map((t: any) => (t.id === ticketId ? { ...t, ...updatedTicket } : t));
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+app.delete('/api/tickets/:id', async (req, res) => {
+  const db = await readDb();
+  const ticketId = req.params.id;
+  db.tickets = (db.tickets || []).filter((t: any) => t.id !== ticketId);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Prompts APIs
+app.get('/api/prompts', async (_req, res) => {
+  const db = await readDb();
+  res.json(db.prompts || {});
+});
+
+app.post('/api/prompts', async (req, res) => {
+  const db = await readDb();
+  db.prompts = { ...(db.prompts || {}), ...req.body };
+  await writeDb(db);
+  res.json({ success: true, prompts: db.prompts });
+});
+
+// Print Types APIs
+app.get('/api/print-types', async (_req, res) => {
+  const db = await readDb();
+  res.json(db.printTypes || []);
+});
+
+// --- Transport / delivery methods (managed in the admin «ترابری» panel) ---
+function sanitizeDeliveryMethods(list: any[]) {
+  return (Array.isArray(list) ? list : [])
+    .filter((item) => item && typeof item === 'object' && item.id)
+    .map((item) => ({
+      id: String(item.id),
+      title: String(item.title || '').trim(),
+      subtitle: String(item.subtitle || '').trim(),
+      price: Math.max(0, Number(item.price) || 0),
+      eta: String(item.eta || '').trim(),
+      requiresAddress: item.requiresAddress === true,
+      isEnabled: item.isEnabled !== false
+    }));
+}
+
+app.get('/api/delivery-methods', async (_req, res) => {
+  const db = await readDb();
+  const methods = sanitizeDeliveryMethods(db.deliveryMethods || []);
+  res.json(methods.filter((method) => method.isEnabled));
+});
+
+app.get('/api/delivery-methods/all', async (_req, res) => {
+  const db = await readDb();
+  res.json(sanitizeDeliveryMethods(db.deliveryMethods || []));
+});
+
+app.post('/api/delivery-methods', async (req, res) => {
+  const db = await readDb();
+  const incoming = sanitizeDeliveryMethods([req.body]); 
+  if (incoming.length === 0) {
+    return res.status(400).json({ success: false, error: 'اطلاعات روش تحویل نامعتبر است' });
+  }
+  const method = incoming[0];
+  db.deliveryMethods = Array.isArray(db.deliveryMethods) ? db.deliveryMethods : [];
+  const index = db.deliveryMethods.findIndex((item: any) => item.id === method.id);
+  if (index >= 0) db.deliveryMethods[index] = method;
+  else db.deliveryMethods.push(method);
+  await writeDb(db);
+  res.json({ success: true, method });
+});
+
+app.put('/api/delivery-methods/:id', async (req, res) => {
+  const db = await readDb();
+  const id = req.params.id;
+  db.deliveryMethods = (db.deliveryMethods || []).map((item: any) =>
+    item.id === id ? { ...item, ...req.body, id } : item
+  );
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+app.delete('/api/delivery-methods/:id', async (req, res) => {
+  const db = await readDb();
+  db.deliveryMethods = (db.deliveryMethods || []).filter((item: any) => item.id !== req.params.id);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+app.post('/api/print-types', async (req, res) => {
+  const db = await readDb();
+  const newPrintType = req.body;
+  const existingIdx = (db.printTypes || []).findIndex((pt: any) => pt.id === newPrintType.id);
+  if (existingIdx >= 0) {
+    db.printTypes[existingIdx] = newPrintType;
+  } else {
+    db.printTypes.push(newPrintType);
+  }
+  await writeDb(db);
+  res.json({ success: true, printType: newPrintType });
+});
+
+app.put('/api/print-types/:id', async (req, res) => {
+  const db = await readDb();
+  const ptId = req.params.id;
+  db.printTypes = (db.printTypes || []).map((pt: any) => (pt.id === ptId ? { ...pt, ...req.body } : pt));
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+app.delete('/api/print-types/:id', async (req, res) => {
+  const db = await readDb();
+  const ptId = req.params.id;
+  db.printTypes = (db.printTypes || []).filter((pt: any) => pt.id !== ptId);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Users APIs
+app.get('/api/users', async (_req, res) => {
+  const db = await readDb();
+  res.json(sanitizeUsers(db.users || []));
+});
+
+app.post('/api/users', async (req, res) => {
+  const db = await readDb();
+  const newUser = { ...req.body };
+
+  const category: 'customer' | 'colleague' = newUser.category === 'colleague' ? 'colleague' : 'customer';
+  newUser.category = category;
+  // Colleagues are always regular users (never admins)
+  newUser.role = category === 'colleague' ? 'user' : newUser.role === 'admin' ? 'admin' : 'user';
+
+  if (category === 'colleague') {
+    newUser.telegramId = String(newUser.telegramId || '').trim();
+    newUser.eitaaId = String(newUser.eitaaId || '').trim();
+    newUser.guildName = String(newUser.guildName || '').trim();
+    newUser.address = String(newUser.address || '').trim();
+  } else {
+    // Keep the colleague-only fields meaningful for colleagues only
+    delete newUser.telegramId;
+    delete newUser.eitaaId;
+    delete newUser.guildName;
+    delete newUser.address;
+  }
+
+  if (newUser.password) newUser.password = hashPassword(String(newUser.password));
+  const existingIdx = (db.users || []).findIndex((u: any) => u.id === newUser.id || (newUser.phone && u.phone === newUser.phone));
+  if (existingIdx >= 0) {
+    db.users[existingIdx] = { ...db.users[existingIdx], ...newUser };
+  } else {
+    db.users.push(newUser);
+  }
+  await writeDb(db);
+  res.json({ success: true, user: sanitizeUser(newUser) });
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  const db = await readDb();
+  const userId = req.params.id;
+  const patch: any = { ...req.body };
+
+  if (patch.password) patch.password = hashPassword(String(patch.password));
+  else delete patch.password;
+
+  if (patch.category) {
+    patch.category = patch.category === 'colleague' ? 'colleague' : 'customer';
+    if (patch.category === 'colleague') {
+      // Colleagues never keep an admin role
+      patch.role = 'user';
+    } else {
+      patch.telegramId = '';
+      patch.eitaaId = '';
+      patch.guildName = '';
+      patch.address = '';
+    }
+  }
+
+  db.users = (db.users || []).map((u: any) => (u.id === userId ? { ...u, ...patch } : u));
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  const db = await readDb();
+  const userId = req.params.id;
+  const target = (db.users || []).find((u: any) => u.id === userId);
+  if (!target) {
+    return res.status(404).json({ success: false, error: 'کاربر یافت نشد' });
+  }
+  if (target.role === 'admin') {
+    return res.status(400).json({ success: false, error: 'حذف کاربر ادمین مجاز نیست' });
+  }
+  db.users = (db.users || []).filter((u: any) => u.id !== userId);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Announcements APIs
+app.get('/api/announcements', async (_req, res) => {
+  const db = await readDb();
+  res.json(db.announcements || []);
+});
+
+app.post('/api/announcements', async (req, res) => {
+  const db = await readDb();
+  const newAnn = req.body;
+  const existingIdx = (db.announcements || []).findIndex((a: any) => a.id === newAnn.id);
+  if (existingIdx >= 0) {
+    db.announcements[existingIdx] = newAnn;
+  } else {
+    db.announcements = [newAnn, ...(db.announcements || [])];
+  }
+  await writeDb(db);
+  res.json({ success: true, announcement: newAnn });
+});
+
+// Per-user read receipt for an announcement — persisted so it survives a refresh
+app.post('/api/announcements/:id/read', async (req: any, res) => {
+  const userId = req.currentUser?.id ? String(req.currentUser.id) : '';
+  if (!userId) return res.status(401).json({ success: false, error: 'برای دسترسی باید وارد حساب شوید' });
+
+  const db = await readDb();
+  const annId = req.params.id;
+  let updated: any = null;
+
+  db.announcements = (db.announcements || []).map((item: any) => {
+    if (item.id !== annId) return item;
+    const readBy: string[] = Array.isArray(item.readBy) ? item.readBy.map(String) : [];
+    if (readBy.includes(userId)) {
+      updated = item;
+      return item;
+    }
+    updated = { ...item, readBy: [...readBy, userId] };
+    return updated;
+  });
+
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'اطلاعیه پیدا نشد' });
+  }
+
+  await writeDb(db);
+  res.json({ success: true, announcement: updated });
+});
+
+app.put('/api/announcements/:id', async (req, res) => {
+  const db = await readDb();
+  const annId = req.params.id;
+  db.announcements = (db.announcements || []).map((a: any) => (a.id === annId ? { ...a, ...req.body } : a));
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+app.delete('/api/announcements/:id', async (req, res) => {
+  const db = await readDb();
+  const annId = req.params.id;
+  db.announcements = (db.announcements || []).filter((a: any) => a.id !== annId);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Settings APIs
+app.get('/api/settings', async (req: any, res) => {
+  const db = await readDb();
+  res.json(sanitizeSettings(db.settings || {}, req.currentUser?.role === 'admin'));
+});
+
+app.post('/api/settings', async (req, res) => {
+  const db = await readDb();
+  const incoming = { ...(req.body || {}) };
+  // Never store invisible characters in provider tokens
+  if (incoming.eitaaToken !== undefined) incoming.eitaaToken = normalizeEitaaToken(incoming.eitaaToken);
+  if (incoming.telegramToken !== undefined) incoming.telegramToken = String(incoming.telegramToken || '').trim();
+  db.settings = { ...(db.settings || {}), ...incoming };
+  await writeDb(db);
+  res.json({ success: true, settings: db.settings });
+});
+
+// ---------------------------------------------------------------------------
+// BluPal payment gateway — implemented against https://blupal.top/documentation
+//
+//   Base URL : https://blupal.top/api
+//   Auth     : header  X-API-Key: <key>   (or ?api_key=...)
+//   Create   : POST /v1/invoices/create          body { amount: <Rial>, card_number? }
+//   Status   : GET  /v1/invoices/{invoice_id}    (invoice_id is an integer)
+//
+//   amount  : Rial, integer, min 100,000 and max 500,000,000
+//   response: { success, invoice_id, amount, final_amount, status,
+//               payment_link, card_number, mode, expires_at }
+//
+//   IMPORTANT: final_amount = amount + a random 0..999 Rial tracking suffix.
+//   The exact amount the customer must transfer is final_amount (in Rial),
+//   so it is stored and displayed untouched. Rounding it to Tomans destroys
+//   the tracking suffix and the payment can never be matched again.
+// ---------------------------------------------------------------------------
+const BLUPAL_DEFAULT_BASE_URL = 'https://blupal.top';
+const BLUPAL_MIN_AMOUNT_RIAL = 100000; // 10,000 Toman
+const BLUPAL_MAX_AMOUNT_RIAL = 500000000; // 50,000,000 Toman
+const BLUPAL_CREATE_PATH = '/api/v1/invoices/create';
+
+function formatRialFa(value: number): string {
+  return `${new Intl.NumberFormat('fa-IR').format(Math.round(value))} ریال`;
+}
+
+/** Accepts "blupal.top", "https://blupal.top" or "https://blupal.top/api" and returns the API base. */
+function getBluPalApiBase(baseUrl?: string): string {
+  let host = String(baseUrl || BLUPAL_DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
+  if (!host) host = BLUPAL_DEFAULT_BASE_URL;
+  if (!/^https?:\/\//i.test(host)) host = `https://${host}`;
+  return /\/api$/i.test(host) ? host : `${host}/api`;
+}
+
+/** Full URL of POST /v1/invoices/create. A custom endpoint overrides the documented path. */
+function getBluPalCreateUrl(baseUrl?: string, customEndpoint?: string): string {
+  const apiBase = getBluPalApiBase(baseUrl);
+  const custom = String(customEndpoint || '').trim();
+  if (!custom || custom === BLUPAL_CREATE_PATH || custom === '/v1/invoices/create') {
+    return `${apiBase}/v1/invoices/create`;
+  }
+  if (/^https?:\/\//i.test(custom)) return custom.replace(/\/+$/, '');
+  const path = custom.startsWith('/') ? custom : `/${custom}`;
+  if (path === '/api' || path.startsWith('/api/')) {
+    return `${apiBase.replace(/\/api$/i, '')}${path}`;
+  }
+  return `${apiBase}${path}`;
+}
+
+const BLUPAL_ERROR_MESSAGES: Record<string, string> = {
+  unauthorized: 'کلید API بلوپال نامعتبر است یا ارسال نشده است (unauthorized).',
+  amount_required: 'مبلغ فاکتور برای بلوپال ارسال نشده است (amount_required).',
+  amount_too_low: `مبلغ فاکتور کمتر از حداقل مجاز بلوپال یعنی ${formatRialFa(
+    BLUPAL_MIN_AMOUNT_RIAL
+  )} است (amount_too_low).`,
+  amount_too_high: `مبلغ فاکتور بیشتر از حداکثر مجاز بلوپال یعنی ${formatRialFa(
+    BLUPAL_MAX_AMOUNT_RIAL
+  )} است (amount_too_high).`,
+  no_active_card: 'هیچ کارت فعالی برای این حساب در بلوپال ثبت نشده است (no_active_card).',
+  invalid_invoice_id: 'شناسه فاکتور ارسالی برای بلوپال نامعتبر است (invalid_invoice_id).',
+  not_found: 'فاکتور در سامانه بلوپال یافت نشد (not_found).',
+  mode_mismatch:
+    'کلید API با محیط فاکتور هم‌خوانی ندارد (mode_mismatch). لطفاً کلید اصلی حساب را در تنظیمات بلوپال بررسی کنید.',
+  invalid_scenario: 'سناریوی شبیه‌سازی نامعتبر است (invalid_scenario).',
+  invalid_state: 'فاکتور برای شبیه‌سازی آماده نیست (invalid_state).'
+};
+
+function blupalErrorMessage(payload: any, httpStatus: number): string {
+  const code = String(payload?.error || '').trim().toLowerCase();
+  if (code && BLUPAL_ERROR_MESSAGES[code]) return BLUPAL_ERROR_MESSAGES[code];
+  const rawMessage = payload?.message ?? payload?.detail ?? payload?.errors;
+  if (rawMessage) {
+    return typeof rawMessage === 'object' ? JSON.stringify(rawMessage) : String(rawMessage);
+  }
+  if (httpStatus === 401) return BLUPAL_ERROR_MESSAGES.unauthorized;
+  return `پاسخ نامعتبر از سرور بلوپال (کد HTTP ${httpStatus}).`;
+}
+
+/** Single low-level call to BluPal: JSON in, JSON out, never throws on a non-2xx status. */
+async function blupalRequest(
+  url: string,
+  token: string,
+  init: RequestInit = {}
+): Promise<{ response: any; payload: any; ok: boolean }> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-API-Key': token,
+      ...((init.headers as Record<string, string>) || {})
+    }
+  });
+
+  const text = await response.text();
+  let payload: any = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { message: text.slice(0, 300) };
+    }
+  }
+
+  const ok = response.ok && payload?.success !== false;
+  return { response, payload, ok };
+}
+
+/** BluPal statuses: PENDING | PAID | EXPIRED | CANCELED */
+function normalizeBluPalStatus(value: any): 'pending' | 'paid' | 'expired' | 'failed' {
+  const status = String(value || '').toUpperCase();
+  if (status === 'PAID' || status === 'COMPLETED' || status === 'SUCCESSFUL' || status === 'SUCCESS') {
+    return 'paid';
+  }
   if (status === 'EXPIRED') return 'expired';
   if (status === 'CANCELED' || status === 'CANCELLED' || status === 'FAILED') return 'failed';
   return 'pending';
@@ -3966,4 +4340,3 @@ if (!IS_SERVERLESS) {
 
 export default app;
 export { app };
-
