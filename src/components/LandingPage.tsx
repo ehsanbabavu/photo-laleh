@@ -144,6 +144,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [scrolled, setScrolled] = useState(false);
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
   const [dimensions, setDimensions] = useState<PrintDimension[]>([]);
+  const [gallerySlides, setGallerySlides] = useState(HERO_SLIDES);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [licenseOpen, setLicenseOpen] = useState(false);
@@ -168,10 +169,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   // Hero gallery: auto-advance every 5 seconds
   useEffect(() => {
     const timer = setInterval(() => {
-      setActiveSlide((current) => (current + 1) % HERO_SLIDES.length);
+      setActiveSlide((current) => (current + 1) % gallerySlides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [gallerySlides.length]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -191,6 +192,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         // The database is the single source of truth — including when it is empty
         setPrintTypes(Array.isArray(data.printTypes) ? data.printTypes : []);
         setDimensions(Array.isArray(data.dimensions) ? data.dimensions : []);
+        if (Array.isArray(data.gallery) && data.gallery.length > 0) setGallerySlides(data.gallery);
         setCatalogLoaded(true);
       } catch {
         // Offline / API failure: keep the page usable with the built-in catalog
@@ -361,7 +363,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
                 <div className="relative rounded-[2rem] bg-white border border-slate-200 shadow-2xl shadow-slate-300/40 p-3 sm:p-4">
                   <div className="relative rounded-[1.5rem] overflow-hidden aspect-[4/3] bg-slate-900">
-                    {HERO_SLIDES.map((slide, index) => (
+                    {gallerySlides.map((slide, index) => (
                       <img
                         key={slide.src}
                         src={slide.src}
@@ -380,7 +382,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
                   {/* Slide navigation — below the image */}
                   <div className="mt-3 flex items-center justify-center gap-1.5">
-                    {HERO_SLIDES.map((slide, index) => (
+                    {gallerySlides.map((slide, index) => (
                       <button
                         key={`dot-${index}`}
                         onClick={() => setActiveSlide(index)}

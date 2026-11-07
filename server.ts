@@ -341,7 +341,8 @@ app.get('/api/public/landing', async (_req, res) => {
         requiresAddress: method.requiresAddress === true
       }));
 
-    res.json({ success: true, printTypes, dimensions, deliveryMethods });
+    const gallery = Array.isArray(db.settings?.landingGallery) ? db.settings.landingGallery : [];
+    res.json({ success: true, printTypes, dimensions, deliveryMethods, gallery });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'landing data error' });
   }
@@ -453,7 +454,9 @@ app.get('/api/storage/files', async (req: any, res) => {
       for (const blob of page.blobs || []) files.push(blob);
       cursor = page.hasMore ? page.cursor : undefined;
     } while (cursor && files.length < 10000);
-    res.json({ success: true, files });
+    const db = await readDb();
+    const galleryUrls = new Set((Array.isArray(db.settings?.landingGallery) ? db.settings.landingGallery : []).map((item: any) => String(item?.src || item?.url || item || '')));
+    res.json({ success: true, files: files.filter((file) => !galleryUrls.has(String(file.url))) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خواندن فایل‌ها ناموفق بود' });
   }

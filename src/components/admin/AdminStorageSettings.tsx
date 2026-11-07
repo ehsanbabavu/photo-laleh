@@ -20,6 +20,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
   const [saving, setSaving] = useState(false);
   const [migrating, setMigrating] = useState<StorageMode | null>(null);
   const [maxUploadImages, setMaxUploadImages] = useState(50);
+  const [gallery, setGallery] = useState<Array<{ src: string; alt: string }>>([]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -30,6 +31,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
       const data = await response.json();
       if (data?.storageMode === 'blob' || data?.storageMode === 'local') setMode(data.storageMode);
       if (Number.isFinite(Number(data?.maxUploadImages))) setMaxUploadImages(Math.max(1, Math.min(500, Number(data.maxUploadImages))));
+      if (Array.isArray(data?.landingGallery)) setGallery(data.landingGallery.filter((item: any) => item?.src));
     } catch {
       setLoadError(true);
     } finally {
@@ -69,7 +71,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storageMode: mode, maxUploadImages })
+        body: JSON.stringify({ storageMode: mode, maxUploadImages, landingGallery: gallery })
       });
       if (!response.ok) throw new Error();
       showToast('تنظیمات ذخیره‌سازی ذخیره شد.');
@@ -158,6 +160,19 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
         <label htmlFor="max-upload-images" className="block text-[11px] font-black text-slate-700">حداکثر تعداد عکس در هر سفارش</label>
         <p className="mt-1 text-[10px] text-slate-500">این مقدار برای قابلیت «چند عکس» در صفحه سفارش اعمال می‌شود.</p>
         <input id="max-upload-images" type="number" min={1} max={500} value={maxUploadImages} onChange={(event) => setMaxUploadImages(Math.max(1, Math.min(500, Number(event.target.value) || 1)))} className="mt-2 w-32 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold" />
+      </div>
+
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <h2 className="text-[11px] font-black text-slate-700">گالری صفحه اصلی</h2>
+        <p className="mt-1 text-[10px] text-slate-500">عکس‌های گالری را اضافه یا حذف کنید. فایل‌های این بخش در «لیست فایل‌ها» نمایش داده نمی‌شوند.</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {gallery.map((item, index) => <div key={`${item.src}-${index}`} className="relative overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <img src={item.src} alt={item.alt} className="h-24 w-full object-cover" />
+            <button type="button" onClick={() => setGallery((current) => current.filter((_entry, itemIndex) => itemIndex !== index))} className="absolute right-1 top-1 rounded-md bg-rose-600 px-2 py-1 text-[9px] font-bold text-white">حذف</button>
+          </div>)}
+        </div>
+        <input type="url" placeholder="آدرس تصویر گالری (https://...)" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); const value = event.currentTarget.value.trim(); if (value) { setGallery((current) => [...current, { src: value, alt: 'گالری آتلیه لاله' }]); event.currentTarget.value = ''; } } }} className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs" />
+        <p className="mt-1 text-[9px] text-slate-400">برای افزودن، آدرس را وارد کرده و Enter بزنید؛ سپس دکمه ذخیره تنظیمات را بزنید.</p>
       </div>
 
       <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 lg:flex-row lg:items-center lg:justify-between">
