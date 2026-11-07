@@ -260,6 +260,17 @@ export const PrintTypeManager: React.FC<PrintTypeManagerProps> = ({
                 </div>
               </div>
 
+              {(item.cardBgImage || item.sampleImage) && (
+                <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <img
+                    src={item.cardBgImage || item.sampleImage}
+                    alt={`تصویر ${item.title}`}
+                    className="h-36 w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+
               {/* Subtitle */}
               <p className="text-xs text-sky-700 font-bold mb-2.5 mr-8">{item.subtitle}</p>
 
