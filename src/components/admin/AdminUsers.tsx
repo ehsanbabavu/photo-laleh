@@ -121,8 +121,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
           password: editing.password,
           role: editing.category === 'colleague' ? 'user' : editing.role,
           category: editing.category,
-          telegramId: editing.category === 'colleague' ? editing.telegramId.trim() : '',
-          eitaaId: editing.category === 'colleague' ? editing.eitaaId.trim() : '',
+          telegramId: editing.category === 'colleague' || editing.role === 'admin' ? editing.telegramId.trim() : '',
+          eitaaId: editing.category === 'colleague' || editing.role === 'admin' ? editing.eitaaId.trim() : '',
           guildName: editing.category === 'colleague' ? editing.guildName.trim() : '',
           address: editing.category === 'colleague' ? editing.address.trim() : '',
           walletBalance: Number(editing.walletBalance) || 0
@@ -164,8 +164,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
         password: creating.password,
         role: isColleague ? 'user' : creating.role,
         category: creating.category,
-        telegramId: isColleague ? creating.telegramId.trim() : undefined,
-        eitaaId: isColleague ? creating.eitaaId.trim() : undefined,
+        telegramId: isColleague || creating.role === 'admin' ? creating.telegramId.trim() : undefined,
+        eitaaId: isColleague || creating.role === 'admin' ? creating.eitaaId.trim() : undefined,
         guildName: isColleague ? creating.guildName.trim() : undefined,
         address: isColleague ? creating.address.trim() : undefined,
         createdAt: new Date().toLocaleDateString('fa-IR'),
@@ -587,10 +587,10 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                 </div>
               </div>
 
-              {editing.category === 'colleague' && (
+              {(editing.category === 'colleague' || editing.role === 'admin') && (
                 <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-2.5">
                   <p className="text-[10px] font-bold text-teal-900">
-                    شناسه‌های ارتباطی همکار (فقط برای مدیر نمایش داده می‌شود)
+                    {editing.role === 'admin' ? 'شناسه‌های مدیر برای دریافت کد تأیید' : 'شناسه‌های ارتباطی همکار (فقط برای مدیر نمایش داده می‌شود)'}
                   </p>
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
@@ -601,7 +601,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       value={editing.telegramId}
                       onChange={(e) => setEditing({ ...editing, telegramId: e.target.value })}
                       dir="ltr"
-                      placeholder="@username یا 123456789"
+                      placeholder={editing.role === 'admin' ? 'شناسه عددی حساب شخصی مدیر' : '@username یا 123456789'}
                       className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
                     />
                   </div>
@@ -619,6 +619,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                     />
                   </div>
 
+                  {editing.category === 'colleague' && <>
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
                       <Building2 className="w-3 h-3 text-sky-600" />
@@ -644,6 +645,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs focus:outline-none focus:border-teal-500 resize-none"
                     />
                   </div>
+                  </>}
                 </div>
               )}
 
@@ -784,10 +786,10 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                 </div>
               </div>
 
-              {creating.category === 'colleague' && (
+              {(creating.category === 'colleague' || creating.role === 'admin') && (
                 <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-2.5">
                   <p className="text-[10px] font-bold text-teal-900">
-                    شناسه‌های ارتباطی همکار (فقط برای مدیر نمایش داده می‌شود)
+                    {creating.role === 'admin' ? 'شناسه‌های مدیر برای دریافت کد تأیید' : 'شناسه‌های ارتباطی همکار (فقط برای مدیر نمایش داده می‌شود)'}
                   </p>
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
@@ -798,7 +800,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       value={creating.telegramId}
                       onChange={(e) => setCreating({ ...creating, telegramId: e.target.value })}
                       dir="ltr"
-                      placeholder="@username یا 123456789"
+                      placeholder={creating.role === 'admin' ? 'شناسه عددی حساب شخصی مدیر' : '@username یا 123456789'}
                       className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-mono focus:outline-none focus:border-teal-500"
                     />
                   </div>
@@ -816,6 +818,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                     />
                   </div>
 
+                  {creating.category === 'colleague' && <>
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1 flex items-center gap-1">
                       <Building2 className="w-3 h-3 text-sky-600" />
@@ -841,6 +844,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs focus:outline-none focus:border-teal-500 resize-none"
                     />
                   </div>
+                  </>}
                 </div>
               )}
 

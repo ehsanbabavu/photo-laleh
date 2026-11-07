@@ -2,7 +2,7 @@
  * API Client for interacting with real internal database server (/api/*)
  */
 
-import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder, BluPalTransaction } from '../types';
+import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder, BluPalTransaction, TransactionDeletionChannel } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -367,18 +367,22 @@ export const apiClient = {
     return data;
   },
 
-  async requestTransactionDeletionCode(transactionId: string) {
-    const res = await fetch(`/api/admin/transactions/${encodeURIComponent(transactionId)}/delete/request`, { method: 'POST' });
+  async requestTransactionDeletionCode(transactionId: string, channel: TransactionDeletionChannel = 'sms') {
+    const res = await fetch(`/api/admin/transactions/${encodeURIComponent(transactionId)}/delete/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel })
+    });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) throw new Error(data?.error || 'ارسال کد تأیید ناموفق بود');
-    return data as { success: true; phone: string; expiresIn: number };
+    return data as { success: true; channel: TransactionDeletionChannel; destination: string; expiresIn: number };
   },
 
-  async confirmTransactionDeletion(transactionId: string, code: string) {
+  async confirmTransactionDeletion(transactionId: string, code: string, channel: TransactionDeletionChannel = 'sms') {
     const res = await fetch(`/api/admin/transactions/${encodeURIComponent(transactionId)}/delete/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code, channel })
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) throw new Error(data?.error || 'حذف تراکنش ناموفق بود');

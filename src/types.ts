@@ -11,9 +11,9 @@ export interface User {
   role: 'admin' | 'user';
   /** `customer` = عادی، `colleague` = همکار (فقط ادمین می‌سازد) */
   category?: UserCategory;
-  /** Colleague-only: Telegram numeric/username id */
+  /** Messenger identity; administrators use a private numeric Telegram chat ID for confirmation codes. */
   telegramId?: string;
-  /** Colleague-only: Eitaa id */
+  /** Messenger identity, also used for administrator confirmation codes. */
   eitaaId?: string;
   /** How the account was created: telegram / eitaa self sign-up */
   registeredVia?: 'telegram' | 'eitaa' | string;
@@ -27,6 +27,8 @@ export interface User {
   walletBalance?: number; // In Tomans (تومان)
   hasUsedFirstOrderGift?: boolean;
 }
+
+export type TransactionDeletionChannel = 'sms' | 'telegram' | 'eitaa';
 
 export type PrintTypeId = 'personnel' | 'bw_to_color' | 'memorial' | 'wedding' | string;
 

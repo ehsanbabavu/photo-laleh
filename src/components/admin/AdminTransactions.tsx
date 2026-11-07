@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { AlertCircle, CheckCircle2, CreditCard, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
-import { BluPalTransaction } from '../../types';
+import { BluPalTransaction, TransactionDeletionChannel } from '../../types';
 import { formatNumber, formatOrderDateTime, formatPrice, formatRialDirect } from '../../utils/formatters';
 import { toAsciiDigits } from '../../utils/phone';
 
 const PAGE_SIZE = 10;
+const deletionChannelLabels: Record<TransactionDeletionChannel, string> = { sms: 'پیامک', telegram: 'تلگرام', eitaa: 'ایتا' };
 const normalizeSearch = (value: string) => value
   .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
   .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
@@ -21,7 +22,8 @@ export const AdminTransactions = () => {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<BluPalTransaction | null>(null);
-  const [deletePhone, setDeletePhone] = useState('');
+  const [deleteChannel, setDeleteChannel] = useState<TransactionDeletionChannel>('sms');
+  const [deleteDestination, setDeleteDestination] = useState('');
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -62,14 +64,14 @@ export const AdminTransactions = () => {
   }, [deleteTarget]);
 
   useEffect(() => {
-    if (deleteTarget && deletePhone && !isSendingCode) deleteCodeInputRef.current?.focus();
-  }, [deleteTarget, deletePhone, isSendingCode]);
+    if (deleteTarget && deleteDestination && !isSendingCode) deleteCodeInputRef.current?.focus();
+  }, [deleteTarget, deleteDestination, isSendingCode]);
 
   const closeDeleteDialog = () => {
     if (isDeleting) return;
     codeRequestVersion.current += 1;
     setDeleteTarget(null);
-    setDeletePhone('');
+    setDeleteDestination('');
     setDeleteCode('');
     setDeleteError('');
     setIsSendingCode(false);
@@ -79,11 +81,11 @@ export const AdminTransactions = () => {
     const version = ++codeRequestVersion.current;
     setIsSendingCode(true);
     setDeleteError('');
-    setDeletePhone('');
+    setDeleteDestination('');
     setDeleteCode('');
     try {
-      const result = await apiClient.requestTransactionDeletionCode(transaction.id);
-      if (codeRequestVersion.current === version) setDeletePhone(result.phone);
+      const result = await apiClient.requestTransactionDeletionCode(transaction.id, deleteChannel);
+      if (codeRequestVersion.current === version) setDeleteDestination(result.destination);
     } catch (error: any) {
       if (codeRequestVersion.current === version) setDeleteError(error?.message || 'ارسال کد تأیید ناموفق بود');
     } finally {
@@ -92,23 +94,36 @@ export const AdminTransactions = () => {
   };
 
   const requestDeleteTransaction = (transaction: BluPalTransaction) => {
+    codeRequestVersion.current += 1;
     setDeleteSuccess(false);
+    setDeleteChannel('sms');
+    setDeleteDestination('');
+    setDeleteCode('');
+    setDeleteError('');
+    setIsSendingCode(false);
     setDeleteTarget(transaction);
-    void sendDeleteCode(transaction);
+  };
+
+  const changeDeleteChannel = (channel: TransactionDeletionChannel) => {
+    codeRequestVersion.current += 1;
+    setDeleteChannel(channel);
+    setDeleteDestination('');
+    setDeleteCode('');
+    setDeleteError('');
   };
 
   const confirmDeleteTransaction = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!deleteTarget || !deletePhone || isSendingCode || isDeleting || deleteCode.length !== 6) return;
+    if (!deleteTarget || !deleteDestination || isSendingCode || isDeleting || deleteCode.length !== 6) return;
     const target = deleteTarget;
     setIsDeleting(true);
     setDeleteError('');
     try {
-      await apiClient.confirmTransactionDeletion(target.id, deleteCode);
+      await apiClient.confirmTransactionDeletion(target.id, deleteCode, deleteChannel);
       await mutate((items) => items?.filter((transaction) => transaction.id !== target.id), { revalidate: false });
       setDeleteTarget(null);
       setDeleteCode('');
-      setDeletePhone('');
+      setDeleteDestination('');
       setDeleteSuccess(true);
       void mutate().catch(() => undefined);
     } catch (error: any) {
@@ -134,7 +149,7 @@ export const AdminTransactions = () => {
               <div>
                 <h3 id="transaction-delete-title" className="text-base font-black text-slate-900">تأیید حذف تراکنش</h3>
                 <p id="transaction-delete-description" className="mt-1 text-xs leading-6 text-slate-500">
-                  {isSendingCode ? 'در حال ارسال کد تأیید به شماره ادمین…' : deletePhone ? <>کد تأیید به شماره ادمین <bdi dir="ltr">{deletePhone}</bdi> ارسال شد. کد تا ۲ دقیقه معتبر است.</> : 'برای حذف تراکنش، کد تأیید پیامکی لازم است.'}
+                  {isSendingCode ? `در حال ارسال کد تأیید از طریق ${deletionChannelLabels[deleteChannel]}…` : deleteDestination ? <>کد تأیید از طریق {deletionChannelLabels[deleteChannel]} به <bdi dir="ltr">{deleteDestination}</bdi> ارسال شد. کد تا ۲ دقیقه معتبر است.</> : 'روش دریافت کد را انتخاب کنید و دکمه ارسال کد را بزنید.'}
                 </p>
               </div>
               <button type="button" onClick={closeDeleteDialog} disabled={isDeleting} aria-label="بستن پنجره حذف تراکنش" className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="h-5 w-5" aria-hidden="true" /></button>
@@ -143,28 +158,40 @@ export const AdminTransactions = () => {
               <p>فاکتور: <bdi dir="ltr" className="font-mono font-bold">{deleteTarget.invoiceId}</bdi></p>
               <p>{deleteTarget.customerName || '—'} · {formatPrice(deleteTarget.amountRial / 10)}</p>
             </div>
+            <label htmlFor="transaction-delete-channel" className="mb-2 block text-xs font-bold text-slate-700">روش دریافت کد</label>
+            <select
+              id="transaction-delete-channel"
+              value={deleteChannel}
+              onChange={(event) => changeDeleteChannel(event.target.value as TransactionDeletionChannel)}
+              disabled={isSendingCode || isDeleting}
+              className="mb-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs focus:border-sky-500 focus:outline-none disabled:opacity-50"
+            >
+              <option value="sms">پیامک به موبایل مدیر</option>
+              <option value="telegram">تلگرام مدیر</option>
+              <option value="eitaa">ایتای مدیر</option>
+            </select>
+            {deleteChannel !== 'sms' && <p className="mb-3 text-xs leading-6 text-slate-500">شناسه مدیر را در بخش کاربران و توکن ربات را در تنظیمات پیام‌رسان ثبت کنید.{deleteChannel === 'telegram' && ' مدیر باید ابتدا ربات تلگرام را شروع کرده باشد.'}</p>}
             <button type="button" disabled={isSendingCode || isDeleting} onClick={() => { void sendDeleteCode(deleteTarget); }} className="mb-3 w-full rounded-xl bg-sky-600 py-3 text-xs font-bold text-white disabled:opacity-50">
-              {isSendingCode ? 'در حال ارسال…' : deletePhone ? 'ارسال مجدد پیامک' : 'ارسال پیامک کد تأیید'}
+              {isSendingCode ? 'در حال ارسال…' : deleteDestination ? 'ارسال مجدد کد' : 'ارسال کد تأیید'}
             </button>
-            <label htmlFor="transaction-delete-code" className="sr-only">کد تأیید پیامکی</label>
+            <label htmlFor="transaction-delete-code" className="sr-only">کد تأیید</label>
             <input
               id="transaction-delete-code"
               ref={deleteCodeInputRef}
-              autoFocus
               value={deleteCode}
               onChange={(event) => setDeleteCode(toAsciiDigits(event.target.value).replace(/\D/g, '').slice(0, 6))}
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
-              disabled={isSendingCode || isDeleting || !deletePhone}
-              placeholder="کد ۶ رقمی پیامک"
+              disabled={isSendingCode || isDeleting || !deleteDestination}
+              placeholder="کد تأیید ۶ رقمی"
               dir="ltr"
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg tracking-[0.4em] focus:border-sky-500 focus:outline-none disabled:bg-slate-50"
             />
             {deleteError && <p role="alert" className="mt-2 text-xs font-bold text-rose-600">{deleteError}</p>}
             <div className="mt-5 flex gap-2">
               <button type="button" onClick={closeDeleteDialog} disabled={isDeleting} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 disabled:opacity-50">انصراف</button>
-              <button type="submit" disabled={isDeleting || isSendingCode || !deletePhone || deleteCode.length !== 6} className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white disabled:opacity-50">{isDeleting ? 'در حال بررسی…' : 'تأیید و حذف'}</button>
+              <button type="submit" disabled={isDeleting || isSendingCode || !deleteDestination || deleteCode.length !== 6} className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white disabled:opacity-50">{isDeleting ? 'در حال بررسی…' : 'تأیید و حذف'}</button>
             </div>
           </form>
         )}

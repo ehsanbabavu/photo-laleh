@@ -12,10 +12,12 @@ const { build } = createRequire(requireProject.resolve('vite'))('esbuild');
 const nativeFetch = globalThis.fetch;
 const originalVercel = process.env.VERCEL;
 const originalSmsToken = process.env.SMS_API_TOKEN;
+const originalTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
+const originalEitaaToken = process.env.EITAA_TOKEN;
 const initialDb = {
   users: [
-    { id: 'admin-1', role: 'admin', phone: '09120000001', name: 'Test admin' },
-    { id: 'admin-2', role: 'admin', phone: '09120000002', name: 'Second admin' },
+    { id: 'admin-1', role: 'admin', phone: '09120000001', name: 'Test admin', telegramId: '123456789', eitaaId: '987654321' },
+    { id: 'admin-2', role: 'admin', phone: '09120000002', name: 'Second admin', telegramId: '222222222', eitaaId: '333333333' },
     { id: 'customer', role: 'user', phone: '09120000003' }
   ],
   invoices: [
@@ -24,7 +26,7 @@ const initialDb = {
     { id: 'pending', invoiceId: '103', provider: 'blupal', status: 'pending', amountRial: 1200000 }
   ],
   orders: [{ id: 'order-1', paymentInvoiceId: '101', paymentReference: 'REF-1', paymentStatus: 'paid' }],
-  settings: { smsApiToken: 'fixture-only-token' },
+  settings: { smsApiToken: 'fixture-only-token', telegramToken: 'fixture-telegram-token', eitaaToken: 'fixture-eitaa-token' },
   webhookLogs: [{ id: 'event-1', invoiceId: '101' }]
 };
 const fixture = {
@@ -32,6 +34,11 @@ const fixture = {
     this.db = structuredClone(initialDb);
     this.codes = new Map();
     this.sent = [];
+    this.messengerSent = [];
+    this.messengerFails = false;
+    this.messengerHttpFails = false;
+    this.messengerThrows = false;
+    this.rateKeys = [];
     this.now = Date.now();
     this.smsFails = false;
     this.saveFails = false;
@@ -90,18 +97,29 @@ before(async () => {
         'export const saveOtpCode = async (...args) => globalThis.__transactionDeletionTest.saveOtpCode(...args);',
         'export const verifyOtpCode = async (...args) => globalThis.__transactionDeletionTest.verifyOtpCode(...args);',
         'export const findSession = async (token) => ["admin-1", "admin-2", "customer"].includes(token) ? { userId: token } : null;',
-        'export const bumpRateLimit = async () => globalThis.__transactionDeletionTest.rateLimited ? 4 : 1;',
+        'export const bumpRateLimit = async (key) => { const fixture = globalThis.__transactionDeletionTest; fixture.rateKeys.push(key); return fixture.rateLimited ? 4 : 1; };',
         ...genericExports.map((name) => `export const ${name} = async () => [];`)
       ].join('\n') }));
     } }]
   });
   process.env.VERCEL = '1';
   delete process.env.SMS_API_TOKEN;
+  delete process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.EITAA_TOKEN;
   globalThis.fetch = async (input, options) => {
     if (String(input) === 'https://s.api.ir/api/sw1/SmsOTP') {
       const payload = JSON.parse(options.body);
       fixture.sent.push(payload);
       return new Response(JSON.stringify({ success: !fixture.smsFails }), { status: fixture.smsFails ? 502 : 200 });
+    }
+    const url = String(input);
+    if (url.startsWith('https://api.telegram.org/') || url.startsWith('https://eitaayar.ir/')) {
+      const payload = JSON.parse(options.body);
+      const channel = url.includes('telegram.org') ? 'telegram' : 'eitaa';
+      fixture.messengerSent.push({ channel, payload, code: payload.text.match(/: (\d{6})/)[1] });
+      assert.ok(options.signal);
+      if (fixture.messengerThrows) throw new Error('Fixture network failure');
+      return new Response(JSON.stringify({ ok: !fixture.messengerFails, description: 'Fixture failure', result: { message_id: 1 } }), { status: fixture.messengerHttpFails ? 502 : 200 });
     }
     return nativeFetch(input, options);
   };
@@ -118,6 +136,10 @@ after(async () => {
   else process.env.VERCEL = originalVercel;
   if (originalSmsToken === undefined) delete process.env.SMS_API_TOKEN;
   else process.env.SMS_API_TOKEN = originalSmsToken;
+  if (originalTelegramToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+  else process.env.TELEGRAM_BOT_TOKEN = originalTelegramToken;
+  if (originalEitaaToken === undefined) delete process.env.EITAA_TOKEN;
+  else process.env.EITAA_TOKEN = originalEitaaToken;
   if (listener) await new Promise((resolve) => listener.close(resolve));
   if (temporaryDirectory) {
     await fs.unlink(path.join(temporaryDirectory, 'server.mjs')).catch(() => undefined);
@@ -133,8 +155,8 @@ async function post(route, body = {}, session = 'admin-1') {
   });
   return { status: response.status, body: await response.json() };
 }
-const requestCode = (id = 'txn-1', session = 'admin-1') => post(`/api/admin/transactions/${id}/delete/request`, {}, session);
-const confirm = (id, code, session = 'admin-1') => post(`/api/admin/transactions/${id}/delete/confirm`, { code }, session);
+const requestCode = (id = 'txn-1', session = 'admin-1', channel = 'sms') => post(`/api/admin/transactions/${id}/delete/request`, { channel }, session);
+const confirm = (id, code, session = 'admin-1', channel = 'sms') => post(`/api/admin/transactions/${id}/delete/confirm`, { code, channel }, session);
 const code = () => fixture.sent.at(-1).code;
 const wrongCode = () => code() === '123456' ? '654321' : '123456';
 
@@ -252,4 +274,117 @@ test('order deletion checks the verification result and cannot reuse its code fo
   assert.equal((await post('/api/admin/orders/txn-1/delete/confirm', { code: code() })).status, 200);
   assert.equal(fixture.db.orders.length, 0);
   assert.deepEqual(fixture.db.invoices, initialDb.invoices);
+});
+
+for (const channel of ['telegram', 'eitaa']) {
+  const field = channel === 'telegram' ? 'telegramId' : 'eitaaId';
+  const tokenField = channel === 'telegram' ? 'telegramToken' : 'eitaaToken';
+  test(`${channel}: delivers to the stored administrator identity and deletes only after confirmation`, async () => {
+    fixture.db.users[1].phone = '';
+    const response = await post('/api/admin/transactions/txn-1/delete/request', { channel, recipient: 'attacker', telegramId: 'attacker', eitaaId: 'attacker' }, 'admin-2');
+    assert.equal(response.status, 200);
+    assert.equal(response.body.channel, channel);
+    assert.equal(response.body.destination, fixture.db.users[1][field]);
+    assert.equal(response.body.expiresIn, 120);
+    assert.equal('code' in response.body, false);
+    assert.equal(fixture.sent.length, 0);
+    const sent = fixture.messengerSent[0];
+    assert.equal(sent.channel, channel);
+    assert.equal(sent.payload.chat_id, fixture.db.users[1][field]);
+    assert.match(sent.payload.text, /فاکتور 101/);
+    assert.match(sent.code, /^\d{6}$/);
+    assert.equal(fixture.db.invoices.length, 3);
+    assert.equal((await confirm('txn-1', '000000', 'admin-2', channel)).status, 400);
+    assert.equal((await confirm('txn-1', sent.code, 'admin-2', channel)).status, 200);
+    assert.deepEqual(fixture.db.invoices, initialDb.invoices.slice(1));
+    assert.deepEqual(fixture.db.orders, initialDb.orders);
+    assert.deepEqual(fixture.db.webhookLogs, initialDb.webhookLogs);
+    assert.equal((await confirm('txn-2', sent.code, 'admin-2', channel)).status, 400);
+  });
+
+  test(`${channel}: codes cannot cross channels, administrators, transactions or changed recipients`, async () => {
+    assert.equal((await requestCode('txn-1', 'admin-1', channel)).status, 200);
+    const sentCode = fixture.messengerSent[0].code;
+    for (const otherChannel of ['sms', 'telegram', 'eitaa'].filter((value) => value !== channel)) {
+      assert.equal((await confirm('txn-1', sentCode, 'admin-1', otherChannel)).status, 400);
+    }
+    assert.equal((await confirm('txn-1', sentCode, 'admin-2', channel)).status, 400);
+    assert.equal((await confirm('txn-2', sentCode, 'admin-1', channel)).status, 400);
+    fixture.db.users[0][field] = '444444444';
+    assert.equal((await confirm('txn-1', sentCode, 'admin-1', channel)).status, 400);
+    assert.equal(fixture.db.invoices.length, 3);
+  });
+
+  test(`${channel}: rejects unauthenticated requests and missing identities or tokens`, async () => {
+    for (const session of [null, 'customer']) {
+      assert.equal((await requestCode('txn-1', session, channel)).status, session ? 403 : 401);
+      assert.equal((await confirm('txn-1', '123456', session, channel)).status, session ? 403 : 401);
+    }
+    fixture.db.users[0][field] = '';
+    assert.equal((await requestCode('txn-1', 'admin-1', channel)).status, 400);
+    fixture.db.users[0][field] = initialDb.users[0][field];
+    fixture.db.settings[tokenField] = '';
+    assert.equal((await requestCode('txn-1', 'admin-1', channel)).status, 400);
+    assert.equal(fixture.messengerSent.length, 0);
+    assert.equal(fixture.codes.size, 0);
+  });
+
+  test(`${channel}: provider errors, HTTP failures, network failures and code-save failures cannot authorize deletion`, async () => {
+    for (const failure of ['messengerFails', 'messengerHttpFails', 'messengerThrows', 'saveFails']) {
+      fixture[failure] = true;
+      assert.equal((await requestCode('txn-1', 'admin-1', channel)).status, 400);
+      fixture[failure] = false;
+      assert.equal(fixture.codes.size, 0);
+      assert.equal((await confirm('txn-1', fixture.messengerSent.at(-1).code, 'admin-1', channel)).status, 400);
+    }
+    assert.deepEqual(fixture.db, initialDb);
+  });
+
+  test(`${channel}: expired codes and five incorrect attempts prevent deletion`, async () => {
+    await requestCode('txn-1', 'admin-1', channel);
+    const sentCode = fixture.messengerSent.at(-1).code;
+    fixture.now += 120001;
+    assert.equal((await confirm('txn-1', sentCode, 'admin-1', channel)).status, 400);
+    await requestCode('txn-1', 'admin-1', channel);
+    const newCode = fixture.messengerSent.at(-1).code;
+    for (let index = 0; index < 5; index += 1) assert.equal((await confirm('txn-1', '000000', 'admin-1', channel)).status, 400);
+    assert.equal((await confirm('txn-1', newCode, 'admin-1', channel)).status, 400);
+    assert.deepEqual(fixture.db, initialDb);
+  });
+}
+
+test('rejects unsupported channels and non-private Telegram recipients', async () => {
+  for (const channel of ['email', '', null]) {
+    assert.equal((await requestCode('txn-1', 'admin-1', channel)).status, 400);
+    assert.equal((await confirm('txn-1', '123456', 'admin-1', channel)).status, 400);
+  }
+  for (const telegramId of ['@username', '-100123456789', 'not-an-id']) {
+    fixture.db.users[0].telegramId = telegramId;
+    assert.equal((await requestCode('txn-1', 'admin-1', 'telegram')).status, 400);
+  }
+  assert.equal(fixture.messengerSent.length, 0);
+  assert.equal(fixture.sent.length, 0);
+});
+
+test('all delivery channels share the transaction request rate limit', async () => {
+  for (const channel of ['sms', 'telegram', 'eitaa']) assert.equal((await requestCode('txn-1', 'admin-1', channel)).status, 200);
+  assert.equal(new Set(fixture.rateKeys).size, 1);
+  fixture.rateLimited = true;
+  for (const channel of ['sms', 'telegram', 'eitaa']) assert.equal((await requestCode('txn-1', 'admin-1', channel)).status, 429);
+  assert.equal(fixture.sent.length, 1);
+  assert.equal(fixture.messengerSent.length, 2);
+});
+
+test('administrator messenger identities persist through user creation and editing', async () => {
+  const response = await post('/api/users', { id: 'new-admin', role: 'admin', category: 'customer', name: 'New admin', telegramId: ' ۱۲۳۴۵۶۷۸۹ ', eitaaId: ' ۹۸۷۶۵۴۳۲۱ ' });
+  assert.equal(response.status, 200);
+  assert.equal(fixture.db.users.at(-1).telegramId, '123456789');
+  assert.equal(fixture.db.users.at(-1).eitaaId, '987654321');
+  const saved = await nativeFetch(`${base}/api/users/new-admin`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: 'laleh_session=admin-1' },
+    body: JSON.stringify({ category: 'customer', role: 'admin', telegramId: ' ۲۲۲۲۲۲۲۲۲ ', eitaaId: ' ۳۳۳۳۳۳۳۳۳ ' })
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(fixture.db.users.at(-1).telegramId, '222222222');
+  assert.equal(fixture.db.users.at(-1).eitaaId, '333333333');
 });
