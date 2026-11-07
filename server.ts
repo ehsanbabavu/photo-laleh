@@ -456,7 +456,16 @@ app.get('/api/storage/files', async (req: any, res) => {
     } while (cursor && files.length < 10000);
     const db = await readDb();
     const galleryUrls = new Set((Array.isArray(db.settings?.landingGallery) ? db.settings.landingGallery : []).map((item: any) => String(item?.src || item?.url || item || '')));
-    res.json({ success: true, files: files.filter((file) => !galleryUrls.has(String(file.url))) });
+    res.json({
+      success: true,
+      files: files.filter((file) => {
+        const url = String(file.url || '');
+        const pathname = String(file.pathname || '');
+        const isGallery = galleryUrls.has(url);
+        const isLicenseAsset = /(?:legal-qr|license|مجوز)/i.test(`${url} ${pathname}`);
+        return !isGallery && !isLicenseAsset;
+      })
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خواندن فایل‌ها ناموفق بود' });
   }
