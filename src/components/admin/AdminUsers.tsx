@@ -95,7 +95,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
       phone: user.phone || '',
       password: user.password || '',
       role: (user.role === 'admin' ? 'admin' : 'user') as 'admin' | 'user',
-      category: userCategory(user),
+      category: user.role === 'admin' ? 'customer' : userCategory(user),
       telegramId: user.telegramId || '',
       eitaaId: user.eitaaId || '',
       guildName: user.guildName || '',
@@ -119,8 +119,8 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
           name: editing.name.trim(),
           phone: editing.phone.trim(),
           password: editing.password,
-          role: editing.category === 'colleague' ? 'user' : editing.role,
-          category: editing.category,
+          role: editing.role,
+          category: editing.role === 'admin' ? 'customer' : editing.category,
           telegramId: editing.category === 'colleague' || editing.role === 'admin' ? editing.telegramId.trim() : '',
           eitaaId: editing.category === 'colleague' || editing.role === 'admin' ? editing.eitaaId.trim() : '',
           guildName: editing.category === 'colleague' ? editing.guildName.trim() : '',
@@ -128,12 +128,13 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
           walletBalance: Number(editing.walletBalance) || 0
         })
       });
-      if (!res.ok) throw new Error('save failed');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'ویرایش کاربر ناموفق بود.');
       setEditing(null);
       await load();
       showToast('کاربر ویرایش شد.');
-    } catch {
-      showToast('ویرایش کاربر ناموفق بود.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'ویرایش کاربر ناموفق بود.');
     } finally {
       setIsSaving(false);
     }
@@ -156,14 +157,14 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
     }
     setIsSaving(true);
     try {
-      const isColleague = creating.category === 'colleague';
+      const isColleague = creating.role !== 'admin' && creating.category === 'colleague';
       const newUser: User = {
         id: 'usr-' + Date.now(),
         name: creating.name.trim(),
         phone,
         password: creating.password,
-        role: isColleague ? 'user' : creating.role,
-        category: creating.category,
+        role: creating.role,
+        category: creating.role === 'admin' ? 'customer' : creating.category,
         telegramId: isColleague || creating.role === 'admin' ? creating.telegramId.trim() : undefined,
         eitaaId: isColleague || creating.role === 'admin' ? creating.eitaaId.trim() : undefined,
         guildName: isColleague ? creating.guildName.trim() : undefined,
@@ -568,12 +569,12 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       <button
                         key={opt.id}
                         type="button"
+                        disabled={editing.role === 'admin' && opt.id === 'colleague'}
                         onClick={() => setEditing({
                           ...editing,
-                          category: opt.id,
-                          role: opt.id === 'colleague' ? 'user' : editing.role
+                          category: opt.id
                         })}
-                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                           active
                             ? 'bg-sky-50 border-sky-300 text-sky-800'
                             : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -665,7 +666,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                     value={editing.role}
                     disabled={editing.category === 'colleague'}
                     onChange={(e) =>
-                      setEditing({ ...editing, role: e.target.value as 'admin' | 'user' })
+                      setEditing({ ...editing, role: e.target.value as 'admin' | 'user', category: e.target.value === 'admin' ? 'customer' : editing.category })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
@@ -767,12 +768,12 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                       <button
                         key={opt.id}
                         type="button"
+                        disabled={creating.role === 'admin' && opt.id === 'colleague'}
                         onClick={() => setCreating({
                           ...creating,
-                          category: opt.id,
-                          role: opt.id === 'colleague' ? 'user' : creating.role
+                          category: opt.id
                         })}
-                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                           active
                             ? 'bg-sky-50 border-sky-300 text-sky-800'
                             : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -864,7 +865,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ showToast }) => {
                     value={creating.role}
                     disabled={creating.category === 'colleague'}
                     onChange={(e) =>
-                      setCreating({ ...creating, role: e.target.value as 'admin' | 'user' })
+                      setCreating({ ...creating, role: e.target.value as 'admin' | 'user', category: e.target.value === 'admin' ? 'customer' : creating.category })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   >

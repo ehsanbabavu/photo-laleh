@@ -2325,8 +2325,15 @@ app.get('/api/users', async (_req, res) => {
 app.post('/api/users', async (req, res) => {
   const db = await readDb();
   const newUser = { ...req.body };
+  const existingIdx = (db.users || []).findIndex((u: any) => u.id === newUser.id || (newUser.phone && u.phone === newUser.phone));
+  const existingUser = existingIdx >= 0 ? db.users[existingIdx] : undefined;
+  if (existingUser?.role === 'admin') {
+    // Creation/upsert must not revoke an existing administrator's access.
+    newUser.id = existingUser.id;
+    newUser.role = 'admin';
+  }
 
-  const category: 'customer' | 'colleague' = newUser.category === 'colleague' ? 'colleague' : 'customer';
+  const category: 'customer' | 'colleague' = newUser.role !== 'admin' && newUser.category === 'colleague' ? 'colleague' : 'customer';
   newUser.category = category;
   // Colleagues are always regular users (never admins)
   newUser.role = category === 'colleague' ? 'user' : newUser.role === 'admin' ? 'admin' : 'user';
@@ -2349,7 +2356,6 @@ app.post('/api/users', async (req, res) => {
   }
 
   if (newUser.password) newUser.password = hashPassword(String(newUser.password));
-  const existingIdx = (db.users || []).findIndex((u: any) => u.id === newUser.id || (newUser.phone && u.phone === newUser.phone));
   if (existingIdx >= 0) {
     db.users[existingIdx] = { ...db.users[existingIdx], ...newUser };
   } else {
@@ -2364,17 +2370,28 @@ app.put('/api/users/:id', async (req, res) => {
   const userId = req.params.id;
   const patch: any = { ...req.body };
   const existingUser = (db.users || []).find((user: any) => user.id === userId);
+  if (!existingUser) return res.status(404).json({ success: false, error: 'کاربر یافت نشد' });
+  delete patch.id;
   const nextRole = patch.role ?? existingUser?.role;
+  if (existingUser.role === 'admin' && nextRole !== 'admin') {
+    if (req.currentUser?.id === userId) {
+      return res.status(400).json({ success: false, error: 'برای حفظ دسترسی به پنل، نمی‌توانید نقش مدیریتی حساب خود را حذف کنید.' });
+    }
+    if (!(db.users || []).some((user: any) => user.id !== userId && user.role === 'admin')) {
+      return res.status(400).json({ success: false, error: 'تغییر نقش آخرین مدیر مجاز نیست.' });
+    }
+  }
+  if (nextRole === 'admin') {
+    patch.role = 'admin';
+    patch.category = 'customer';
+  }
 
   if (patch.password) patch.password = hashPassword(String(patch.password));
   else delete patch.password;
 
   if (patch.category) {
     patch.category = patch.category === 'colleague' ? 'colleague' : 'customer';
-    if (patch.category === 'colleague') {
-      // Colleagues never keep an admin role
-      patch.role = 'user';
-    } else {
+    if (patch.category !== 'colleague') {
       if (nextRole !== 'admin') {
         patch.telegramId = '';
         patch.eitaaId = '';

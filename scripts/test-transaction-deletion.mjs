@@ -496,3 +496,81 @@ test('order code requests reject invalid configuration and share rate limits acr
   for (const channel of ['sms', 'telegram', 'eitaa']) assert.equal((await requestOrderCode(channel)).status, 429);
   assert.deepEqual(fixture.db, initialDb);
 });
+
+async function updateUser(id, body, session = 'admin-1') {
+  const response = await nativeFetch(`${base}/api/users/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', ...(session ? { Cookie: `laleh_session=${session}` } : {}) },
+    body: JSON.stringify(body)
+  });
+  return { status: response.status, body: await response.json() };
+}
+
+test('editing administrator messenger IDs cannot implicitly downgrade the role through category', async () => {
+  for (const role of [undefined, 'admin']) {
+    const response = await updateUser('admin-1', { category: 'colleague', role, telegramId: ' ۱۲۳۴۵۶۷۸۹ ' });
+    assert.equal(response.status, 200);
+    assert.equal(fixture.db.users[0].role, 'admin');
+    assert.equal(fixture.db.users[0].category, 'customer');
+    assert.equal(fixture.db.users[0].telegramId, '123456789');
+    assert.equal(fixture.db.users[0].eitaaId, '987654321');
+    const session = await nativeFetch(`${base}/api/auth/me`, { headers: { Cookie: 'laleh_session=admin-1' } });
+    assert.equal((await session.json()).user.role, 'admin');
+  }
+});
+
+test('rejects self-demotion sent by an older colleague editing form without changing the account', async () => {
+  const before = structuredClone(fixture.db.users);
+  const response = await updateUser('admin-1', { role: 'user', category: 'colleague', telegramId: '444444444' });
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /حساب خود/);
+  assert.deepEqual(fixture.db.users, before);
+});
+
+test('the only administrator keeps access when an explicit role change is attempted', async () => {
+  fixture.db.users = fixture.db.users.filter(user => user.id !== 'admin-2');
+  assert.equal((await updateUser('admin-1', { role: 'user' })).status, 400);
+  assert.equal(fixture.db.users.filter(user => user.role === 'admin').length, 1);
+});
+
+test('another administrator can still explicitly change a different administrator role', async () => {
+  assert.equal((await updateUser('admin-2', { role: 'user', category: 'colleague' })).status, 200);
+  assert.equal(fixture.db.users[1].role, 'user');
+  assert.equal(fixture.db.users[1].category, 'colleague');
+  assert.equal(fixture.db.users[0].role, 'admin');
+});
+
+test('user upserts preserve an existing administrator role and account ID', async () => {
+  for (const body of [
+    { id: 'admin-1', role: 'user', category: 'colleague' },
+    { id: 'different-id', phone: initialDb.users[0].phone, role: 'user', category: 'colleague' }
+  ]) {
+    assert.equal((await post('/api/users', body)).status, 200);
+    assert.equal(fixture.db.users[0].id, 'admin-1');
+    assert.equal(fixture.db.users[0].role, 'admin');
+    assert.equal(fixture.db.users[0].category, 'customer');
+  }
+});
+
+test('creating an administrator with a stale colleague category preserves the requested admin role', async () => {
+  const response = await post('/api/users', { id: 'new-admin', role: 'admin', category: 'colleague', telegramId: '۱۲۳۴۵۶۷۸۹' });
+  assert.equal(response.status, 200);
+  assert.equal(fixture.db.users.at(-1).role, 'admin');
+  assert.equal(fixture.db.users.at(-1).category, 'customer');
+  assert.equal(fixture.db.users.at(-1).telegramId, '123456789');
+});
+
+test('profile edits cannot replace the account ID that the administrator session uses', async () => {
+  assert.equal((await updateUser('admin-1', { id: 'replacement-id', telegramId: '444444444' })).status, 200);
+  assert.equal(fixture.db.users[0].id, 'admin-1');
+  const session = await nativeFetch(`${base}/api/auth/me`, { headers: { Cookie: 'laleh_session=admin-1' } });
+  assert.equal((await session.json()).user.role, 'admin');
+});
+
+test('ordinary users and unauthenticated callers cannot promote themselves through user management', async () => {
+  for (const session of ['customer', null]) {
+    const before = structuredClone(fixture.db.users);
+    assert.equal((await updateUser('customer', { role: 'admin', category: 'customer' }, session)).status, session ? 403 : 401);
+    assert.equal((await post('/api/users', { id: 'customer', role: 'admin' }, session)).status, session ? 403 : 401);
+    assert.deepEqual(fixture.db.users, before);
+  }
+});
