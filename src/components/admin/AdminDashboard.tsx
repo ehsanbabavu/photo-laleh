@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import {
   TrendingUp,
+  CreditCard,
   Package,
   BotMessageSquare,
   Printer,
@@ -19,6 +21,7 @@ import { AdminTab } from './AdminSidebar';
 import { formatPrice, formatNumber, getStatusBadge } from '../../utils/formatters';
 import { QueueStateInfo } from '../../utils/aiQueueManager';
 import { RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
+import { apiClient } from '../../services/apiClient';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -67,6 +70,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
   const [files, setFiles] = useState<StorageFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
+  const {
+    data: transactions,
+    error: transactionsError,
+    isLoading: transactionsLoading,
+    isValidating: transactionsValidating,
+    mutate: refreshTransactions
+  } = useSWR('/api/blupal/transactions', () => apiClient.getBluPalTransactions(), { refreshInterval: 30000 });
 
   useEffect(() => {
     let active = true;
@@ -107,7 +117,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
   const circumference = 2 * Math.PI * radius;
   const dash = (usedPercent / 100) * circumference;
 
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.paymentStatus === 'paid' ? o.totalPrice : 0), 0);
+  const totalTransactionsRial = (transactions || []).reduce((sum, transaction) => sum + transaction.amountRial, 0);
   const pendingPrintCount = orders.filter((o) => o.status === 'printing' || o.status === 'ai_processing').length;
   const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
 
@@ -255,20 +265,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
           </div>
         </div>
 
-        {/* Studio Revenue */}
+        {/* Transactions */}
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-emerald-300 hover:shadow-md transition-all shadow-xs">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">درآمد پرداخت شده</span>
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">تراکنش‌ها</span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-              <TrendingUp className="w-4 h-4" />
+              <CreditCard className="w-4 h-4" aria-hidden="true" />
             </div>
           </div>
-          <div className="text-sm sm:text-lg lg:text-xl font-black text-slate-900 truncate">
-            {formatPrice(totalRevenue)}
+          <div className="text-sm sm:text-lg lg:text-xl font-black text-slate-900 truncate" aria-live="polite">
+            {transactions ? formatPrice(totalTransactionsRial / 10) : transactionsLoading ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                در حال دریافت تراکنش‌ها…
+              </span>
+            ) : '—'}
           </div>
           <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 sm:mt-2 font-medium">
-            تسویه شاپرک
+            جمع کل مبالغ تراکنش‌ها
           </div>
+          {transactionsError && (
+            <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-rose-700">
+              <span>دریافت تراکنش‌ها ناموفق بود.</span>
+              <button
+                type="button"
+                onClick={() => { void refreshTransactions().catch(() => undefined); }}
+                disabled={transactionsValidating}
+                className="rounded-lg border border-rose-200 px-2 py-1 font-bold hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-500 disabled:opacity-50"
+              >
+                تلاش دوباره
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Blob storage usage */}
