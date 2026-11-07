@@ -348,6 +348,27 @@ app.get('/api/public/landing', async (_req, res) => {
   }
 });
 
+app.get('/api/public/maintenance', async (_req, res) => {
+  const db = await readDb();
+  res.json({ enabled: db.settings?.maintenanceMode === true });
+});
+
+app.post('/api/admin/maintenance', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  const enabled = req.body?.enabled === true;
+  const db = await readDb();
+  db.settings = { ...(db.settings || {}), maintenanceMode: enabled };
+  await writeDb(db);
+  const message = enabled ? '🔧 سایت برای به‌روزرسانی موقتاً در دسترس نیست. به‌زودی برمی‌گردیم.' : '✅ به‌روزرسانی پایان یافت و سایت دوباره در دسترس است.';
+  for (const user of db.users || []) {
+    try {
+      if (user.telegramId && db.settings.telegramToken) await sendTelegramMessage(db.settings.telegramToken, String(user.telegramId), message);
+      if (user.eitaaId && db.settings.eitaaToken) await sendEitaaMessage(db.settings.eitaaToken, String(user.eitaaId), message);
+    } catch { /* notification failures do not block the toggle */ }
+  }
+  res.json({ success: true, enabled });
+});
+
 // --- REST API ENDPOINTS ---
 
 // Get all DB state

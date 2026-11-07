@@ -83,6 +83,7 @@ export default function App() {
     typeof window !== 'undefined' ? messengerPageFromPath(window.location.pathname) : null
   );
   const [activeView, setActiveView] = useState<'admin' | 'user'>(initialRoute.view);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [adminTab, setAdminTab] = useState<AdminTab>(
     initialRoute.view === 'admin' ? (initialRoute.tab as AdminTab) : 'dashboard'
   );
@@ -102,6 +103,15 @@ export default function App() {
   const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([]);
   const [partnerInvoices, setPartnerInvoices] = useState<PartnerInvoice[]>([]);
   const [costRequests, setCostRequests] = useState<CostChangeRequest[]>([]);
+
+  useEffect(() => {
+    fetch('/api/public/maintenance', { cache: 'no-store' }).then((response) => response.json()).then((data) => setMaintenanceMode(data?.enabled === true)).catch(() => undefined);
+  }, []);
+
+  const toggleMaintenance = async (enabled: boolean) => {
+    const response = await fetch('/api/admin/maintenance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+    if (response.ok) setMaintenanceMode(enabled);
+  };
 
   // AvalAI API configuration state
   const [avalaiApiKey, setAvalaiApiKey] = useState<string>('');
@@ -953,6 +963,10 @@ export default function App() {
     );
   }
 
+  if (maintenanceMode && activeView === 'user') {
+    return <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-6"><div className="max-w-md rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm"><h1 className="text-xl font-black text-slate-900">سایت در حال به‌روزرسانی است</h1><p className="mt-3 text-sm leading-7 text-slate-500">لطفاً چند دقیقه بعد دوباره تلاش کنید.</p></div></div>;
+  }
+
   const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
   const activeOrdersCount = orders.filter((o) => o.status !== 'delivered').length;
 
@@ -1020,6 +1034,8 @@ export default function App() {
               openTicketsCount={openTicketsCount}
               totalTicketsCount={tickets.length}
               announcementsCount={announcements.length}
+              maintenanceMode={maintenanceMode}
+              onToggleMaintenance={toggleMaintenance}
             />
 
             {/* Admin Content Area */}
