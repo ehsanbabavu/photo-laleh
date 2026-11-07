@@ -1,5 +1,3 @@
-Warning: truncated output (original token count: 44625)
-Total output lines: 4411
 
 import express from 'express';
 import crypto from 'crypto';
