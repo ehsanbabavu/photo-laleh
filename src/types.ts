@@ -154,10 +154,31 @@ export interface OrderDraft {
   invoiceDetails?: OrderInvoiceDetails;
 }
 
+export interface LostOrder {
+  id: string;
+  draftId: string;
+  userId: string;
+  userName: string;
+  userPhone?: string;
+  customerName?: string;
+  customerPhone?: string;
+  printType: PrintTypeId;
+  printTypeTitle: string;
+  dimensionId: string;
+  dimensionTitle: string;
+  quantity: number;
+  totalPrice: number;
+  paymentInvoiceId?: string;
+  reachedPaymentAt: string;
+  lastSeenAt: string;
+}
+
 export type PrintImageKey = 'sheet' | 'ai' | 'commercial';
 
 export interface Order extends OrderDraft {
   id: string;
+  /** Draft that reached payment before this final paid order was created. */
+  sourceDraftId?: string;
   trackingCode: string;
   userId: string;
   userName: string;
@@ -326,3 +347,4 @@ export interface BluPalInvoice {
   payerCard?: string;
   payerBankName?: string;
 }
+
