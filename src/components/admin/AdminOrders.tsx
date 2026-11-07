@@ -105,6 +105,14 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
     setLostOrdersLoading(false);
   }, []);
 
+  const toggleLostOrderFollowUp = async (order: LostOrder) => {
+    const status = order.followUpStatus === 'tracked' ? 'untracked' : 'tracked';
+    const response = await fetch(`/api/lost-orders/${encodeURIComponent(order.id)}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status })
+    });
+    if (response.ok) setLostOrders((current) => current.map((item) => item.id === order.id ? { ...item, followUpStatus: status } : item));
+  };
+
   React.useEffect(() => {
     if (statusFilter !== 'lost') return;
     void refreshLostOrders(true);
@@ -672,9 +680,10 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                       <h3 className="truncate text-xs font-black text-slate-900 sm:text-sm">
                         {order.customerName || order.userName}
                       </h3>
-                      <span className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-black text-rose-700 sm:text-[10px]">
-                        پرداخت نشده
-                      </span>
+                      <span className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-black text-rose-700 sm:text-[10px]">پرداخت نشده</span>
+                      <button type="button" onClick={() => void toggleLostOrderFollowUp(order)} className={`rounded-lg border px-2 py-0.5 text-[9px] font-black sm:text-[10px] ${order.followUpStatus === 'tracked' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        {order.followUpStatus === 'tracked' ? 'پیگیری شده' : 'پیگیری نشده'}
+                      </button>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:text-[11px]">
                       <span className="flex items-center gap-1" dir="ltr">

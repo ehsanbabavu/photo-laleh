@@ -1924,6 +1924,7 @@ app.post('/api/lost-orders', async (req: any, res) => {
     paymentInvoiceId: clean(req.body?.paymentInvoiceId, 160) || undefined,
     reachedPaymentAt: existing?.reachedPaymentAt || now,
     lastSeenAt: now
+    ,followUpStatus: existing?.followUpStatus === 'tracked' ? 'tracked' : 'untracked'
   };
   db.lostOrders = [lostOrder, ...items.filter((item: any) => item.id !== lostOrder.id)].slice(0, 2000);
   await writeDb(db);
@@ -1937,6 +1938,17 @@ app.get('/api/lost-orders', async (req: any, res) => {
   res.json([...items].sort((a: any, b: any) =>
     new Date(b.reachedPaymentAt || 0).getTime() - new Date(a.reachedPaymentAt || 0).getTime()
   ));
+});
+
+app.patch('/api/lost-orders/:id/status', async (req: any, res) => {
+  if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
+  const status = req.body?.status === 'tracked' ? 'tracked' : 'untracked';
+  const db = await readDb();
+  const item = (db.lostOrders || []).find((entry: any) => entry.id === req.params.id);
+  if (!item) return res.status(404).json({ success: false, error: 'سفارش یافت نشد' });
+  item.followUpStatus = status;
+  await writeDb(db);
+  res.json({ success: true, lostOrder: item });
 });
 
 app.post('/api/orders', async (req, res) => {

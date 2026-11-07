@@ -62,6 +62,7 @@ function formatBytes(bytes: number): string {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInfo, tickets = [], onNavigateTab }) => {
   const [storage, setStorage] = useState<StorageUsage | null>(null);
   const [storageLoading, setStorageLoading] = useState(true);
+  const [lostCounts, setLostCounts] = useState({ total: 0, untracked: 0, tracked: 0 });
   const [filesOpen, setFilesOpen] = useState(false);
   const [files, setFiles] = useState<StorageFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -90,6 +91,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/lost-orders', { cache: 'no-store' }).then((response) => response.ok ? response.json() : []).then((items) => {
+      const list = Array.isArray(items) ? items : [];
+      setLostCounts({ total: list.length, untracked: list.filter((item: any) => item.followUpStatus !== 'tracked').length, tracked: list.filter((item: any) => item.followUpStatus === 'tracked').length });
+    }).catch(() => undefined);
   }, []);
 
   const usedPercent = storage && storage.limitBytes > 0
@@ -225,6 +233,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ orders, queueInf
 
       {/* 2 Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-xs">
+          <p className="text-[11px] font-bold text-slate-500">سفارشات از دست رفته</p>
+          <p className="mt-2 text-2xl font-black text-rose-700">{lostCounts.total.toLocaleString('fa-IR')}</p>
+          <div className="mt-2 flex gap-3 text-[10px] font-bold"><span className="text-amber-700">پیگیری نشده: {lostCounts.untracked.toLocaleString('fa-IR')}</span><span className="text-emerald-700">پیگیری شده: {lostCounts.tracked.toLocaleString('fa-IR')}</span></div>
+        </div>
         {/* Total Orders */}
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 hover:border-sky-300 hover:shadow-md transition-all shadow-xs">
           <div className="flex items-center justify-between mb-2">

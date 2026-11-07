@@ -171,6 +171,7 @@ export interface LostOrder {
   paymentInvoiceId?: string;
   reachedPaymentAt: string;
   lastSeenAt: string;
+  followUpStatus?: 'untracked' | 'tracked';
 }
 
 export type PrintImageKey = 'sheet' | 'ai' | 'commercial';
