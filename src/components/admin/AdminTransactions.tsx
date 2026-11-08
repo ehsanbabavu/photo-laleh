@@ -141,7 +141,7 @@ export const AdminTransactions = () => {
             <caption className="sr-only">فهرست تراکنش‌های موفق بلوپال</caption>
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                {['عملیات', 'مشتری', 'مبلغ پرداخت', 'فاکتور / سفارش', 'کد پیگیری', 'پرداخت‌کننده', 'زمان پرداخت', 'وضعیت'].map((heading) => (
+                {['مشتری', 'مبلغ پرداخت', 'فاکتور / سفارش', 'کد پیگیری', 'پرداخت‌کننده', 'زمان پرداخت', 'وضعیت', 'عملیات'].map((heading) => (
                   <th key={heading} scope="col" className="px-3 py-3 font-bold whitespace-nowrap">{heading}</th>
                 ))}
               </tr>
@@ -149,19 +149,6 @@ export const AdminTransactions = () => {
             <tbody className="divide-y divide-slate-100">
               {visibleTransactions.map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-slate-50/70">
-                  <td className="px-3 py-3">
-                    <button
-                      type="button"
-                      onClick={() => requestDeleteTransaction(transaction)}
-                      disabled={Boolean(deleteTarget)}
-                      title="حذف تراکنش"
-                      aria-label={`حذف تراکنش ${transaction.invoiceId}`}
-                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-100 disabled:opacity-50 whitespace-nowrap"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      حذف
-                    </button>
-                  </td>
                   <td className="px-3 py-3">
                     <p className="font-bold text-slate-900">{transaction.customerName || '—'}</p>
                     <p className="text-slate-500 mt-1"><bdi dir="ltr">{transaction.customerPhone || '—'}</bdi></p>
@@ -189,6 +176,18 @@ export const AdminTransactions = () => {
                       <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
                       موفق
                     </span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={() => requestDeleteTransaction(transaction)}
+                      disabled={Boolean(deleteTarget)}
+                      title="حذف"
+                      aria-label={`حذف تراکنش ${transaction.invoiceId}`}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:opacity-50 cursor-pointer"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
                   </td>
                 </tr>
               ))}
