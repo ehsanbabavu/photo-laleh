@@ -31,8 +31,12 @@ import {
   testPostgresConnection,
   bootstrapPostgresAdminCredentials,
   copyStorageProviderData,
-  switchStorageProvider
+  switchStorageProvider,
+  readMaintenanceQueue,
+  compareAndSetMaintenanceQueue,
+  readMaintenanceDeliveryConfig
 } from './storage';
+import { createMaintenanceQueue, maintenanceQueueSummary, type MaintenanceTick } from './maintenanceQueue';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
 import { getPaidBluPalTransactions } from './src/utils/bluPalTransactions';
@@ -111,6 +115,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/me',
   '/api/auth/logout',
   '/api/public/landing',
+  '/api/public/maintenance',
   '/api/blupal/webhook',
   '/api/webhook/blupal',
   '/api/telegram/webhook',
@@ -118,6 +123,7 @@ const PUBLIC_API_PATHS = new Set([
 ]);
 
 const ADMIN_ONLY_PREFIXES = [
+  '/api/admin/maintenance',
   '/api/admin/transactions',
   '/api/users',
   '/api/settings',
@@ -352,32 +358,84 @@ app.get('/api/public/landing', async (_req, res) => {
   }
 });
 
+const maintenanceNotifications = createMaintenanceQueue({
+  read: readMaintenanceQueue,
+  compareAndSet: compareAndSetMaintenanceQueue,
+  publish: async (tick, delaySeconds, key) => {
+    if (!IS_SERVERLESS) {
+      const timer = setTimeout(() => {
+        void maintenanceNotifications.process(tick).catch((error) => {
+          console.error('[maintenance] worker retry', error.message);
+          const retryTimer = setTimeout(() => { void maintenanceNotifications.dispatch(true).catch(console.error); }, Math.max(1000, (error.afterSeconds || 5) * 1000));
+          retryTimer.unref();
+        });
+      }, Math.max(1000, delaySeconds * 1000));
+      timer.unref();
+      return;
+    }
+    const { QueueClient } = await import('@vercel/queue');
+    await new QueueClient().send('maintenance-notifications', tick, { delaySeconds, idempotencyKey: key, retentionSeconds: 604800 });
+  },
+  send: async (target, message) => {
+    const config = await readMaintenanceDeliveryConfig();
+    const token = String(config[`${target.channel}Token`] || (target.channel === 'telegram' ? process.env.TELEGRAM_BOT_TOKEN : process.env.EITAA_TOKEN) || '').trim();
+    if (!token) return { ok: false };
+    return target.channel === 'telegram' ? sendTelegramMessage(token, target.recipient, message) : sendEitaaMessage(token, target.recipient, message);
+  }
+});
+
+export const processMaintenanceNotifications = (tick: MaintenanceTick) => maintenanceNotifications.process(tick);
+function dispatchMaintenanceNotifications(req: any) {
+  const task = maintenanceNotifications.dispatch().catch((error) => console.error('[maintenance] queue dispatch failed', error.message));
+  if (req.waitUntil) req.waitUntil(task);
+}
+
 app.get('/api/public/maintenance', async (_req, res) => {
-  const db = await readDb();
-  res.json({ enabled: db.settings?.maintenanceMode === true });
+  try {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    const state = await readMaintenanceQueue();
+    const enabled = state ? state.enabled : (await readMaintenanceDeliveryConfig()).maintenanceMode === true;
+    res.json({ enabled });
+  } catch {
+    res.status(503).json({ success: false, error: 'دریافت وضعیت به‌روزرسانی ناموفق بود' });
+  }
+});
+
+app.get('/api/admin/maintenance', async (req: any, res) => {
+  try {
+    const state = await readMaintenanceQueue();
+    const fallback = state ? false : (await readMaintenanceDeliveryConfig()).maintenanceMode === true;
+    dispatchMaintenanceNotifications(req);
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.json({ success: true, ...maintenanceQueueSummary(state, fallback), ...(req.query.includeRecipients === '1' ? { recipients: state?.batch?.recipients || [] } : {}) });
+  } catch {
+    res.status(503).json({ success: false, error: 'دریافت صف اعلان‌ها ناموفق بود' });
+  }
 });
 
 app.post('/api/admin/maintenance', async (req: any, res) => {
-  if (req.currentUser?.role !== 'admin') return res.status(403).json({ success: false, error: 'دسترسی مجاز نیست' });
-  const enabled = req.body?.enabled === true;
-  const db = await readDb();
-  db.settings = { ...(db.settings || {}), maintenanceMode: enabled };
-  await writeDb(db);
-  const message = enabled ? '🔧 سایت برای به‌روزرسانی موقتاً در دسترس نیست. به‌زودی برمی‌گردیم.' : '✅ به‌روزرسانی پایان یافت و سایت دوباره در دسترس است.';
-  for (const user of db.users || []) {
-    try {
-      if (user.telegramId && db.settings.telegramToken) await sendTelegramMessage(db.settings.telegramToken, String(user.telegramId), message);
-      if (user.eitaaId && db.settings.eitaaToken) await sendEitaaMessage(db.settings.eitaaToken, String(user.eitaaId), message);
-    } catch { /* notification failures do not block the toggle */ }
+  if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ success: false, error: 'وضعیت به‌روزرسانی معتبر نیست' });
+  const enabled = req.body.enabled;
+  try {
+    const db = await readDb();
+    const config = {
+      ...db.settings,
+      telegramToken: db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN,
+      eitaaToken: db.settings?.eitaaToken || process.env.EITAA_TOKEN
+    };
+    const state = await maintenanceNotifications.changeMode(enabled, db.users || [], config, db.settings?.maintenanceMode === true);
+    dispatchMaintenanceNotifications(req);
+    res.json({ success: true, ...maintenanceQueueSummary(state, db.settings?.maintenanceMode === true) });
+  } catch {
+    res.status(503).json({ success: false, error: 'ذخیره وضعیت به‌روزرسانی ناموفق بود. دوباره تلاش کنید.' });
   }
-  res.json({ success: true, enabled });
 });
 
 // --- REST API ENDPOINTS ---
 
 // Get all DB state
 app.get('/api/db/all', async (req: any, res) => {
-  const db = await readDb();
+  const [db, maintenance] = await Promise.all([readDb(), readMaintenanceQueue()]);
   const isAdmin = req.currentUser?.role === 'admin';
   const currentUserId = req.currentUser?.id;
   const isColleague = req.currentUser?.category === 'colleague';
@@ -396,7 +454,7 @@ app.get('/api/db/all', async (req: any, res) => {
       ? (db.costRequests || []).filter((r: any) => r.requestedBy === currentUserId)
       : [],
     users: isAdmin ? sanitizeUsers(db.users) : [],
-    settings: sanitizeSettings(db.settings, isAdmin),
+    settings: sanitizeSettings({ ...db.settings, maintenanceMode: maintenance?.enabled ?? db.settings?.maintenanceMode === true }, isAdmin),
     // Internal cost figures are admin-only: never ship them to a customer's browser
     // Colleagues maintain the cost prices, so they may read them — customers may not
     dimensions:
@@ -2490,13 +2548,14 @@ app.delete('/api/announcements/:id', async (req, res) => {
 
 // Settings APIs
 app.get('/api/settings', async (req: any, res) => {
-  const db = await readDb();
-  res.json(sanitizeSettings(db.settings || {}, req.currentUser?.role === 'admin'));
+  const [db, maintenance] = await Promise.all([readDb(), readMaintenanceQueue()]);
+  res.json(sanitizeSettings({ ...db.settings, maintenanceMode: maintenance?.enabled ?? db.settings?.maintenanceMode === true }, req.currentUser?.role === 'admin'));
 });
 
 app.post('/api/settings', async (req, res) => {
   const db = await readDb();
   const incoming = { ...(req.body || {}) };
+  delete incoming.maintenanceMode;
   // Never store invisible characters in provider tokens
   if (incoming.eitaaToken !== undefined) incoming.eitaaToken = normalizeEitaaToken(incoming.eitaaToken);
   if (incoming.telegramToken !== undefined) incoming.telegramToken = String(incoming.telegramToken || '').trim();
@@ -4640,6 +4699,7 @@ async function bootstrapInitialAdmin() {
 async function startServer() {
   await bootstrapInitialAdmin();
   startInternalBackupScheduler();
+  void maintenanceNotifications.dispatch(true).catch((error) => console.error('[maintenance] resume failed', error.message));
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

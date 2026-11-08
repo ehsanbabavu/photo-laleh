@@ -30,6 +30,16 @@ export interface User {
 
 export type DeletionChannel = 'sms' | 'telegram' | 'eitaa';
 
+export interface MaintenanceNotificationSummary {
+  enabled: boolean;
+  batchId: string | null;
+  status: 'idle' | 'pending' | 'completed';
+  total: number;
+  pending: number;
+  sent: number;
+  failed: number;
+}
+
 export interface DeletionCodeDelivery {
   success: true;
   channel: DeletionChannel;

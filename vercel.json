@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "functions": {
+    "api/maintenance-notifications.ts": {
+      "maxDuration": 60,
+      "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "maintenance-notifications" }]
+    },
     "api/**/*.ts": {
       "maxDuration": 60
     }
@@ -22,6 +26,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/maintenance-notifications", "destination": "/api/maintenance-notifications" },
     {
       "source": "/api/(.*)",
       "destination": "/api/[...route]?__path=$1"

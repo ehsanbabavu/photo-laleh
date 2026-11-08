@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod } from './types';
+import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod, MaintenanceNotificationSummary } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
 import { Navbar } from './components/Navbar';
@@ -85,6 +85,12 @@ export default function App() {
   );
   const [activeView, setActiveView] = useState<'admin' | 'user'>(initialRoute.view);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceNotifications, setMaintenanceNotifications] = useState<MaintenanceNotificationSummary | null>(null);
+  const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState('');
+  const maintenanceStatusVersion = React.useRef(0);
+  const maintenanceSaving = React.useRef(false);
+  const maintenancePolling = React.useRef(false);
   const [adminTab, setAdminTab] = useState<AdminTab>(
     initialRoute.view === 'admin' ? (initialRoute.tab as AdminTab) : 'dashboard'
   );
@@ -106,13 +112,61 @@ export default function App() {
   const [costRequests, setCostRequests] = useState<CostChangeRequest[]>([]);
 
   useEffect(() => {
-    fetch('/api/public/maintenance', { cache: 'no-store' }).then((response) => response.json()).then((data) => setMaintenanceMode(data?.enabled === true)).catch(() => undefined);
+    const version = maintenanceStatusVersion.current;
+    let active = true;
+    fetch('/api/public/maintenance', { cache: 'no-store' }).then(async (response) => {
+      if (!response.ok) return;
+      const data = await response.json();
+      if (active && version === maintenanceStatusVersion.current) setMaintenanceMode(data?.enabled === true);
+    }).catch(() => undefined);
+    return () => { active = false; };
   }, []);
 
   const toggleMaintenance = async (enabled: boolean) => {
-    const response = await fetch('/api/admin/maintenance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
-    if (response.ok) setMaintenanceMode(enabled);
+    if (maintenanceSaving.current) return;
+    maintenanceSaving.current = true;
+    maintenanceStatusVersion.current += 1;
+    setIsTogglingMaintenance(true);
+    setMaintenanceError('');
+    try {
+      const response = await fetch('/api/admin/maintenance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error(data?.error || 'تغییر حالت به‌روزرسانی ناموفق بود');
+      setMaintenanceMode(data.enabled);
+      setMaintenanceNotifications(data);
+    } catch (error: any) {
+      setMaintenanceError(error?.message || 'تغییر حالت به‌روزرسانی ناموفق بود');
+    } finally {
+      maintenanceSaving.current = false;
+      setIsTogglingMaintenance(false);
+    }
   };
+
+  const refreshMaintenanceStatus = useCallback(async () => {
+    if (maintenanceSaving.current || maintenancePolling.current) return;
+    const version = maintenanceStatusVersion.current;
+    maintenancePolling.current = true;
+    try {
+      const response = await fetch('/api/admin/maintenance', { cache: 'no-store' });
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.success && version === maintenanceStatusVersion.current) {
+        maintenanceStatusVersion.current += 1;
+        setMaintenanceMode(data.enabled);
+        setMaintenanceNotifications(data);
+      }
+    } finally { maintenancePolling.current = false; }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser?.role === 'admin') void refreshMaintenanceStatus().catch(() => undefined);
+    return () => { maintenanceStatusVersion.current += 1; };
+  }, [currentUser?.id, currentUser?.role, refreshMaintenanceStatus]);
+
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' || maintenanceNotifications?.status !== 'pending') return;
+    const timer = window.setInterval(() => { void refreshMaintenanceStatus().catch(() => undefined); }, 5000);
+    return () => window.clearInterval(timer);
+  }, [currentUser?.id, currentUser?.role, maintenanceNotifications?.status, refreshMaintenanceStatus]);
 
   // AvalAI API configuration state
   const [avalaiApiKey, setAvalaiApiKey] = useState<string>('');
@@ -1012,6 +1066,11 @@ export default function App() {
         openTicketsCount={openTicketsCount}
         totalTicketsCount={tickets.length}
         announcementsCount={announcements.length}
+        maintenanceMode={maintenanceMode}
+        maintenanceNotifications={maintenanceNotifications}
+        isTogglingMaintenance={isTogglingMaintenance}
+        maintenanceError={maintenanceError}
+        onToggleMaintenance={toggleMaintenance}
       />
 
       {/* Main Layout Container with Right Sidebar */}
@@ -1032,6 +1091,9 @@ export default function App() {
               totalTicketsCount={tickets.length}
               announcementsCount={announcements.length}
               maintenanceMode={maintenanceMode}
+              maintenanceNotifications={maintenanceNotifications}
+              isTogglingMaintenance={isTogglingMaintenance}
+              maintenanceError={maintenanceError}
               onToggleMaintenance={toggleMaintenance}
             />
 

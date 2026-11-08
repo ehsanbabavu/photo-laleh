@@ -93,6 +93,9 @@ before(async () => {
       builder.onResolve({ filter: /^\.\/storage$/ }, () => ({ path: 'storage', namespace: 'fixture' }));
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ loader: 'js', contents: [
         'export const readDb = async () => globalThis.__transactionDeletionTest.readDb();',
+        'export const readMaintenanceQueue = async () => null;',
+        'export const compareAndSetMaintenanceQueue = async () => false;',
+        'export const readMaintenanceDeliveryConfig = async () => globalThis.__transactionDeletionTest.readDb().settings;',
         'export const writeDb = async (db) => globalThis.__transactionDeletionTest.writeDb(db);',
         'export const saveOtpCode = async (...args) => globalThis.__transactionDeletionTest.saveOtpCode(...args);',
         'export const verifyOtpCode = async (...args) => globalThis.__transactionDeletionTest.verifyOtpCode(...args);',

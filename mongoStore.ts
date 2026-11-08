@@ -679,6 +679,28 @@ export async function revokeSession(userId: string, createdAt: string): Promise<
   await collection.deleteOne({ userId, createdAt: storedCreatedAt }).catch(() => undefined);
 }
 
+export async function readMaintenanceQueue(): Promise<import('./maintenanceQueue').MaintenanceQueueState | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const row = await db.collection<import('./maintenanceQueue').MaintenanceQueueState>('maintenance_notifications').findOne({ _id: 'main' as any }, { projection: { _id: 0 } });
+  return row;
+}
+export async function compareAndSetMaintenanceQueue(revision: number, next: import('./maintenanceQueue').MaintenanceQueueState): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error('برای ذخیره صف اعلان‌ها اتصال دیتابیس لازم است');
+  if (revision === 0) {
+    try { await db.collection('maintenance_notifications').insertOne({ _id: 'main' as any, ...next }); return true; }
+    catch (error: any) { if (error?.code === 11000) return false; throw error; }
+  }
+  const result = await db.collection('maintenance_notifications').replaceOne({ _id: 'main' as any, revision }, { ...next });
+  return result.matchedCount === 1;
+}
+export async function readMaintenanceDeliveryConfig(): Promise<any> {
+  const db = await getDb();
+  if (!db) return (await readDb()).settings || {};
+  return await db.collection('settings').findOne({ _id: 'main' as any }, { projection: { _id: 0 } }) || {};
+}
+
 export async function readOperationalData() {
   const db = await getDb();
   if (!db) return { sessions: [], otps: [], rateLimits: [], auditLogs: [] };
@@ -697,7 +719,8 @@ export async function readOperationalData() {
       const { _id, ...rest } = doc;
       return { key: String(_id), ...rest };
     }),
-    auditLogs
+    auditLogs,
+    maintenanceQueue: await readMaintenanceQueue()
   };
 }
 
@@ -739,6 +762,8 @@ export async function replaceAllData(state: any, operational: any) {
   ]);
 
   const data = operational || { sessions: [], otps: [], rateLimits: [], auditLogs: [] };
+  await db.collection('maintenance_notifications').deleteMany({});
+  if (data.maintenanceQueue) await db.collection('maintenance_notifications').insertOne({ _id: 'main' as any, ...data.maintenanceQueue });
   for (const name of ['sessions', 'otps', 'rate_limits', 'audit_logs']) {
     await db.collection(name).deleteMany({});
   }

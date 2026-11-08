@@ -1,6 +1,23 @@
 import * as mongo from './mongoStore';
 import * as postgres from './postgresStore';
 import type { OperationalSnapshot, PgDatabase, StorageProvider } from './postgresStore';
+import type { MaintenanceQueueState } from './maintenanceQueue';
+
+export async function readMaintenanceQueue(): Promise<MaintenanceQueueState | null> {
+  return postgres.withStorageWriteLease((provider, db) => provider === 'postgres'
+    ? postgres.readMaintenanceQueue(requirePostgres(db)) : mongo.readMaintenanceQueue());
+}
+
+export async function compareAndSetMaintenanceQueue(revision: number, next: MaintenanceQueueState): Promise<boolean> {
+  return postgres.withStorageWriteLease((provider, db) => provider === 'postgres'
+    ? postgres.compareAndSetMaintenanceQueue(requirePostgres(db), revision, next)
+    : mongo.compareAndSetMaintenanceQueue(revision, next));
+}
+
+export async function readMaintenanceDeliveryConfig(): Promise<any> {
+  return postgres.withStorageWriteLease((provider, db) => provider === 'postgres'
+    ? postgres.readMaintenanceDeliveryConfig(requirePostgres(db)) : mongo.readMaintenanceDeliveryConfig());
+}
 
 const STATE_PROVIDER = Symbol.for('laleh.storage.provider');
 
@@ -189,7 +206,9 @@ function operationalFingerprint(snapshot: OperationalSnapshot) {
       Object.keys(snapshot)
         .sort()
         .map((key) => {
-          const items = [...((snapshot as any)[key] || [])]
+          const value = (snapshot as any)[key];
+          if (!Array.isArray(value)) return [key, normalizeForComparison(value ?? null)];
+          const items = [...value]
             .map((item) => normalizeForComparison(item))
             .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
           return [key, items];

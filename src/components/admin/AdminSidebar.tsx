@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { LayoutDashboard, BotMessageSquare, Printer, Palette, Truck, LogOut, ExternalLink, ChevronLeft, User as UserIcon, LifeBuoy, Sparkles, Volume2, Send, CreditCard, Database, Users, Settings, ChevronDown, HardDrive, MessageSquare, ShieldCheck, Activity, Maximize2, Receipt, Wallet } from 'lucide-react';
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
+import { MaintenanceControl, type MaintenanceControlProps } from './MaintenanceControl';
 
 export type AdminTab =
   | 'dashboard'
@@ -26,7 +27,7 @@ export type AdminTab =
   | 'audit'
   | 'storage';
 
-interface AdminSidebarProps {
+interface AdminSidebarProps extends MaintenanceControlProps {
   currentTab: AdminTab;
   onSelectTab: (tab: AdminTab) => void;
   user: User;
@@ -38,8 +39,6 @@ interface AdminSidebarProps {
   openTicketsCount?: number;
   totalTicketsCount?: number;
   announcementsCount?: number;
-  maintenanceMode?: boolean;
-  onToggleMaintenance?: (enabled: boolean) => void;
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
@@ -55,6 +54,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   totalTicketsCount = 0,
   announcementsCount = 0,
   maintenanceMode = false,
+  maintenanceNotifications,
+  isTogglingMaintenance = false,
+  maintenanceError = '',
   onToggleMaintenance
 }) => {
   const menuItems = [
@@ -333,35 +335,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
       {/* Bottom Actions */}
       <div className="p-3 border-t border-slate-200 space-y-1">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={maintenanceMode}
-          aria-label="حالت به‌روزرسانی"
-          onClick={() => onToggleMaintenance?.(!maintenanceMode)}
-          className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-            maintenanceMode
-              ? 'bg-amber-50 text-amber-700'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5" />
-            <span>حالت به‌روزرسانی</span>
-          </span>
-          <span
-            aria-hidden="true"
-            className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${
-              maintenanceMode ? 'bg-amber-500' : 'bg-slate-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                maintenanceMode ? '-translate-x-4' : '-translate-x-0.5'
-              }`}
-            />
-          </span>
-        </button>
+        <MaintenanceControl maintenanceMode={maintenanceMode} maintenanceNotifications={maintenanceNotifications}
+          isTogglingMaintenance={isTogglingMaintenance} maintenanceError={maintenanceError} onToggleMaintenance={onToggleMaintenance} />
         {/* Logout */}
         <button
           onClick={onLogout}

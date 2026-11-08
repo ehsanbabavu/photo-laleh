@@ -3,8 +3,9 @@ import { ShieldCheck, LogOut, Sparkles, Menu, X, LayoutDashboard, Palette, Print
 import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
 import { TulipIcon } from './TulipIcon';
+import { MaintenanceControl, type MaintenanceControlProps } from './admin/MaintenanceControl';
 
-interface NavbarProps {
+interface NavbarProps extends MaintenanceControlProps {
   user: User | null;
   activeView: 'admin' | 'user' | 'auth';
   onLogout: () => void;
@@ -31,7 +32,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   printTypesCount = 4,
   openTicketsCount = 0,
   totalTicketsCount = 0,
-  announcementsCount = 0
+  announcementsCount = 0,
+  maintenanceMode,
+  maintenanceNotifications,
+  isTogglingMaintenance,
+  maintenanceError,
+  onToggleMaintenance
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -378,6 +384,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Bottom Actions */}
             <div className="p-4 border-t border-slate-200 bg-slate-50/50 space-y-2">
+              <MaintenanceControl maintenanceMode={maintenanceMode} maintenanceNotifications={maintenanceNotifications}
+                isTogglingMaintenance={isTogglingMaintenance} maintenanceError={maintenanceError} onToggleMaintenance={onToggleMaintenance} />
               <button
                 onClick={() => {
                   onLogout();

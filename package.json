@@ -8,10 +8,13 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:transactions": "tsx --test scripts/test-blupal-transactions.ts scripts/test-transaction-deletion.mjs",
+    "test:maintenance": "tsx --test scripts/test-maintenance-queue.ts scripts/test-maintenance-api.mjs scripts/test-maintenance-storage.mjs",
     "preview": "tsx server.ts",
     "start": "tsx server.ts"
   },
   "dependencies": {
+    "@vercel/functions": "^3.11.0",
+    "@vercel/queue": "^0.11.0",
     "@vercel/blob": "^2.8.2",
     "cors": "^2.8.6",
     "drizzle-orm": "^0.45.4",

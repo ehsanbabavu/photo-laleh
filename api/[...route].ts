@@ -2,6 +2,7 @@
 // Every request under /api/* is handled by the Express app defined in server.ts.
 import type { IncomingMessage, ServerResponse } from 'http';
 import app from '../server.bundle.mjs';
+import { waitUntil } from '@vercel/functions';
 
 function normalizeUrl(req: IncomingMessage) {
   const raw = req.url || '/';
@@ -28,6 +29,7 @@ function normalizeUrl(req: IncomingMessage) {
 }
 
 export default function handler(req: IncomingMessage, res: ServerResponse) {
+  (req as IncomingMessage & { waitUntil: typeof waitUntil }).waitUntil = waitUntil;
   normalizeUrl(req);
   return (app as unknown as (r: IncomingMessage, s: ServerResponse) => void)(req, res);
 }
