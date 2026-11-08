@@ -24,6 +24,8 @@ The administrator's **نوشته‌ها** menu opens `/admin/posts`. Its section
 
 Public HTML is rendered on the server with canonical URLs, Open Graph metadata and structured data. Published slug changes redirect old URLs. Drafts, future posts and trashed posts return 404 publicly. Previews, search results and posts with the no-index option are excluded from indexing. The Vercel rewrites route blog pages and the sitemap to dedicated API handlers; `public/blog.css` and `public/blog-client.js` supply the standalone presentation and comment form.
 
+The blog rewrite uses `/blog/(.*)` to preserve trailing slashes and nested archive URLs. `sanitize-html` is pinned to 2.17.0 because the Vercel Node wrapper disables CommonJS `require()` of ES modules; newer sanitizer versions require an ESM-only parser. The test suite checks loading with that runtime restriction enabled.
+
 ## Storage and backups
 
 Blog data is stored separately from ordinary application state: MongoDB `blog_cms` (`_id: main`) or PostgreSQL `laleh_app_records` (`collection: __blog_cms`, `recordId: main`). Writes require a durable database and use revision-based compare-and-set. Provider migration copies and verifies blog data along with other operational data; no schema migration is needed.

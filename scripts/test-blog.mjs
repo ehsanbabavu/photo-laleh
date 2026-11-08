@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { once } from 'node:events';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -67,6 +68,12 @@ const cms = (path = '', method = 'GET', body) => request(`/api/admin/blog${path}
 const create = (patch = {}) => cms('/posts', 'POST', { title: 'راهنمای چاپ عکس', slug: 'photo-guide', content: '<h2>چاپ خاطره‌ها</h2><p>راهنمای انتخاب عکس و چاپ با کیفیت برای همه خوانندگان وبلاگ.</p>', status: 'draft', ...patch });
 const update = (post, patch) => cms(`/posts/${post.id}`, 'PUT', { ...post, ...patch });
 const action = (post, value) => cms(`/posts/${post.id}/action`, 'POST', { version: post.version, action: value });
+
+test('sanitizer loads when the runtime disables requiring ES modules', () => {
+  const output = execFileSync(process.execPath, ['--no-experimental-require-module', '--input-type=module', '-e',
+    `import sanitizeHtml from 'sanitize-html'; process.stdout.write(sanitizeHtml('<p>Safe</p><script>alert(1)</script>'));`], { cwd: repo, encoding: 'utf8' });
+  assert.equal(output, '<p>Safe</p>');
+});
 
 test('only administrators can read or write CMS data and preview drafts', async () => {
   const post = (await create()).data;
