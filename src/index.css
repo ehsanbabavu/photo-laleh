@@ -101,7 +101,19 @@ div {
   animation: landingUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
 }
 
+/* Animate only the maintenance control's background so its label stays steady. */
+@keyframes adminMaintenanceGradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.admin-maintenance-toggle {
+  background-size: 200% 100%;
+  animation: adminMaintenanceGradient 6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .admin-maintenance-toggle,
   .animate-landing-fade,
   .animate-landing-up,
   .animate-landing-up-delayed {
