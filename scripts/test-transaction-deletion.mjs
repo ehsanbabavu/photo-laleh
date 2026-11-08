@@ -94,6 +94,8 @@ before(async () => {
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ loader: 'js', contents: [
         'export const readDb = async () => globalThis.__transactionDeletionTest.readDb();',
         'export const readMaintenanceQueue = async () => null;',
+        'export const readBlogState = async () => null;',
+        'export const compareAndSetBlogState = async () => false;',
         'export const compareAndSetMaintenanceQueue = async () => false;',
         'export const readMaintenanceDeliveryConfig = async () => globalThis.__transactionDeletionTest.readDb().settings;',
         'export const writeDb = async (db) => globalThis.__transactionDeletionTest.writeDb(db);',

@@ -685,6 +685,21 @@ export async function readMaintenanceQueue(): Promise<import('./maintenanceQueue
   const row = await db.collection<import('./maintenanceQueue').MaintenanceQueueState>('maintenance_notifications').findOne({ _id: 'main' as any }, { projection: { _id: 0 } });
   return row;
 }
+export async function readBlogState(): Promise<import('./src/types/blog').BlogState | null> {
+  const db = await getDb();
+  if (!db) return null;
+  return db.collection<import('./src/types/blog').BlogState>('blog_cms').findOne({ _id: 'main' as any }, { projection: { _id: 0 } });
+}
+export async function compareAndSetBlogState(revision: number, next: import('./src/types/blog').BlogState): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error('برای ذخیره نوشته‌ها اتصال دیتابیس لازم است');
+  if (revision === 0) {
+    try { await db.collection('blog_cms').insertOne({ _id: 'main' as any, ...next }); return true; }
+    catch (error: any) { if (error?.code === 11000) return false; throw error; }
+  }
+  const result = await db.collection('blog_cms').replaceOne({ _id: 'main' as any, revision }, { ...next });
+  return result.matchedCount === 1;
+}
 export async function compareAndSetMaintenanceQueue(revision: number, next: import('./maintenanceQueue').MaintenanceQueueState): Promise<boolean> {
   const db = await getDb();
   if (!db) throw new Error('برای ذخیره صف اعلان‌ها اتصال دیتابیس لازم است');
@@ -720,7 +735,8 @@ export async function readOperationalData() {
       return { key: String(_id), ...rest };
     }),
     auditLogs,
-    maintenanceQueue: await readMaintenanceQueue()
+    maintenanceQueue: await readMaintenanceQueue(),
+    blogState: await readBlogState()
   };
 }
 
@@ -764,6 +780,8 @@ export async function replaceAllData(state: any, operational: any) {
   const data = operational || { sessions: [], otps: [], rateLimits: [], auditLogs: [] };
   await db.collection('maintenance_notifications').deleteMany({});
   if (data.maintenanceQueue) await db.collection('maintenance_notifications').insertOne({ _id: 'main' as any, ...data.maintenanceQueue });
+  await db.collection('blog_cms').deleteMany({});
+  if (data.blogState) await db.collection('blog_cms').insertOne({ _id: 'main' as any, ...data.blogState });
   for (const name of ['sessions', 'otps', 'rate_limits', 'audit_logs']) {
     await db.collection(name).deleteMany({});
   }

@@ -36,6 +36,10 @@ import {
   compareAndSetMaintenanceQueue,
   readMaintenanceDeliveryConfig
 } from './storage';
+import { readBlogState, compareAndSetBlogState } from './storage';
+import { createBlogRouter } from './blogRoutes';
+import { createBlogService, normalizeBlogSnapshot, BlogError } from './blogService';
+import { emptyBlogState } from './src/types/blog';
 import { createMaintenanceQueue, maintenanceQueueSummary, type MaintenanceTick } from './maintenanceQueue';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
@@ -123,6 +127,7 @@ const PUBLIC_API_PATHS = new Set([
 ]);
 
 const ADMIN_ONLY_PREFIXES = [
+  '/api/admin/blog',
   '/api/admin/maintenance',
   '/api/admin/transactions',
   '/api/users',
@@ -166,7 +171,7 @@ app.use('/api', (req: any, res, next) => {
 app.use('/api', async (req: any, res, next) => {
   const path = String(req.originalUrl || req.url || '').split('?')[0].replace(/\/+$/, '') || '/api';
   if (!path.startsWith('/api')) return next();
-  if (PUBLIC_API_PATHS.has(path) || path.startsWith('/api/cron/backup/')) return next();
+  if (PUBLIC_API_PATHS.has(path) || path.startsWith('/api/cron/backup/') || path === '/api/public/blog' || path.startsWith('/api/public/blog/')) return next();
 
   try {
     const session = await currentUserFromRequest(req);
@@ -306,6 +311,10 @@ function sanitizeUsers(users: any[]) {
 }
 
 // --- Public landing page data (no session required) ---
+app.use(createBlogRouter({ read: readBlogState, compareAndSet: compareAndSetBlogState,
+  adminForPreview: async req => (await currentUserFromRequest(req))?.user?.role === 'admin',
+  commentRateLimited: req => hitRateLimit(`blog-comment:${clientIp(req)}`, 5, 10 * 60 * 1000)
+}));
 app.get('/api/public/landing', async (_req, res) => {
   try {
     // Always fresh: the sizes/prices are managed in the admin panel
@@ -653,7 +662,7 @@ app.delete('/api/uploads/blob', async (req: any, res) => {
 
 // --- Backup & restore ---
 async function buildBackupPayload() {
-  const state = await readDb();
+  const [state, blog] = await Promise.all([readDb(), readBlogState()]);
   const safeState = {
     ...state,
     users: sanitizeUsers(state.users)
@@ -662,7 +671,8 @@ async function buildBackupPayload() {
     app: 'laleh-digital-studio',
     version: 1,
     createdAt: new Date().toISOString(),
-    data: safeState
+    data: safeState,
+    blog
   };
 }
 
@@ -902,6 +912,7 @@ app.all(['/api/cron/backup', '/api/cron/backup/:token'], async (req: any, res) =
 app.post('/api/backup/restore', async (req, res) => {
   try {
     const payload = req.body || {};
+    const blogSnapshot = payload.blog === undefined ? undefined : normalizeBlogSnapshot(payload.blog || emptyBlogState());
     const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
 
     const arrayKeys = ['users', 'orders', 'tickets', 'printTypes', 'dimensions', 'deliveryMethods', 'announcements', 'invoices', 'partnerInvoices', 'costRequests', 'webhookLogs'];
@@ -940,9 +951,10 @@ app.post('/api/backup/restore', async (req, res) => {
     }
 
     await writeDb(next);
-    res.json({ success: true, restored: providedKeys });
+    if (blogSnapshot) await createBlogService({ read: readBlogState, compareAndSet: compareAndSetBlogState }).restore(blogSnapshot);
+    res.json({ success: true, restored: [...providedKeys, ...(blogSnapshot ? ['blog'] : [])] });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err?.message || 'بازیابی ناموفق بود' });
+    res.status(err instanceof BlogError ? err.status : 500).json({ success: false, error: err?.message || 'بازیابی ناموفق بود' });
   }
 });
 

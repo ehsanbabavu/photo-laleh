@@ -15,6 +15,7 @@ import { Pool, type PoolClient } from 'pg';
 import { ARRAY_COLLECTIONS, SINGLETON_COLLECTIONS, SESSION_IDLE_MS, dropRetiredPrintTypes } from './mongoStore';
 import { INITIAL_DB } from './seedData';
 import type { MaintenanceQueueState } from './maintenanceQueue';
+import type { BlogState } from './src/types/blog';
 
 export type StorageProvider = 'mongodb' | 'postgres';
 export type OperationalSnapshot = {
@@ -23,9 +24,27 @@ export type OperationalSnapshot = {
   rateLimits: any[];
   auditLogs: any[];
   maintenanceQueue?: MaintenanceQueueState | null;
+  blogState?: BlogState | null;
 };
 
 const MAINTENANCE_COLLECTION = '__maintenance_notifications';
+const BLOG_COLLECTION = '__blog_cms';
+export async function readBlogState(db: PgDatabase): Promise<BlogState | null> {
+  const [row] = await db.select({ data: appRecords.data }).from(appRecords)
+    .where(and(eq(appRecords.collection, BLOG_COLLECTION), eq(appRecords.recordId, 'main'))).limit(1);
+  return row ? row.data as unknown as BlogState : null;
+}
+export async function compareAndSetBlogState(db: PgDatabase, revision: number, next: BlogState): Promise<boolean> {
+  if (revision === 0) {
+    const rows = await db.insert(appRecords).values({ collection: BLOG_COLLECTION, recordId: 'main', data: next as any })
+      .onConflictDoNothing().returning({ id: appRecords.recordId });
+    return rows.length === 1;
+  }
+  const rows = await db.update(appRecords).set({ data: next as any, updatedAt: new Date() })
+    .where(and(eq(appRecords.collection, BLOG_COLLECTION), eq(appRecords.recordId, 'main'), sql`(${appRecords.data}->>'revision')::bigint = ${revision}`))
+    .returning({ id: appRecords.recordId });
+  return rows.length === 1;
+}
 export async function readMaintenanceQueue(db: PgDatabase): Promise<MaintenanceQueueState | null> {
   const [row] = await db.select({ data: appRecords.data }).from(appRecords)
     .where(and(eq(appRecords.collection, MAINTENANCE_COLLECTION), eq(appRecords.recordId, 'main'))).limit(1);
@@ -589,7 +608,8 @@ export async function readOperationalData(db?: PgDatabase): Promise<OperationalS
     })),
     rateLimits: rateLimitRows.map((row) => ({ key: row.key, count: row.count, resetAt: row.resetAt })),
     auditLogs: auditRows.map((row) => ({ ...(row.entry || {}), createdAt: row.createdAt })),
-    maintenanceQueue: await readMaintenanceQueue(executor)
+    maintenanceQueue: await readMaintenanceQueue(executor),
+    blogState: await readBlogState(executor)
   };
 }
 
@@ -601,6 +621,8 @@ export async function replaceOperationalData(db: PgDatabase, value: OperationalS
   await db.delete(auditLogs);
   await db.delete(appRecords).where(eq(appRecords.collection, MAINTENANCE_COLLECTION));
   if (data.maintenanceQueue) await db.insert(appRecords).values({ collection: MAINTENANCE_COLLECTION, recordId: 'main', data: data.maintenanceQueue });
+  await db.delete(appRecords).where(eq(appRecords.collection, BLOG_COLLECTION));
+  if (data.blogState) await db.insert(appRecords).values({ collection: BLOG_COLLECTION, recordId: 'main', data: data.blogState as any });
 
   for (const batch of chunks(data.sessions || [])) {
     if (batch.length) {

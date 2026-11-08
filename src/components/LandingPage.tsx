@@ -254,6 +254,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </div>
 
             <nav className="hidden tab:flex items-center gap-1">
+              <a href="/blog/" className="px-3.5 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:text-sky-700 hover:bg-sky-50">وبلاگ</a>
               <button
                 onClick={() => goTo('#licenses')}
                 className="group hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 me-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 text-[11px] font-black transition-colors cursor-pointer"
@@ -271,6 +272,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 </button>
               ))}
             </nav>
+            <a href="/blog/" className="tab:hidden rounded-xl px-3 py-2 text-xs font-bold text-sky-700 bg-sky-50">وبلاگ</a>
           </div>
         </div>
 
@@ -947,6 +949,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             {/* ستون چپ (دسکتاپ): ارتباط با ما */}
             <div className="w-full max-w-xl mx-auto tab:mx-0">
               <p className="text-[11px] font-black tracking-wide text-white/60 mb-3">ارتباط با ما</p>
+              <a href="/blog/" className="inline-block mb-3 text-sm text-sky-300">مطالب وبلاگ لاله</a>
 
               {/* Messenger bots + phone */}
               <div className="grid grid-cols-1 sm:grid-cols-3 tab:grid-cols-1 xl:grid-cols-3 gap-2.5 text-right">

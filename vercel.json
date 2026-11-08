@@ -26,6 +26,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/blog/:path*", "destination": "/api/blog-page?__blogpath=:path*" },
     { "source": "/api/maintenance-notifications", "destination": "/api/maintenance-notifications" },
     {
       "source": "/api/(.*)",

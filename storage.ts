@@ -2,6 +2,16 @@ import * as mongo from './mongoStore';
 import * as postgres from './postgresStore';
 import type { OperationalSnapshot, PgDatabase, StorageProvider } from './postgresStore';
 import type { MaintenanceQueueState } from './maintenanceQueue';
+import type { BlogState } from './src/types/blog';
+
+export async function readBlogState(): Promise<BlogState | null> {
+  return postgres.withStorageWriteLease((provider, db) => provider === 'postgres'
+    ? postgres.readBlogState(requirePostgres(db)) : mongo.readBlogState());
+}
+export async function compareAndSetBlogState(revision: number, next: BlogState): Promise<boolean> {
+  return postgres.withStorageWriteLease((provider, db) => provider === 'postgres'
+    ? postgres.compareAndSetBlogState(requirePostgres(db), revision, next) : mongo.compareAndSetBlogState(revision, next));
+}
 
 export async function readMaintenanceQueue(): Promise<MaintenanceQueueState | null> {
   return postgres.withStorageWriteLease((provider, db) => provider === 'postgres'

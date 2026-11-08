@@ -31,7 +31,9 @@ beforeEach(() => {
   const queue = { revision: 5, enabled: true, nextSendAt: 1000, batch: { id: 'batch', index: 1, sent: 1, failed: 0,
     recipients: [{ userId: '1', channel: 'telegram', recipient: '100', attempts: 1, status: 'sent' },
       { userId: '2', channel: 'eitaa', recipient: '200', attempts: 0, status: 'pending' }] } };
-  const operational = { sessions: [{ userId: 'admin' }], otps: [], rateLimits: [], auditLogs: [], maintenanceQueue: queue };
+  const blogState = { revision: 3, posts: [{ id: 'post', version: 2, slug: 'photography', content: '<p>Blog content</p>' }],
+    categories: [], tags: [], media: [], comments: [{ id: 'comment', postId: 'post', status: 'pending' }], settings: { title: 'Blog' } };
+  const operational = { sessions: [{ userId: 'admin' }], otps: [], rateLimits: [], auditLogs: [], maintenanceQueue: queue, blogState };
   fixture.snapshots = { mongodb: { state, operational }, postgres: { state: {}, operational: {} } };
   for (const [adapter, provider] of [['mongo', 'mongodb'], ['postgres', 'postgres']]) {
     const normalizeArgs = args => adapter === 'mongo' ? args : args.slice(1);
@@ -52,7 +54,7 @@ beforeEach(() => {
 });
 after(async () => { await fs.unlink(path.join(directory, 'storage.mjs')); await fs.rmdir(directory); delete globalThis.__maintenanceMigration; });
 
-test('provider migration preserves the mode, recipient order and queue checkpoint', async () => {
+test('provider migration preserves blog content, comments, mode, recipient order and queue checkpoint', async () => {
   const original = structuredClone(fixture.snapshots.mongodb);
   await storage.switchStorageProvider('postgres');
   assert.equal(fixture.active, 'postgres');

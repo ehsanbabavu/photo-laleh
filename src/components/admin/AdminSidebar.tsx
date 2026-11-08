@@ -3,6 +3,7 @@ import { LayoutDashboard, BotMessageSquare, Printer, Palette, Truck, LogOut, Ext
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
 import { MaintenanceControl, type MaintenanceControlProps } from './MaintenanceControl';
+import { FileText } from 'lucide-react';
 
 export type AdminTab =
   | 'dashboard'
@@ -12,6 +13,7 @@ export type AdminTab =
   | 'partner_invoices'
   | 'cost_requests'
   | 'announcements'
+  | 'posts'
   | 'prompts_manager'
   | 'orders'
   | 'transactions'
@@ -60,6 +62,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onToggleMaintenance
 }) => {
   const menuItems = [
+    { id: 'posts' as AdminTab, label: 'نوشته‌ها', icon: FileText, badge: null, badgeStyle: null },
     {
       id: 'dashboard' as AdminTab,
       label: 'پیشخوان مدیریت',

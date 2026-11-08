@@ -16,6 +16,7 @@ import { EitaaLanding, TelegramLanding } from './components/EitaaLanding';
 // pages (landing + /eitaa + /telegram) stay small and load fast.
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
 const AdminAnnouncements = React.lazy(() => import('./components/admin/AdminAnnouncements').then((m) => ({ default: m.AdminAnnouncements })));
+const AdminBlog = React.lazy(() => import('./components/admin/AdminBlog'));
 const ChatGPTConnect = React.lazy(() => import('./components/admin/ChatGPTConnect').then((m) => ({ default: m.ChatGPTConnect })));
 const AdminOrders = React.lazy(() => import('./components/admin/AdminOrders').then((m) => ({ default: m.AdminOrders })));
 const AdminTransactions = React.lazy(() => import('./components/admin/AdminTransactions').then((m) => ({ default: m.AdminTransactions })));
@@ -1108,6 +1109,7 @@ export default function App() {
                   onNavigateTab={(tab) => setAdminTab(tab as AdminTab)}
                 />
               )}
+              {adminTab === 'posts' && <AdminBlog />}
 
               {adminTab === 'transactions' && <AdminTransactions />}
 

@@ -3,6 +3,7 @@ export type AppView = 'admin' | 'user';
 export const ADMIN_TABS = [
   'dashboard',
   'announcements',
+  'posts',
   'print_types',
   'prompts_manager',
   'orders',

@@ -4,6 +4,7 @@ import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
 import { TulipIcon } from './TulipIcon';
 import { MaintenanceControl, type MaintenanceControlProps } from './admin/MaintenanceControl';
+import { FileText } from 'lucide-react';
 
 interface NavbarProps extends MaintenanceControlProps {
   user: User | null;
@@ -53,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const menuItems = [
+    { id: 'posts' as AdminTab, label: 'نوشته‌ها', icon: FileText, badge: null, badgeStyle: null },
     {
       id: 'dashboard' as AdminTab,
       label: 'پیشخوان مدیریت',

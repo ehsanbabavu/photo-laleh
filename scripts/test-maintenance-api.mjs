@@ -57,6 +57,8 @@ before(async () => {
           'export const readDb = async () => structuredClone(f.db);',
           'export const writeDb = async (db) => { f.writes++; f.db = structuredClone(db); };',
           'export const readMaintenanceQueue = async () => structuredClone(f.state);',
+          'export const readBlogState = async () => null;',
+          'export const compareAndSetBlogState = async () => false;',
           'export const compareAndSetMaintenanceQueue = (...args) => f.cas(...args);',
           'export const readMaintenanceDeliveryConfig = async () => structuredClone(f.db.settings);',
           'export const findSession = async (token) => ["admin", "user-0"].includes(token) ? { userId: token } : null;',
