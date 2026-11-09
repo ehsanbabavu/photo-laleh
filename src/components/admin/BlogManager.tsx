@@ -66,7 +66,7 @@ export function BlogMediaLibrary({ state, busy, run, confirm }: ManagerProps) {
       return blogRequest('/media', 'POST', { url: saved.url, title: form.title || file.name, alt: form.alt || form.title || file.name });
     }, 'تصویر به رسانه‌ها اضافه شد.');
   };
-  return <div className="space-y-3"><form className="bg-white rounded-xl border border-slate-200 p-3 space-y-3" onSubmit={async e => { e.preventDefault(); const result = await run(() => blogRequest(`/media${form.id ? `/${form.id}` : ''}`, form.id ? 'PUT' : 'POST', form)); if (result) setForm({ url: '', title: '', alt: '' }); }}>
+  return <div className="blog-media-layout space-y-3"><form className="blog-panel blog-media-form bg-white rounded-xl border border-slate-200 p-3 space-y-3" onSubmit={async e => { e.preventDefault(); const result = await run(() => blogRequest(`/media${form.id ? `/${form.id}` : ''}`, form.id ? 'PUT' : 'POST', form)); if (result) setForm({ url: '', title: '', alt: '' }); }}>
     <h2 className="font-black">{form.id ? 'ویرایش اطلاعات تصویر' : 'افزودن رسانه'}</h2><div className="grid md:grid-cols-3 gap-4">
       <BlogField label="عنوان تصویر"><input maxLength={150} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className={blogInput} /></BlogField>
       <BlogField label="متن جایگزین (alt)"><input maxLength={300} value={form.alt} onChange={e => setForm({ ...form, alt: e.target.value })} className={blogInput} /></BlogField>
