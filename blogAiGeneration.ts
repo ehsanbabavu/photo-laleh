@@ -32,6 +32,13 @@ export function resolveAvalAiBlogSettings(settings: Record<string, any>) {
 }
 type AiConfig = ReturnType<typeof resolveAvalAiBlogSettings>;
 
+function sanitizeAvalAiError(value: unknown, apiKey: string) {
+  return String(value || '').split(apiKey).join('[کلید حذف شد]')
+    .replace(/Bearer\s+[^\s"<>]+/gi, 'Bearer [حذف شد]')
+    .replace(/\b(?:aa|sk)-[\w-]+/g, '[کلید حذف شد]')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 500);
+}
+
 export async function requestAvalAi(config: AiConfig, endpoint: string, payload: Record<string, any>, stage: 'متن' | 'تصویر', request = fetch) {
   const model = String(payload.model);
   let response: Response;
@@ -46,11 +53,7 @@ export async function requestAvalAi(config: AiConfig, endpoint: string, payload:
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const error = body?.error;
-    let detail = String(error?.message || body?.message || error?.code || (typeof error === 'string' ? error : '') || '');
-    detail = detail.split(config.apiKey).join('[کلید حذف شد]')
-      .replace(/Bearer\s+[^\s"<>]+/gi, 'Bearer [حذف شد]')
-      .replace(/\b(?:aa|sk)-[\w-]+/g, '[کلید حذف شد]')
-      .replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 500);
+    const detail = sanitizeAvalAiError(error?.message || body?.message || error?.code || (typeof error === 'string' ? error : ''), config.apiKey);
     throw new BlogError(502, `تولید ${stage} AvalAI انجام نشد (مدل: ${model}، HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
   }
   try { return await response.json(); }
@@ -71,17 +74,30 @@ export async function generateAvalAiBlogCover(config: AiConfig, prompt: string, 
   fetch?: typeof fetch; upload?: (bytes: Buffer, contentType: string) => Promise<string>;
 } = {}) {
   const gemini = /^gemini-/i.test(config.imageModel);
-  const payload = gemini ? {
+  // Mainline GPT models invoke the hosted image tool through Responses. The
+  // provider resolves the tool's renderer; never send a GPT text model to Images.
+  const responses = /^(?:gpt-(?:4o|4\.1|[5-9])(?:[.-]|$)|chat-latest$)/i.test(config.imageModel);
+  const endpoint = responses ? '/responses' : gemini ? '/chat/completions' : '/images/generations';
+  const payload = responses ? {
+    model: config.imageModel, input: `Generate a new image: ${prompt}`,
+    tools: [{ type: 'image_generation', action: 'generate', size: '1024x1024', quality: 'medium' }],
+    tool_choice: { type: 'image_generation' }
+  } : gemini ? {
     model: config.imageModel, messages: [{ role: 'user', content: prompt }], modalities: ['image', 'text'],
     generationConfig: { imageConfig: { aspectRatio: '1:1', ...(/gemini-(?:3|nano)/i.test(config.imageModel) ? { imageSize: '1K' } : {}) } }
   } : { model: config.imageModel, prompt, n: 1, size: '1024x1024' };
-  const data = await requestAvalAi(config, gemini ? '/chat/completions' : '/images/generations', payload, 'تصویر', deps.fetch);
-  const message = data.choices?.[0]?.message;
-  const item = data.data?.[0];
+  const data = await requestAvalAi(config, endpoint, payload, 'تصویر', deps.fetch);
+  const imageCall = responses && Array.isArray(data?.output) ? data.output.find((item: any) => item?.type === 'image_generation_call') : undefined;
+  if (responses && (data?.error || (data?.status && data.status !== 'completed') || (imageCall?.status && imageCall.status !== 'completed'))) {
+    const detail = sanitizeAvalAiError(data?.error?.message || data?.incomplete_details?.reason || imageCall?.error?.message, config.apiKey);
+    throw new BlogError(502, `تولید تصویر AvalAI کامل نشد (مدل: ${config.imageModel})${detail ? `: ${detail}` : '.'}`);
+  }
+  const message = data?.choices?.[0]?.message;
+  const item = data?.data?.[0];
   const parts = Array.isArray(message?.content) ? message.content : [];
   const value = item?.url || message?.images?.[0]?.image_url?.url || parts.find((part: any) => part.type === 'image_url')?.image_url?.url;
   const encoded = typeof value === 'string' ? value.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/) : null;
-  const base64 = encoded?.[2] || item?.b64_json;
+  const base64 = encoded?.[2] || item?.b64_json || imageCall?.result;
   if (typeof base64 === 'string') {
     if (base64.length > 16_000_000 || !/^[A-Za-z0-9+/=\s]+$/.test(base64)) throw new BlogError(502, 'داده تصویر تولیدشده معتبر نیست.');
     const bytes = Buffer.from(base64, 'base64');
