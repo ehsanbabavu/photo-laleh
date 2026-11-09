@@ -1,0 +1,79 @@
+/* Desktop-only visual system for the existing blog admin screens. */
+.blog-admin-shell {
+  --blog-ink: #172b4d;
+  --blog-muted: #64748b;
+  --blog-accent: #0f766e;
+}
+@media (min-width: 1024px) {
+  .blog-admin-shell { display: flex; flex-direction: column; gap: 1rem; }
+  .blog-admin-header {
+    padding: 1.15rem 1.35rem;
+    background: linear-gradient(110deg, #ffffff 0%, #f0fdfa 100%);
+    border: 1px solid #cde8e5;
+    border-right: 5px solid #0f766e;
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 5%);
+  }
+  .blog-admin-header h1 { color: var(--blog-ink); font-size: 1.45rem; letter-spacing: -.02em; }
+  .blog-admin-header > div:last-child { gap: .6rem; }
+  .blog-admin-stats { gap: .75rem; }
+  .blog-admin-stat {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 78px;
+    padding: .8rem 1rem;
+    overflow: hidden;
+    border-radius: .9rem;
+    border-color: #dbe5ef;
+    box-shadow: 0 5px 14px rgb(15 23 42 / 4%);
+  }
+  .blog-admin-stat::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: #0f766e; }
+  .blog-admin-stat:nth-child(2)::before { background: #2563eb; }
+  .blog-admin-stat:nth-child(3)::before { background: #d97706; }
+  .blog-admin-stat:nth-child(4)::before { background: #7c3aed; }
+  .blog-admin-stat p:first-child { color: #52647c; font-size: .76rem; font-weight: 700; }
+  .blog-admin-stat p:last-child { margin: 0; color: #152c4d; font-size: 1.65rem; }
+  .blog-admin-list, .blog-panel, .blog-comment-card, .blog-media-card {
+    border-color: #dce5ef;
+    border-radius: 1rem;
+    box-shadow: 0 7px 20px rgb(15 23 42 / 4%);
+  }
+  .blog-admin-list { overflow: hidden; }
+  .blog-admin-list > div:first-child { background: #f8fafc; }
+  .blog-admin-list table thead { position: sticky; top: 0; z-index: 2; background: #f1f5f9; }
+  .blog-admin-list tbody tr { transition: background .16s ease; }
+  .blog-admin-list tbody tr:nth-child(even) { background: #fbfdff; }
+  .blog-admin-list tbody tr:hover { background: #effaf8; }
+  .blog-admin-write { grid-template-columns: minmax(0, 1fr) 340px; gap: 1.25rem; align-items: start; }
+  .blog-admin-write > div:first-child { min-width: 0; }
+  .blog-admin-write .bg-white, .blog-admin-publish .bg-white {
+    border-color: #dce5ef;
+    border-radius: 1rem;
+    box-shadow: 0 6px 18px rgb(15 23 42 / 4%);
+  }
+  .blog-admin-publish { position: sticky; top: 1rem; align-self: start; }
+  .blog-taxonomy-layout { grid-template-columns: minmax(270px, 330px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+  .blog-taxonomy-form { position: sticky; top: 1rem; }
+  .blog-taxonomy-list > div:first-child { background: #f8fafc; }
+  .blog-taxonomy-list > div:not(:first-child) { transition: background .15s ease; }
+  .blog-taxonomy-list > div:not(:first-child):hover { background: #f0fdfa; }
+  .blog-comments-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; align-items: start; }
+  .blog-comment-filters { grid-column: 1 / -1; padding: .75rem; border: 1px solid #dce5ef; border-radius: .9rem; background: #f8fafc; }
+  .blog-comment-card { width: 100%; }
+  .blog-media-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+  .blog-media-form { position: sticky; top: 1rem; }
+  .blog-media-layout > .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem; }
+  .blog-media-card img { height: 9rem; }
+  .blog-media-card > div { padding: .8rem; }
+  .blog-settings-panel { width: min(100%, 1000px); max-width: 1000px; padding: 1.25rem; }
+  .admin-posts-menu { margin: .25rem 0; padding: .45rem; border: 1px solid #dce5ef; border-radius: 1rem; background: linear-gradient(180deg, #ffffff, #f8fafc); }
+  .admin-posts-menu__toggle { min-height: 42px; border-radius: .75rem; }
+  .admin-posts-menu__items { margin-top: .4rem; margin-right: .25rem; padding: .35rem .4rem .35rem 0; border-right: 1px solid #cbd5e1; }
+  .admin-posts-menu__item { min-height: 34px; margin: .12rem 0; border-radius: .55rem; transition: color .15s ease, background .15s ease, transform .15s ease; }
+  .admin-posts-menu__item:hover { transform: translateX(-2px); }
+}
+@media (min-width: 1440px) {
+  .blog-media-layout > .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
