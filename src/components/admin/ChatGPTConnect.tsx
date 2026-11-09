@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import type { AvalAiSettings } from '../../types';
 import {
   Key,
   CheckCircle2,
@@ -21,7 +22,8 @@ interface ChatGPTConnectProps {
   textModel?: string;
   onUpdateTextModel?: (model: string) => void;
   aiEnabled?: boolean;
-  onUpdateAiEnabled?: (enabled: boolean) => void;
+  onUpdateAiEnabled?: (enabled: boolean) => void | Promise<void>;
+  onSaveSettings?: (settings: AvalAiSettings) => Promise<void>;
   // Legacy props compatibility
   openaiTokens?: string[];
   onUpdateOpenaiTokens?: (tokens: string[]) => void;
@@ -40,6 +42,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   onUpdateTextModel,
   aiEnabled = true,
   onUpdateAiEnabled,
+  onSaveSettings,
   openaiTokens,
   onUpdateOpenaiTokens,
   openaiBaseUrl,
@@ -57,6 +60,10 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveFailed, setSaveFailed] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (apiKey) setInputKey(apiKey);
@@ -79,30 +86,49 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     setIsAiEnabled(aiEnabled);
   }, [aiEnabled]);
 
-  const handleToggleAi = () => {
+  const handleToggleAi = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setSaveMessage(''); setSaveFailed(false);
     const nextState = !isAiEnabled;
-    setIsAiEnabled(nextState);
-    if (onUpdateAiEnabled) onUpdateAiEnabled(nextState);
+    try {
+      if (onUpdateAiEnabled) await onUpdateAiEnabled(nextState);
+      setIsAiEnabled(nextState);
+    } catch (error) {
+      setSaveFailed(true); setSaveMessage(error instanceof Error ? error.message : 'ذخیره وضعیت سرویس ناموفق بود.');
+    } finally { savingRef.current = false; setSaving(false); }
   };
 
-  const handleSaveAll = () => {
+  const handleSaveAll = async () => {
+    if (savingRef.current) return false;
+    savingRef.current = true; setSaving(true); setSaveMessage(''); setSaveFailed(false);
     const trimmedKey = inputKey.trim();
-    const trimmedUrl = inputBaseUrl.trim().replace(/\/$/, '');
+    const trimmedUrl = inputBaseUrl.trim().replace(/\/+$/, '');
     const trimmedModel = inputModel.trim();
     const trimmedTextModel = inputTextModel.trim();
 
-    if (onUpdateApiKey) onUpdateApiKey(trimmedKey);
-    if (onUpdateOpenaiTokens) {
-      const arr = Array(10).fill('');
-      arr[0] = trimmedKey;
-      onUpdateOpenaiTokens(arr);
-    }
-
-    if (onUpdateBaseUrl) onUpdateBaseUrl(trimmedUrl);
-    if (onUpdateOpenaiBaseUrl) onUpdateOpenaiBaseUrl(trimmedUrl);
-    if (onUpdateModel) onUpdateModel(trimmedModel);
-    if (onUpdateTextModel) onUpdateTextModel(trimmedTextModel);
-    if (onUpdateAiEnabled) onUpdateAiEnabled(isAiEnabled);
+    try {
+      if (onSaveSettings) {
+        await onSaveSettings({ avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl,
+          avalaiModel: trimmedModel, avalaiTextModel: trimmedTextModel, aiEnabled: isAiEnabled });
+      } else {
+        if (onUpdateApiKey) await onUpdateApiKey(trimmedKey);
+        if (onUpdateOpenaiTokens) {
+          const arr = Array(10).fill('');
+          arr[0] = trimmedKey;
+          await onUpdateOpenaiTokens(arr);
+        }
+        if (onUpdateBaseUrl) await onUpdateBaseUrl(trimmedUrl);
+        if (onUpdateOpenaiBaseUrl) await onUpdateOpenaiBaseUrl(trimmedUrl);
+        if (onUpdateModel) await onUpdateModel(trimmedModel);
+        if (onUpdateTextModel) await onUpdateTextModel(trimmedTextModel);
+        if (onUpdateAiEnabled) await onUpdateAiEnabled(isAiEnabled);
+      }
+      setSaveMessage('تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.');
+      return true;
+    } catch (error) {
+      setSaveFailed(true); setSaveMessage(error instanceof Error ? error.message : 'ذخیره تنظیمات هوش مصنوعی ناموفق بود.');
+      return false;
+    } finally { savingRef.current = false; setSaving(false); }
   };
 
   // Test AvalAI API Connection
@@ -136,7 +162,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
       if (response.ok) {
         setTestStatus('valid');
         setStatusMessage('اتصال به سرویس AvalAI با موفقیت برقرار شد و کلید فعال است.');
-        handleSaveAll();
+        await handleSaveAll();
       } else {
         const errData = await response.json().catch(() => ({}));
         const msg = errData?.error?.message || `کد وضعیت: ${response.status}`;
@@ -148,15 +174,13 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
           setTestStatus('valid');
           setStatusMessage(`کلید احراز هویت شد اما سهمیه آن تمام شده است (${msg})`);
         } else {
-          setTestStatus('valid');
+          setTestStatus('invalid');
           setStatusMessage(`اتصال به AvalAI برقرار شد. پاسخ سرور: ${msg}`);
-          handleSaveAll();
         }
       }
     } catch (e: any) {
-      setTestStatus('valid');
-      setStatusMessage('کلید ذخیره شد و آماده ارسال به موتور تصویرساز است.');
-      handleSaveAll();
+      setTestStatus('invalid');
+      setStatusMessage('تست اتصال به AvalAI انجام نشد. اتصال شبکه را بررسی کنید؛ می‌توانید تنظیمات را جداگانه ذخیره کنید.');
     }
   };
 
@@ -203,7 +227,11 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 
           <button
             type="button"
-            onClick={handleToggleAi}
+            role="switch"
+            aria-label="فعال‌سازی سرویس هوش مصنوعی"
+            aria-checked={isAiEnabled}
+            onClick={() => void handleToggleAi()}
+            disabled={saving || testStatus === 'testing'}
             className={`relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
               isAiEnabled ? 'bg-emerald-600' : 'bg-slate-300'
             }`}
@@ -226,6 +254,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
               <input
                 type={showKey ? 'text' : 'password'}
                 value={inputKey}
+                disabled={saving || testStatus === 'testing'}
                 onChange={(e) => setInputKey(e.target.value)}
                 placeholder="aa-proj-................................................"
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 pr-10 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 shadow-xs"
@@ -278,7 +307,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
             <button
               type="button"
               onClick={handleTestConnection}
-              disabled={testStatus === 'testing'}
+              disabled={saving || testStatus === 'testing'}
               className="bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 flex-shrink-0"
             >
               <Sparkles className="w-3.5 h-3.5 text-teal-400" />
@@ -295,6 +324,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
               <input
                 type="text"
                 value={inputBaseUrl}
+                disabled={saving || testStatus === 'testing'}
                 onChange={(e) => setInputBaseUrl(e.target.value)}
                 placeholder="https://api.avalai.ir/v1"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500"
@@ -310,6 +340,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 <input
                   type="text"
                   value={inputTextModel}
+                  disabled={saving || testStatus === 'testing'}
                   onChange={(e) => setInputTextModel(e.target.value)}
                   placeholder="gpt-4o-mini"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 font-bold"
@@ -328,27 +359,30 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 <input
                   type="text"
                   value={inputModel}
+                  disabled={saving || testStatus === 'testing'}
                   onChange={(e) => setInputModel(e.target.value)}
                   placeholder="gpt-image-2.5-sunburst"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 font-bold"
                 />
               </div>
               <span className="text-[10px] text-teal-700 font-bold">
-                مدل انتخابی: gpt-image-2.5-sunburst (دقت بالا برای کاربری‌های آتلیه)
+                مدل انتخابی: {inputModel || 'مدل تصویر را وارد کنید'}
               </span>
             </div>
           </div>
         </div>
 
         {/* Save Settings Button at the end of the page */}
+        {saveMessage && <p role={saveFailed ? 'alert' : 'status'} className={`text-xs leading-6 ${saveFailed ? 'text-rose-700' : 'text-emerald-700'}`}>{saveMessage}</p>}
         <div className="pt-4 border-t border-slate-100 flex justify-end">
           <button
             type="button"
-            onClick={handleSaveAll}
+            onClick={() => void handleSaveAll()}
+            disabled={saving || testStatus === 'testing'}
             className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white font-black px-8 py-3 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/15"
           >
             <Save className="w-4 h-4 text-white" />
-            <span>ذخیره تنظیمات</span>
+            <span>{saving ? 'در حال ذخیره…' : 'ذخیره تنظیمات'}</span>
           </button>
         </div>
       </div>

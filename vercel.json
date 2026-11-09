@@ -4,13 +4,14 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "functions": {
+    "api/blog-ai-generate.ts": { "maxDuration": 300 },
     "api/maintenance-notifications.ts": {
       "maxDuration": 60,
       "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "maintenance-notifications" }]
     },
-    "api/**/*.ts": {
-      "maxDuration": 60
-    }
+    "api/[...route].ts": { "maxDuration": 60 },
+    "api/blog-page.ts": { "maxDuration": 60 },
+    "api/sitemap.ts": { "maxDuration": 60 }
   },
   "redirects": [
     {
@@ -30,6 +31,7 @@
     { "source": "/blog", "destination": "/api/blog-page" },
     { "source": "/blog/(.*)", "destination": "/api/blog-page?__blogpath=$1" },
     { "source": "/api/maintenance-notifications", "destination": "/api/maintenance-notifications" },
+    { "source": "/api/admin/blog/ai-generate", "destination": "/api/blog-ai-generate" },
     {
       "source": "/api/(.*)",
       "destination": "/api/[...route]?__path=$1"

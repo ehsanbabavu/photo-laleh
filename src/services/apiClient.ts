@@ -3,6 +3,7 @@
  */
 
 import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder, BluPalTransaction, DeletionChannel, DeletionCodeDelivery } from '../types';
+import type { AvalAiSettings } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -271,6 +272,13 @@ export const apiClient = {
     } catch (err) {
       console.warn('API deleteUser error:', err);
     }
+  },
+
+  async saveAiSettings(settings: Partial<AvalAiSettings>): Promise<AvalAiSettings> {
+    const res = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success || !data.settings) throw new Error(data?.error || 'ذخیره تنظیمات هوش مصنوعی در دیتابیس ناموفق بود.');
+    return data.settings;
   },
 
   async saveSettings(settings: Record<string, any>) {
