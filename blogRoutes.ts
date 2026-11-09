@@ -48,7 +48,7 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
     const plain = safeContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     if (!title || plain.split(/\s+/).length > 2000 || plain.length < 300) throw new BlogError(502, 'مقاله تولیدشده خالی، بیش از ۲۰۰۰ واژه یا نامعتبر است؛ دوباره تلاش کنید.');
     const imagePrompt = blogText(raw.imagePrompt || `Editorial photograph for a Persian blog article: ${title}`, 1000);
-    const imageModel = process.env.AVALAI_IMAGE_MODEL || config.avalaiModel || 'gpt-image-2.5-sunburst';
+    const imageModel = config.avalaiModel || process.env.AVALAI_IMAGE_MODEL || 'gpt-image-2.5-sunburst';
     const imageResponse = await fetch(`${baseUrl}/images/generations`, {
       method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: imageModel, prompt: `${imagePrompt}. Realistic editorial photography, no text, no watermark.`, n: 1, size: '1024x1024', response_format: 'url' })
