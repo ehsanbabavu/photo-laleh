@@ -304,6 +304,7 @@ export const INITIAL_DB = {
     avalaiApiKey: '',
     avalaiBaseUrl: 'https://api.avalai.ir/v1',
     avalaiModel: 'gpt-image-2.5-sunburst',
+    avalaiTextModel: 'gpt-4o-mini',
     aiEnabled: true,
     blupalToken: '',
     blupalBaseUrl: 'https://blupal.top',
