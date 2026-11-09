@@ -1,6 +1,19 @@
 # Blog CMS
 
-The administrator's **نوشته‌ها** menu opens `/admin/posts`. Its sections cover posts, the rich-text editor, hierarchical categories, tags, moderated comments, media, settings and trash.
+The administrator's **نوشته‌ها** menu expands into independent pages in both the desktop sidebar and mobile drawer:
+
+| Page | Route |
+| --- | --- |
+| All posts | `/admin/posts` |
+| Add or edit a post | `/admin/posts/write` (editing uses `?id=POST_ID`) |
+| Categories | `/admin/posts/categories` |
+| Tags | `/admin/posts/tags` |
+| Comments | `/admin/posts/comments` |
+| Media | `/admin/posts/media` |
+| Settings | `/admin/posts/settings` |
+| Trash | `/admin/posts/trash` |
+
+Refresh and browser history retain the selected page. Existing `/admin/posts?section=...` links still work and resolve to the corresponding page. Leaving an unsaved post prompts for confirmation. Run `npm run test:admin-posts` to verify routing compatibility.
 
 ## Publishing
 

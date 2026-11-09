@@ -3,7 +3,8 @@ import { LayoutDashboard, BotMessageSquare, Printer, Palette, Truck, LogOut, Ext
 import { User } from '../../types';
 import { TulipIcon } from '../TulipIcon';
 import { MaintenanceControl, type MaintenanceControlProps } from './MaintenanceControl';
-import { FileText } from 'lucide-react';
+import { AdminPostsMenu } from './AdminPostsMenu';
+import { type AdminPostTab } from '../../utils/adminPostsNavigation';
 
 export type AdminTab =
   | 'dashboard'
@@ -13,7 +14,7 @@ export type AdminTab =
   | 'partner_invoices'
   | 'cost_requests'
   | 'announcements'
-  | 'posts'
+  | AdminPostTab
   | 'prompts_manager'
   | 'orders'
   | 'transactions'
@@ -62,7 +63,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onToggleMaintenance
 }) => {
   const menuItems = [
-    { id: 'posts' as AdminTab, label: 'نوشته‌ها', icon: FileText, badge: null, badgeStyle: null },
+    { id: '__posts_group__' as any, label: 'نوشته‌ها', icon: LayoutDashboard, badge: null, badgeStyle: null },
     {
       id: 'dashboard' as AdminTab,
       label: 'پیشخوان مدیریت',
@@ -211,6 +212,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         {/* Navigation Links - Compact vertical spacing */}
         <nav className="px-2.5 space-y-0.5">
           {menuItems.map((item) => {
+            if ((item as any).id === '__posts_group__') {
+              return <AdminPostsMenu key="posts-group" currentTab={currentTab} onSelect={onSelectTab} />;
+            }
             if ((item as any).id === '__print_group__') {
               return (
                 <div key="print-group" className="pt-0.5">

@@ -235,8 +235,20 @@ test('browser CMS and public blog support draft, publication, moderation, mobile
     const admin = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
     const page = await admin.newPage(); const errors = []; page.on('pageerror', err => errors.push(err.message));
     await page.goto(`${base}/__test/sign-in`, { waitUntil: 'networkidle' });
-    const panel = page.locator('section[aria-labelledby="blog-admin-title"]'); await panel.waitFor();
-    await panel.getByRole('button', { name: 'دسته‌بندی‌ها', exact: true }).click();
+    const panel = page.locator('section[aria-labelledby="blog-admin-title"]');
+    const postMenu = page.locator('[aria-label="زیرمنوی نوشته‌ها"]:visible'); await panel.waitFor();
+    for (const [section, label] of [['list', 'همه نوشته‌ها'], ['write', 'افزودن نوشته'], ['categories', 'دسته‌بندی‌ها'], ['tags', 'برچسب‌ها'], ['comments', 'دیدگاه‌ها'], ['media', 'رسانه‌ها'], ['settings', 'تنظیمات'], ['trash', 'زباله‌دان']]) {
+      await postMenu.getByRole('button', { name: label, exact: true }).click();
+      await panel.getByRole('heading', { name: label, exact: true }).waitFor();
+      assert.equal(new URL(page.url()).pathname, section === 'list' ? '/admin/posts' : `/admin/posts/${section}`);
+      await page.reload({ waitUntil: 'networkidle' });
+      await panel.getByRole('heading', { name: label, exact: true }).waitFor();
+    }
+    await page.goBack({ waitUntil: 'networkidle' });
+    await panel.getByRole('heading', { name: 'تنظیمات', exact: true }).waitFor();
+    await page.goForward({ waitUntil: 'networkidle' });
+    await panel.getByRole('heading', { name: 'زباله‌دان', exact: true }).waitFor();
+    await postMenu.getByRole('button', { name: 'دسته‌بندی‌ها', exact: true }).click();
     await panel.getByLabel('نام', { exact: true }).fill('چاپ عکس'); await panel.getByLabel('نامک', { exact: true }).fill('printing');
     await panel.getByRole('button', { name: 'افزودن دسته‌بندی', exact: true }).click(); await panel.getByRole('status').waitFor();
     const media = (await cms('/media', 'POST', { url: '/logo.png', title: 'لوگوی لاله', alt: 'لاله' })).data;
@@ -265,18 +277,19 @@ test('browser CMS and public blog support draft, publication, moderation, mobile
     await article.getByLabel('دیدگاه', { exact: true }).fill('دیدگاه آزمایشی برای بررسی مدیر');
     await article.getByRole('button', { name: 'ارسال دیدگاه', exact: true }).click();
     await article.getByRole('status').filter({ hasText: 'پس از تأیید مدیر' }).waitFor();
-    await panel.getByRole('button', { name: 'دیدگاه‌ها', exact: true }).click();
+    await postMenu.getByRole('button', { name: 'دیدگاه‌ها', exact: true }).click();
     await page.reload({ waitUntil: 'networkidle' });
     await panel.getByRole('button', { name: 'تأیید دیدگاه', exact: true }).click();
     await panel.getByRole('status').waitFor(); await article.reload({ waitUntil: 'networkidle' });
     await article.getByText('دیدگاه آزمایشی برای بررسی مدیر', { exact: true }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'منوی مدیریت', exact: true }).click();
-    await page.getByRole('button', { name: 'نوشته‌ها', exact: true }).click();
-    await panel.getByRole('button', { name: 'همه نوشته‌ها', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'نوشته‌ها', exact: true }).getAttribute('aria-expanded'), 'true');
+    await postMenu.getByRole('button', { name: 'همه نوشته‌ها', exact: true }).click();
     await panel.getByRole('button', { name: `حذف ${post.title}`, exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'تأیید', exact: true }).click();
-    await panel.getByRole('button', { name: 'زباله‌دان', exact: true }).click();
+    await page.getByRole('button', { name: 'منوی مدیریت', exact: true }).click();
+    await postMenu.getByRole('button', { name: 'زباله‌دان', exact: true }).click();
     await panel.getByRole('button', { name: `بازیابی ${post.title}`, exact: true }).waitFor();
     assert.equal((await request(`/blog/${encodeURIComponent(post.slug)}/`, { session: null })).status, 404);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));

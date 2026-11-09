@@ -4,7 +4,7 @@ import { User, PrintTypeOption } from '../types';
 import { AdminTab } from './admin/AdminSidebar';
 import { TulipIcon } from './TulipIcon';
 import { MaintenanceControl, type MaintenanceControlProps } from './admin/MaintenanceControl';
-import { FileText } from 'lucide-react';
+import { AdminPostsMenu } from './admin/AdminPostsMenu';
 
 interface NavbarProps extends MaintenanceControlProps {
   user: User | null;
@@ -54,7 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const menuItems = [
-    { id: 'posts' as AdminTab, label: 'نوشته‌ها', icon: FileText, badge: null, badgeStyle: null },
+    { id: '__posts_group__' as any, label: 'نوشته‌ها', icon: LayoutDashboard, badge: null, badgeStyle: null },
     {
       id: 'dashboard' as AdminTab,
       label: 'پیشخوان مدیریت',
@@ -263,6 +263,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Menu Items */}
             <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
               {menuItems.map((item) => {
+                if ((item as any).id === '__posts_group__') {
+                  return <AdminPostsMenu key="posts-group" currentTab={adminTab} onSelect={handleAdminTabSelect} mobile />;
+                }
                 if ((item as any).id === '__print_group__') {
                   return (
                     <div key="print-group" className="pt-0.5">

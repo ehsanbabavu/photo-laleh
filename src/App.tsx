@@ -45,6 +45,7 @@ const PartnerPriceList = React.lazy(() => import('./components/user/PartnerPrice
 const UserDashboard = React.lazy(() => import('./components/user/UserDashboard').then((m) => ({ default: m.UserDashboard })));
 
 import { parseRoute, routeToPath } from './utils/router';
+import { adminPostPage, adminPostSectionPage, type AdminPostSection } from './utils/adminPostsNavigation';
 import { SESSION_IDLE_MS, IDLE_CHECK_INTERVAL_MS, HEARTBEAT_INTERVAL_MS, ACTIVITY_EVENTS } from './utils/session';
 import { UserSidebar, UserTab } from './components/user/UserSidebar';
 import { aiQueueManager, QueueStateInfo } from './utils/aiQueueManager';
@@ -73,7 +74,7 @@ export default function App() {
   });
 
   // Active view + tabs are derived from the URL so a refresh keeps the page
-  const initialRoute = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { view: 'user' as const, tab: 'dashboard' };
+  const initialRoute = typeof window !== 'undefined' ? parseRoute(window.location.pathname, window.location.search) : { view: 'user' as const, tab: 'dashboard' };
   // Public messenger sign-up screens: /eitaa and /telegram
   const messengerPageFromPath = (path: string): 'eitaa' | 'telegram' | null => {
     const clean = (path || '').replace(/\/+$/, '');
@@ -95,6 +96,24 @@ export default function App() {
   const [adminTab, setAdminTab] = useState<AdminTab>(
     initialRoute.view === 'admin' ? (initialRoute.tab as AdminTab) : 'dashboard'
   );
+  const [adminPageVersion, setAdminPageVersion] = useState(0);
+  const adminNavigationGuard = useRef<(() => boolean) | null>(null);
+  const guardedAdminPath = useRef(window.location.pathname + window.location.search);
+  const onAdminNavigationGuardChange = useCallback((guard: (() => boolean) | null) => {
+    adminNavigationGuard.current = guard;
+    if (guard) guardedAdminPath.current = window.location.pathname + window.location.search;
+  }, []);
+  const selectAdminTab = useCallback((tab: AdminTab, postId?: string) => {
+    if (adminNavigationGuard.current && !adminNavigationGuard.current()) return;
+    const target = routeToPath('admin', tab) + (postId ? `?id=${encodeURIComponent(postId)}` : '');
+    if (window.location.pathname + window.location.search !== target) window.history.pushState({}, '', target);
+    setAdminTab(tab);
+    setAdminPageVersion(value => value + 1);
+  }, []);
+  const navigateAdminPost = useCallback((section: AdminPostSection, postId?: string) => {
+    const page = adminPostSectionPage(section);
+    if (page) selectAdminTab(page.tab, postId);
+  }, [selectAdminTab]);
   const [userTab, setUserTab] = useState<UserTab>(
     initialRoute.view === 'user' ? (initialRoute.tab as UserTab) : 'dashboard'
   );
@@ -278,15 +297,26 @@ export default function App() {
     if (isAuthChecking || !currentUser || messengerPage) return;
     const target = routeToPath(activeView, activeView === 'admin' ? adminTab : userTab);
     if (window.location.pathname !== target) {
-      window.history.pushState({}, '', target);
+      const postId = activeView === 'admin' && adminTab === 'posts_write' ? new URLSearchParams(window.location.search).get('id') : null;
+      const path = target + (postId ? `?id=${encodeURIComponent(postId)}` : '');
+      if (activeView === 'admin' && adminPostPage(adminTab) && parseRoute(window.location.pathname, window.location.search).tab === adminTab) {
+        window.history.replaceState({}, '', path);
+      } else {
+        window.history.pushState({}, '', path);
+      }
     }
   }, [activeView, adminTab, userTab, currentUser, isAuthChecking, messengerPage]);
 
   // Browser back / forward
   React.useEffect(() => {
     const onPopState = () => {
+      if (adminNavigationGuard.current && !adminNavigationGuard.current()) {
+        window.history.pushState({}, '', guardedAdminPath.current);
+        return;
+      }
+      setAdminPageVersion(value => value + 1);
       setMessengerPage(messengerPageFromPath(window.location.pathname));
-      const route = parseRoute(window.location.pathname);
+      const route = parseRoute(window.location.pathname, window.location.search);
       if (route.view === 'admin') {
         setAdminTab(route.tab as AdminTab);
         setActiveView('admin');
@@ -310,7 +340,7 @@ export default function App() {
           const data = await res.json();
           if (active && data?.user) {
             setCurrentUser(data.user as User);
-            const route = parseRoute(window.location.pathname);
+            const route = parseRoute(window.location.pathname, window.location.search);
             if (data.user.role === 'admin') {
               setActiveView(route.view === 'user' ? 'user' : 'admin');
               if (route.view === 'admin') setAdminTab(route.tab as AdminTab);
@@ -1060,7 +1090,7 @@ export default function App() {
         onLogout={handleLogout}
         onSwitchView={(v) => setActiveView(v)}
         adminTab={adminTab}
-        onSelectAdminTab={(tab) => setAdminTab(tab)}
+        onSelectAdminTab={selectAdminTab}
         totalOrdersCount={orders.length}
         activeOrdersCount={activeOrdersCount}
         printTypesCount={printTypes.length}
@@ -1082,7 +1112,7 @@ export default function App() {
             {/* Admin Right Sidebar (Desktop) */}
             <AdminSidebar
               currentTab={adminTab}
-              onSelectTab={(tab) => setAdminTab(tab as AdminTab)}
+              onSelectTab={selectAdminTab}
               user={currentUser}
               onLogout={handleLogout}
               totalOrdersCount={orders.length}
@@ -1109,7 +1139,8 @@ export default function App() {
                   onNavigateTab={(tab) => setAdminTab(tab as AdminTab)}
                 />
               )}
-              {adminTab === 'posts' && <AdminBlog />}
+              {adminPostPage(adminTab) && <AdminBlog key={`${adminTab}:${adminPageVersion}`} section={adminPostPage(adminTab)!.section}
+                onNavigate={navigateAdminPost} onNavigationGuardChange={onAdminNavigationGuardChange} />}
 
               {adminTab === 'transactions' && <AdminTransactions />}
 

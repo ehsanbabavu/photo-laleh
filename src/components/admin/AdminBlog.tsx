@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FileText, Plus, Search, Pencil, Trash2, Copy, Eye, RotateCcw, Folder, Tags, MessageSquare, Image, Settings, X, Save, Star } from 'lucide-react';
+import { FileText, Plus, Search, Pencil, Trash2, Copy, Eye, RotateCcw, X, Save, Star } from 'lucide-react';
 import { emptyBlogState, isBlogPublished, blogPostPath, type BlogState, type BlogPost } from '../../types/blog';
 import { blogSlug } from '../../utils/blogContent';
 import { blogRequest } from '../../services/blogClient';
 import { BlogEditor } from './BlogEditor';
 import { BlogComments, BlogMediaLibrary, BlogSettingsForm, BlogTaxonomies, BlogField, blogInput, blogButton } from './BlogManager';
+import { adminPostSectionPage, type AdminPostSection } from '../../utils/adminPostsNavigation';
 
-const sections = [ ['list', 'همه نوشته‌ها', FileText], ['write', 'افزودن نوشته', Plus], ['categories', 'دسته‌بندی‌ها', Folder],
-  ['tags', 'برچسب‌ها', Tags], ['comments', 'دیدگاه‌ها', MessageSquare], ['media', 'رسانه‌ها', Image], ['settings', 'تنظیمات', Settings], ['trash', 'زباله‌دان', Trash2] ] as const;
-type Section = typeof sections[number][0];
 const statusLabels = { draft: 'پیش‌نویس', published: 'منتشرشده', scheduled: 'زمان‌بندی‌شده', trash: 'زباله‌دان' };
 const blankPost = (state: BlogState): BlogPost => ({ id: '', version: 0, title: '', slug: '', content: '', excerpt: '', coverImage: '', coverAlt: '',
   status: 'draft', authorName: state.settings.defaultAuthor, categoryIds: [], tagIds: [], featured: false, allowComments: true, seoTitle: '', seoDescription: '', noIndex: false,
@@ -31,9 +29,11 @@ function BlogConfirm({ message, busy, onCancel, onConfirm }: { message: string; 
   </div>;
 }
 
-export default function AdminBlog() {
-  const initialSection = new URLSearchParams(window.location.search).get('section');
-  const [section, setSection] = useState<Section>(sections.some(item => item[0] === initialSection) ? initialSection as Section : 'list');
+export default function AdminBlog({ section, onNavigate, onNavigationGuardChange }: {
+  section: AdminPostSection;
+  onNavigate: (section: AdminPostSection, postId?: string) => void;
+  onNavigationGuardChange: (guard: (() => boolean) | null) => void;
+}) {
   const [state, setState] = useState<BlogState | null>(null);
   const [draft, setDraft] = useState<BlogPost>(() => blankPost(emptyBlogState()));
   const [dirty, setDirty] = useState(false), [slugEdited, setSlugEdited] = useState(false), [reset, setReset] = useState(0);
@@ -45,10 +45,14 @@ export default function AdminBlog() {
   const load = useCallback(async () => { const next = await blogRequest<BlogState>(); setState(next); return next; }, []);
   useEffect(() => {
     let active = true;
-    blogRequest<BlogState>().then(next => { if (!active) return; setState(next); const id = new URLSearchParams(window.location.search).get('id'); const post = next.posts.find(post => post.id === id); setDraft(post || blankPost(next)); }).catch(err => { if (active) setError(err.message); });
+    blogRequest<BlogState>().then(next => { if (!active) return; setState(next); const id = new URLSearchParams(window.location.search).get('id'); const post = next.posts.find(post => post.id === id); setDraft(post || blankPost(next)); setSlugEdited(Boolean(post)); }).catch(err => { if (active) setError(err.message); });
     return () => { active = false; };
   }, []);
   useEffect(() => { if (!dirty) return; const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
+  useEffect(() => {
+    onNavigationGuardChange(() => !busy && (!dirty || window.confirm('تغییرات نوشته ذخیره نشده است. از ویرایش خارج می‌شوید؟')));
+    return () => onNavigationGuardChange(null);
+  }, [busy, dirty, onNavigationGuardChange]);
   const run = async (action: () => Promise<any>, message = 'تغییرات ذخیره شد.') => {
     if (saving.current) return;
     saving.current = true; setBusy(true); setError(''); setNotice('');
@@ -58,19 +62,13 @@ export default function AdminBlog() {
   };
   const confirm = (message: string, action: () => Promise<any>) => setConfirmation({ message, action });
   const closeConfirmation = useCallback(() => setConfirmation(null), []);
-  const leave = () => !dirty || window.confirm('تغییرات نوشته ذخیره نشده است. از ویرایش خارج می‌شوید؟');
-  const choose = (next: Section) => {
-    if (busy || !leave()) return;
-    setDirty(false); setError(''); setNotice(''); setSection(next); setSelected([]);
-    if (next === 'write') { setDraft(blankPost(state || emptyBlogState())); setSlugEdited(false); setReset(value => value + 1); }
-    window.history.replaceState({}, '', `/admin/posts?section=${next}`);
-  };
-  const edit = (post: BlogPost) => { if (!leave()) return; setDraft(structuredClone(post)); setDirty(false); setSlugEdited(true); setReset(value => value + 1); setSection('write'); window.history.replaceState({}, '', `/admin/posts?section=write&id=${post.id}`); };
+  const choose = (next: AdminPostSection) => onNavigate(next);
+  const edit = (post: BlogPost) => onNavigate('write', post.id);
   const update = (patch: Partial<BlogPost>) => { setDraft(previous => ({ ...previous, ...patch })); setDirty(true); };
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const post = await run(() => blogRequest<BlogPost>(`/posts${draft.id ? `/${draft.id}` : ''}`, draft.id ? 'PUT' : 'POST', draft), draft.status === 'draft' ? 'پیش‌نویس ذخیره شد.' : 'نوشته ذخیره شد و وضعیت انتشار به‌روز شد.');
-    if (post) { setDraft(post); setDirty(false); setReset(value => value + 1); window.history.replaceState({}, '', `/admin/posts?section=write&id=${post.id}`); }
+    if (post) { setDraft(post); setDirty(false); setSlugEdited(true); setReset(value => value + 1); window.history.replaceState({}, '', `/admin/posts/write?id=${encodeURIComponent(post.id)}`); }
   };
   const postAction = (post: BlogPost, action: string) => blogRequest(`/posts/${post.id}/action`, 'POST', { action, version: post.version });
   if (!state) return <section className="p-10 text-center bg-white rounded-2xl border">{error ? <><p role="alert" className="text-rose-600 text-sm">{error}</p><button onClick={() => { void load().catch(err => setError(err.message)); }} className={`${blogButton} mt-4`}>تلاش دوباره</button></> : <p className="text-slate-400">در حال دریافت نوشته‌ها…</p>}</section>;
@@ -82,9 +80,8 @@ export default function AdminBlog() {
     && (!categoryFilter || post.categoryIds.includes(categoryFilter)) && `${post.title} ${post.slug} ${post.authorName}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const pageCount = Math.max(1, Math.ceil(filtered.length / 10)), currentPage = Math.min(page, pageCount), rows = filtered.slice((currentPage - 1) * 10, currentPage * 10);
   return <section aria-labelledby="blog-admin-title" className="min-w-0 space-y-6">
-    <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 id="blog-admin-title" className="text-2xl font-black flex items-center gap-3"><FileText className="w-6 h-6 text-sky-600" />نوشته‌ها</h1><p className="text-xs text-slate-500 mt-2">نوشته‌های وبلاگ، انتشار و گفت‌وگو با خوانندگان</p></div><div className="flex gap-3"><a href="/blog/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-xs"><Eye className="w-4 h-4" />مشاهده وبلاگ</a><button onClick={() => choose('write')} disabled={busy} className={blogButton}><Plus className="w-4 h-4" />نوشته تازه</button></div></header>
+    <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 id="blog-admin-title" className="text-2xl font-black flex items-center gap-3"><FileText className="w-6 h-6 text-sky-600" />{section === 'write' && draft.id ? 'ویرایش نوشته' : adminPostSectionPage(section)?.label}</h1><p className="text-xs text-slate-500 mt-2">نوشته‌های وبلاگ، انتشار و گفت‌وگو با خوانندگان</p></div><div className="flex gap-3"><a href="/blog/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-xs"><Eye className="w-4 h-4" />مشاهده وبلاگ</a><button onClick={() => choose('write')} disabled={busy} className={blogButton}><Plus className="w-4 h-4" />نوشته تازه</button></div></header>
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">{[['منتشرشده', published.length], ['پیش‌نویس', state.posts.filter(post => post.status === 'draft').length], ['زمان‌بندی‌شده', state.posts.filter(post => post.status === 'scheduled' && !isBlogPublished(post)).length], ['دیدگاه در انتظار', state.comments.filter(item => item.status === 'pending').length]].map(([label, count]) => <div key={label} className="p-4 rounded-2xl border border-slate-200 bg-white"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-black">{Number(count).toLocaleString('fa-IR')}</p></div>)}</div>
-    <nav aria-label="بخش‌های مدیریت وبلاگ" className="flex flex-wrap gap-2">{sections.map(([key, label, Icon]) => <button type="button" key={key} disabled={busy} aria-current={section === key ? 'page' : undefined} onClick={() => choose(key)} className={`inline-flex gap-2 items-center px-4 py-2.5 rounded-xl text-xs font-bold ${section === key ? 'bg-sky-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-sky-50'}`}><Icon className="w-4 h-4" />{label}</button>)}</nav>
     {error && <p role="alert" className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-700">{error}</p>}
     {notice && <p role="status" className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">{notice}</p>}
     {(section === 'list' || section === 'trash') && <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
