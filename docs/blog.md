@@ -48,3 +48,17 @@ The blog supports a maximum 12 MiB state and 200,000 characters per article. Ima
 ## Validation
 
 After installing dependencies, run `npm run build`, `npm run test:blog` and `npm run test:maintenance`. Blog tests use isolated in-memory fixtures, never production data. The optional browser test runs when `PLAYWRIGHT_MODULE` points to an installed Playwright package; `BROWSER_EXECUTABLE` can select Edge/Chromium and `BLOG_EVIDENCE` can save screenshots. It exercises administrator editing/publication, anonymous reading/commenting, moderation, mobile layouts and trash. Existing transaction tests remain available through `npm run test:transactions`.
+
+
+## AI-assisted article generation
+
+The post editor includes **تولید خودکار توسط هوش مصنوعی**. It asks AvalAI for a Persian article (maximum 2,000 words), SEO fields, a category and tags, then generates a cover image with the configured Sunbrost image model and publishes through the normal CMS flow. Published articles enter the dynamic sitemap automatically. News generation requires the operator to provide both the source text and its URL; the model is instructed to use only those supplied facts.
+
+Configure these server-side environment variables in the deployment:
+
+- `AVALAI_API_KEY` (required): secret AvalAI API key. It is never sent to the browser.
+- `AVALAI_BASE_URL` (optional): defaults to `https://api.avalai.ir/v1`.
+- `AVALAI_TEXT_MODEL` (optional): defaults to `gpt-4o-mini`.
+- `AVALAI_IMAGE_MODEL` (optional): defaults to `gpt-image-2.5-sunburst`.
+
+If the key or either model is unavailable, generation fails with a clear error and no article is published. Generated image URLs are saved as the featured image; use a durable image URL from the provider or configure the provider to return persistent URLs.
