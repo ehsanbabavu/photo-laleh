@@ -24,7 +24,7 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
     const sourceUrl = blogText(req.body?.sourceUrl, 1000);
     if (kind === 'news' && (!source || !/^https?:\/\//i.test(sourceUrl))) throw new BlogError(400, 'برای خبر، متن منبع و نشانی معتبر آن لازم است.');
     const baseUrl = (process.env.AVALAI_BASE_URL || config.avalaiBaseUrl || 'https://api.avalai.ir/v1').replace(/\/+$/, '');
-    const textModel = process.env.AVALAI_TEXT_MODEL || 'gpt-4o-mini';
+    const textModel = process.env.AVALAI_TEXT_MODEL || config.avalaiTextModel || 'gpt-4o-mini';
     const brief = kind === 'news'
       ? `خبر را فقط بر اساس متن منبع زیر بنویس. هیچ تاریخ، آمار، نقل‌قول یا جزئیات دیگری را حدس نزن؛ اگر متن برای یک خبر مفید کافی نیست، درخواست را با خطا متوقف کن. منبع را در انتهای مطلب پیوند بده.\nنشانی: ${sourceUrl}\nمتن منبع:\n${source}`
       : 'یک راهنمای کاربردی، دقیق و اصیل فارسی درباره عکاسی، چاپ عکس یا نگهداری خاطره‌ها انتخاب کن. نکته‌های عملی و مثال‌های روشن بده و ادعای فنی بی‌پشتوانه نساز.';

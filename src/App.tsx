@@ -197,6 +197,9 @@ export default function App() {
   // Active Image Generation Model (gpt-image-2.5-sunburst)
   const [avalaiModel, setAvalaiModel] = useState<string>('gpt-image-2.5-sunburst');
 
+  // AvalAI text generation model for AI-assisted blog writing
+  const [avalaiTextModel, setAvalaiTextModel] = useState<string>('gpt-4o-mini');
+
   // AI Master On/Off Toggle state
   const [aiEnabled, setAiEnabled] = useState<boolean>(true);
 
@@ -416,6 +419,9 @@ export default function App() {
           if (data.settings.avalaiModel) {
             setAvalaiModel(data.settings.avalaiModel);
           }
+          if (typeof data.settings.avalaiTextModel === 'string') {
+            setAvalaiTextModel(data.settings.avalaiTextModel);
+          }
           if (data.settings.telegramToken !== undefined) {
             setTelegramToken(data.settings.telegramToken);
           }
@@ -491,6 +497,13 @@ export default function App() {
     setAvalaiModel(trimmed);
     apiClient.saveSettings({ avalaiModel: trimmed });
     showToast('مدل تولید تصویر با موفقیت به‌روز شد.');
+  };
+
+  const handleUpdateAvalaiTextModel = (newModel: string) => {
+    const trimmed = newModel.trim();
+    setAvalaiTextModel(trimmed);
+    apiClient.saveSettings({ avalaiTextModel: trimmed });
+    showToast('مدل تولید متن با موفقیت به‌روز شد.');
   };
 
   const handleSavePrompt = (printTypeId: string, prompt: string) => {
@@ -1209,6 +1222,8 @@ export default function App() {
                   onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
                   model={avalaiModel}
                   onUpdateModel={handleUpdateAvalaiModel}
+                  textModel={avalaiTextModel}
+                  onUpdateTextModel={handleUpdateAvalaiTextModel}
                   aiEnabled={aiEnabled}
                   onUpdateAiEnabled={handleUpdateAiEnabled}
                 />

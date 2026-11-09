@@ -58,7 +58,7 @@ The generator first reads the AvalAI key, base URL and image model from the exis
 
 - `AVALAI_API_KEY` (optional override): secret AvalAI API key. It is never sent to the browser.
 - `AVALAI_BASE_URL` (optional): defaults to `https://api.avalai.ir/v1`.
-- `AVALAI_TEXT_MODEL` (optional): defaults to `gpt-4o-mini`.
+- `AVALAI_TEXT_MODEL` (optional override): otherwise the model from AvalAI settings is used (default `gpt-4o-mini`).
 - `AVALAI_IMAGE_MODEL` (optional): defaults to `gpt-image-2.5-sunburst`.
 
 If there is no saved key or an environment override, generation fails with a clear error and no article is published. Generated image URLs are saved as the featured image; use a durable image URL from the provider or configure the provider to return persistent URLs.
