@@ -54,11 +54,11 @@ After installing dependencies, run `npm run build`, `npm run test:blog` and `npm
 
 The post editor includes **تولید خودکار توسط هوش مصنوعی**. It asks AvalAI for a Persian article (maximum 2,000 words), SEO fields, a category and tags, then generates a cover image with the configured Sunbrost image model and publishes through the normal CMS flow. Published articles enter the dynamic sitemap automatically. News generation requires the operator to provide both the source text and its URL; the model is instructed to use only those supplied facts.
 
-Configure these server-side environment variables in the deployment:
+The generator first reads the AvalAI key, base URL and image model from the existing administrator AI settings. Environment variables can override those values:
 
-- `AVALAI_API_KEY` (required): secret AvalAI API key. It is never sent to the browser.
+- `AVALAI_API_KEY` (optional override): secret AvalAI API key. It is never sent to the browser.
 - `AVALAI_BASE_URL` (optional): defaults to `https://api.avalai.ir/v1`.
 - `AVALAI_TEXT_MODEL` (optional): defaults to `gpt-4o-mini`.
 - `AVALAI_IMAGE_MODEL` (optional): defaults to `gpt-image-2.5-sunburst`.
 
-If the key or either model is unavailable, generation fails with a clear error and no article is published. Generated image URLs are saved as the featured image; use a durable image URL from the provider or configure the provider to return persistent URLs.
+If there is no saved key or an environment override, generation fails with a clear error and no article is published. Generated image URLs are saved as the featured image; use a durable image URL from the provider or configure the provider to return persistent URLs.
