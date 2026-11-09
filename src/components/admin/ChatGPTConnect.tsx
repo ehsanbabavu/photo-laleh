@@ -18,6 +18,8 @@ interface ChatGPTConnectProps {
   onUpdateBaseUrl?: (url: string) => void;
   model?: string;
   onUpdateModel?: (model: string) => void;
+  textModel?: string;
+  onUpdateTextModel?: (model: string) => void;
   aiEnabled?: boolean;
   onUpdateAiEnabled?: (enabled: boolean) => void;
   // Legacy props compatibility
@@ -34,6 +36,8 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   onUpdateBaseUrl,
   model = 'gpt-image-2.5-sunburst',
   onUpdateModel,
+  textModel = 'gpt-4o-mini',
+  onUpdateTextModel,
   aiEnabled = true,
   onUpdateAiEnabled,
   openaiTokens,
@@ -47,6 +51,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   const [inputKey, setInputKey] = useState(currentKey);
   const [inputBaseUrl, setInputBaseUrl] = useState(currentBaseUrl);
   const [inputModel, setInputModel] = useState(model);
+  const [inputTextModel, setInputTextModel] = useState(textModel);
   const [isAiEnabled, setIsAiEnabled] = useState(aiEnabled);
   const [showKey, setShowKey] = useState(false);
 
@@ -67,6 +72,10 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   }, [model]);
 
   useEffect(() => {
+    if (textModel) setInputTextModel(textModel);
+  }, [textModel]);
+
+  useEffect(() => {
     setIsAiEnabled(aiEnabled);
   }, [aiEnabled]);
 
@@ -80,6 +89,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     const trimmedKey = inputKey.trim();
     const trimmedUrl = inputBaseUrl.trim().replace(/\/$/, '');
     const trimmedModel = inputModel.trim();
+    const trimmedTextModel = inputTextModel.trim();
 
     if (onUpdateApiKey) onUpdateApiKey(trimmedKey);
     if (onUpdateOpenaiTokens) {
@@ -91,6 +101,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     if (onUpdateBaseUrl) onUpdateBaseUrl(trimmedUrl);
     if (onUpdateOpenaiBaseUrl) onUpdateOpenaiBaseUrl(trimmedUrl);
     if (onUpdateModel) onUpdateModel(trimmedModel);
+    if (onUpdateTextModel) onUpdateTextModel(trimmedTextModel);
     if (onUpdateAiEnabled) onUpdateAiEnabled(isAiEnabled);
   };
 
@@ -116,7 +127,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
           'Authorization': `Bearer ${cleanKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: inputTextModel.trim() || 'gpt-4o-mini',
           messages: [{ role: 'user', content: 'ping' }],
           max_tokens: 5
         })
@@ -289,6 +300,24 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500"
               />
               <span className="text-[10px] text-slate-500">پیش‌فرض رسمی: https://api.avalai.ir/v1</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                مدل تولید متن:
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={inputTextModel}
+                  onChange={(e) => setInputTextModel(e.target.value)}
+                  placeholder="gpt-4o-mini"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 font-bold"
+                />
+              </div>
+              <span className="text-[10px] text-slate-500">
+                این مدل برای تولید و بررسی نوشته‌های وبلاگ استفاده می‌شود.
+              </span>
             </div>
 
             <div className="space-y-1.5">
