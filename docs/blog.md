@@ -52,13 +52,14 @@ After installing dependencies, run `npm run build`, `npm run test:blog` and `npm
 
 ## AI-assisted article generation
 
-The post editor includes **تولید خودکار توسط هوش مصنوعی**. It asks AvalAI for a Persian article (maximum 2,000 words), SEO fields, a category and tags, then generates a cover image with the configured Sunbrost image model and publishes through the normal CMS flow. Published articles enter the dynamic sitemap automatically. News generation requires the operator to provide both the source text and its URL; the model is instructed to use only those supplied facts.
+The post editor includes **تولید خودکار توسط هوش مصنوعی**. It asks AvalAI for a Persian article (maximum 2,000 words), SEO fields, a category and tags, then generates a cover image with the saved image model and publishes through the normal CMS flow. Published articles enter the dynamic sitemap automatically. News generation requires the operator to provide both the source text and its URL; the model is instructed to use only those supplied facts.
 
-The generator first reads the AvalAI key, base URL and image model from the existing administrator AI settings. Environment variables can override those values:
+Save the AI settings once before generating. The panel sends the key, base URL, text model, image model and enabled flag in one `/api/settings` request and reports success only after the database acknowledges it. Failed writes are shown in the panel. Generation reads these settings afresh from the active MongoDB/PostgreSQL database for every request:
 
-- `AVALAI_API_KEY` (optional override): secret AvalAI API key. It is never sent to the browser.
-- `AVALAI_BASE_URL` (optional): defaults to `https://api.avalai.ir/v1`.
-- `AVALAI_TEXT_MODEL` (optional override): otherwise the model from AvalAI settings is used (default `gpt-4o-mini`).
-- `AVALAI_IMAGE_MODEL` (optional): defaults to `gpt-image-2.5-sunburst`.
+- `settings.avalaiTextModel` selects the text model; `settings.avalaiModel` selects the image model. Missing models cause an error before any billed request. `AVALAI_TEXT_MODEL`, `AVALAI_IMAGE_MODEL` and request-body model fields cannot override these database values.
+- The saved `avalaiApiKey` and `avalaiBaseUrl` take priority. `AVALAI_API_KEY` and `AVALAI_BASE_URL` are fallback values only when the saved values are empty. The default base URL is `https://api.avalai.ir/v1`.
+- `aiEnabled: false` stops generation before contacting the provider.
 
-If there is no saved key or an environment override, generation fails with a clear error and no article is published. Generated image URLs are saved as the featured image; use a durable image URL from the provider or configure the provider to return persistent URLs.
+Gemini image models use `/chat/completions` with image/text modalities; their image data is read from `choices[0].message.images`. Other image models use `/images/generations` without the legacy `response_format: "url"` parameter. Both base64 and remote image URLs are supported. Base64 images are validated and uploaded to Vercel Blob, requiring the existing `BLOB_READ_WRITE_TOKEN`; a data URL is never saved as the article cover. See [AvalAI Gemini image examples](https://docs.avalai.org/en/providers/google) and [GPT Image response formats](https://developers.openai.com/api/reference/resources/images/methods/generate).
+
+Provider errors show the stage, actual selected model, HTTP status and bounded error message with API keys redacted. Network requests have deadlines. Vercel routes generation to `api/blog-ai-generate.ts` with a 300-second budget; the handler retains the normal administrator/session checks. Other API functions retain their 60-second budget. No schema migration is required.

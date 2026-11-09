@@ -3,6 +3,7 @@ import { createBlogService, BlogError, blogText, newBlogId, validateBlogSlug, pu
 import { blogHtml, blogSitemap, blogFeed } from './blogPages';
 import { safeBlogUrl } from './src/utils/blogContent';
 import { blogPostPath, type BlogState } from './src/types/blog';
+import { resolveAvalAiBlogSettings, requestAvalAi, generateAvalAiBlogCover } from './blogAiGeneration';
 
 export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; compareAndSet: (revision: number, next: BlogState) => Promise<boolean>;
   adminForPreview: (req: any) => Promise<boolean>; commentRateLimited: (req: any) => Promise<boolean>; aiConfig?: () => Promise<Record<string, any>> }) {
@@ -16,27 +17,20 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
   router.use('/api/admin/blog', (req: any, res, next) => req.currentUser?.role === 'admin' ? next() : res.status(req.currentUser ? 403 : 401).json({ success: false, error: 'دسترسی مدیر لازم است.' }));
   router.get('/api/admin/blog', handle(async (_req, res) => res.json(await blog.read())));
   router.post('/api/admin/blog/ai-generate', handle(async (req, res) => {
-    const config = await deps.aiConfig?.() || {};
-    const apiKey = process.env.AVALAI_API_KEY || config.avalaiApiKey || '';
-    if (!apiKey) throw new BlogError(503, 'کلید AVALAI_API_KEY در تنظیمات سرور ثبت نشده است.');
+    const config = resolveAvalAiBlogSettings(await deps.aiConfig?.() || {});
     const kind = req.body?.kind === 'news' ? 'news' : 'guide';
     const source = blogText(req.body?.source, 12000);
     const sourceUrl = blogText(req.body?.sourceUrl, 1000);
     if (kind === 'news' && (!source || !/^https?:\/\//i.test(sourceUrl))) throw new BlogError(400, 'برای خبر، متن منبع و نشانی معتبر آن لازم است.');
-    const baseUrl = (process.env.AVALAI_BASE_URL || config.avalaiBaseUrl || 'https://api.avalai.ir/v1').replace(/\/+$/, '');
-    const textModel = process.env.AVALAI_TEXT_MODEL || config.avalaiTextModel || 'gpt-4o-mini';
     const brief = kind === 'news'
       ? `خبر را فقط بر اساس متن منبع زیر بنویس. هیچ تاریخ، آمار، نقل‌قول یا جزئیات دیگری را حدس نزن؛ اگر متن برای یک خبر مفید کافی نیست، درخواست را با خطا متوقف کن. منبع را در انتهای مطلب پیوند بده.\nنشانی: ${sourceUrl}\nمتن منبع:\n${source}`
       : 'یک راهنمای کاربردی، دقیق و اصیل فارسی درباره عکاسی، چاپ عکس یا نگهداری خاطره‌ها انتخاب کن. نکته‌های عملی و مثال‌های روشن بده و ادعای فنی بی‌پشتوانه نساز.';
-    const completion = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: textModel, response_format: { type: 'json_object' }, temperature: 0.7, messages: [
+    const response = await requestAvalAi(config, '/chat/completions', {
+      model: config.textModel, response_format: { type: 'json_object' }, messages: [
         { role: 'system', content: 'تو دبیر فارسی‌زبان مجله آتلیه دیجیتال لاله هستی. یک مقاله مفید و طبیعی برای مخاطب ایرانی بنویس، بدون لحن کلیشه‌ای یا ادعای پنهان‌کاری درباره نویسندگی هوش مصنوعی. حداکثر ۱۸۰۰ واژه. خروجی فقط JSON معتبر با کلیدهای title, slug, excerpt, html, seoTitle, seoDescription, category, tags (آرایه رشته‌ای), imagePrompt, imageAlt باشد. html امن و ساده با p,h2,h3,ul,ol,li,strong باشد.' },
         { role: 'user', content: `${brief}\nمقاله را متناسب با وبلاگ عکس و چاپ عکس بنویس.` }
-      ] })
-    });
-    if (!completion.ok) throw new BlogError(502, 'تولید متن از AvalAI ناموفق بود؛ کلید، مدل متنی و اعتبار سرویس را بررسی کنید.');
-    const response = await completion.json() as any;
+      ]
+    }, 'متن');
     let raw: any;
     try { raw = JSON.parse(response?.choices?.[0]?.message?.content || '{}'); } catch { throw new BlogError(502, 'پاسخ مدل متن قابل خواندن نبود.'); }
     const title = blogText(raw.title, 180), slug = validateBlogSlug(raw.slug || title);
@@ -48,15 +42,7 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
     const plain = safeContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     if (!title || plain.split(/\s+/).length > 2000 || plain.length < 300) throw new BlogError(502, 'مقاله تولیدشده خالی، بیش از ۲۰۰۰ واژه یا نامعتبر است؛ دوباره تلاش کنید.');
     const imagePrompt = blogText(raw.imagePrompt || `Editorial photograph for a Persian blog article: ${title}`, 1000);
-    const imageModel = config.avalaiModel || process.env.AVALAI_IMAGE_MODEL || 'gpt-image-2.5-sunburst';
-    const imageResponse = await fetch(`${baseUrl}/images/generations`, {
-      method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: imageModel, prompt: `${imagePrompt}. Realistic editorial photography, no text, no watermark.`, n: 1, size: '1024x1024', response_format: 'url' })
-    });
-    if (!imageResponse.ok) throw new BlogError(502, 'تولید تصویر AvalAI/Gemini-Sunbrost انجام نشد؛ مدل تصویر و دسترسی API را بررسی کنید.');
-    const imageData = await imageResponse.json() as any;
-    const imageUrl = imageData?.data?.[0]?.url || (imageData?.data?.[0]?.b64_json ? `data:image/png;base64,${imageData.data[0].b64_json}` : '');
-    if (!imageUrl || !safeBlogUrl(imageUrl)) throw new BlogError(502, 'مدل تصویر آدرس تصویر معتبری برنگرداند.');
+    const imageUrl = await generateAvalAiBlogCover(config, `${imagePrompt}. Realistic editorial photography, no text, no watermark.`);
     const sourceNote = kind === 'news' ? `<p>منبع: <a href="${escape(sourceUrl)}" rel="noopener noreferrer">${escape(new URL(sourceUrl).hostname)}</a></p>` : '';
     const content = safeContent + sourceNote;
     const wordCount = plain.split(/\s+/).filter(Boolean).length;

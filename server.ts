@@ -40,6 +40,7 @@ import { readBlogState, compareAndSetBlogState } from './storage';
 import { createBlogRouter } from './blogRoutes';
 import { createBlogService, normalizeBlogSnapshot, BlogError } from './blogService';
 import { emptyBlogState } from './src/types/blog';
+import { normalizeAvalAiSettingsPatch } from './blogAiGeneration';
 import { createMaintenanceQueue, maintenanceQueueSummary, type MaintenanceTick } from './maintenanceQueue';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
@@ -2566,15 +2567,20 @@ app.get('/api/settings', async (req: any, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-  const db = await readDb();
-  const incoming = { ...(req.body || {}) };
-  delete incoming.maintenanceMode;
-  // Never store invisible characters in provider tokens
-  if (incoming.eitaaToken !== undefined) incoming.eitaaToken = normalizeEitaaToken(incoming.eitaaToken);
-  if (incoming.telegramToken !== undefined) incoming.telegramToken = String(incoming.telegramToken || '').trim();
-  db.settings = { ...(db.settings || {}), ...incoming };
-  await writeDb(db);
-  res.json({ success: true, settings: db.settings });
+  try {
+    const db = await readDb();
+    const incoming = normalizeAvalAiSettingsPatch(req.body || {});
+    delete incoming.maintenanceMode;
+    // Never store invisible characters in provider tokens
+    if (incoming.eitaaToken !== undefined) incoming.eitaaToken = normalizeEitaaToken(incoming.eitaaToken);
+    if (incoming.telegramToken !== undefined) incoming.telegramToken = String(incoming.telegramToken || '').trim();
+    db.settings = { ...(db.settings || {}), ...incoming };
+    await writeDb(db);
+    res.json({ success: true, settings: db.settings });
+  } catch (error: any) {
+    res.status(error instanceof BlogError ? error.status : 503).json({ success: false,
+      error: error instanceof BlogError ? error.message : 'ذخیره تنظیمات در دیتابیس ناموفق بود. دوباره تلاش کنید.' });
+  }
 });
 
 // ---------------------------------------------------------------------------

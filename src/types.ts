@@ -368,6 +368,14 @@ export interface BluPalInvoice {
   payerBankName?: string;
 }
 
+export interface AvalAiSettings {
+  avalaiApiKey: string;
+  avalaiBaseUrl: string;
+  avalaiModel: string;
+  avalaiTextModel: string;
+  aiEnabled: boolean;
+}
+
 export interface BluPalTransaction {
   id: string;
   invoiceId: string;

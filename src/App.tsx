@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type { AvalAiSettings } from './types';
 import { User, Order, PrintTypeOption, PrintDimension, PartnerInvoice, CostChangeRequest, SupportTicket, Announcement, BluPalSettings, DeliveryMethod, MaintenanceNotificationSummary } from './types';
 import { INITIAL_ORDERS, PRINT_TYPES, PRINT_DIMENSIONS, INITIAL_TICKETS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { apiClient } from './services/apiClient';
@@ -203,9 +204,9 @@ export default function App() {
   // AI Master On/Off Toggle state
   const [aiEnabled, setAiEnabled] = useState<boolean>(true);
 
-  const handleUpdateAiEnabled = (enabled: boolean) => {
-    setAiEnabled(enabled);
-    apiClient.saveSettings({ aiEnabled: enabled });
+  const handleUpdateAiEnabled = async (enabled: boolean) => {
+    const saved = await apiClient.saveAiSettings({ aiEnabled: enabled });
+    setAiEnabled(saved.aiEnabled);
     showToast(enabled ? 'موتور هوش مصنوعی روشن گردید.' : 'موتور هوش مصنوعی خاموش گردید.');
   };
 
@@ -422,6 +423,9 @@ export default function App() {
           if (typeof data.settings.avalaiTextModel === 'string') {
             setAvalaiTextModel(data.settings.avalaiTextModel);
           }
+          if (typeof data.settings.aiEnabled === 'boolean') {
+            setAiEnabled(data.settings.aiEnabled);
+          }
           if (data.settings.telegramToken !== undefined) {
             setTelegramToken(data.settings.telegramToken);
           }
@@ -478,32 +482,14 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleUpdateAvalaiApiKey = (newKey: string) => {
-    const trimmed = newKey.trim();
-    setAvalaiApiKey(trimmed);
-    apiClient.saveSettings({ avalaiApiKey: trimmed });
-    showToast('کلید دسترسی AvalAI با موفقیت ذخیره شد.');
-  };
-
-  const handleUpdateAvalaiBaseUrl = (newUrl: string) => {
-    const sanitized = newUrl.trim().replace(/\/$/, ''); // Remove trailing slash
-    setAvalaiBaseUrl(sanitized);
-    apiClient.saveSettings({ avalaiBaseUrl: sanitized });
-    showToast('آدرس پایه API با موفقیت ذخیره شد.');
-  };
-
-  const handleUpdateAvalaiModel = (newModel: string) => {
-    const trimmed = newModel.trim();
-    setAvalaiModel(trimmed);
-    apiClient.saveSettings({ avalaiModel: trimmed });
-    showToast('مدل تولید تصویر با موفقیت به‌روز شد.');
-  };
-
-  const handleUpdateAvalaiTextModel = (newModel: string) => {
-    const trimmed = newModel.trim();
-    setAvalaiTextModel(trimmed);
-    apiClient.saveSettings({ avalaiTextModel: trimmed });
-    showToast('مدل تولید متن با موفقیت به‌روز شد.');
+  const handleSaveAvalaiSettings = async (settings: AvalAiSettings) => {
+    const saved = await apiClient.saveAiSettings(settings);
+    setAvalaiApiKey(saved.avalaiApiKey);
+    setAvalaiBaseUrl(saved.avalaiBaseUrl);
+    setAvalaiModel(saved.avalaiModel);
+    setAvalaiTextModel(saved.avalaiTextModel);
+    setAiEnabled(saved.aiEnabled);
+    showToast('تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.');
   };
 
   const handleSavePrompt = (printTypeId: string, prompt: string) => {
@@ -1217,13 +1203,10 @@ export default function App() {
               {adminTab === 'chatgpt' && (
                 <ChatGPTConnect
                   apiKey={avalaiApiKey}
-                  onUpdateApiKey={handleUpdateAvalaiApiKey}
                   baseUrl={avalaiBaseUrl}
-                  onUpdateBaseUrl={handleUpdateAvalaiBaseUrl}
                   model={avalaiModel}
-                  onUpdateModel={handleUpdateAvalaiModel}
                   textModel={avalaiTextModel}
-                  onUpdateTextModel={handleUpdateAvalaiTextModel}
+                  onSaveSettings={handleSaveAvalaiSettings}
                   aiEnabled={aiEnabled}
                   onUpdateAiEnabled={handleUpdateAiEnabled}
                 />
