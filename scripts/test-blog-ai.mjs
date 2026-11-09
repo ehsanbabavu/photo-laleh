@@ -21,7 +21,7 @@ const settings = () => ({ avalaiApiKey: 'fixture-api-key', avalaiBaseUrl: 'https
   avalaiTextModel: 'gemini-3.7-flash', avalaiModel: 'gemini-3.1-flash-lite-image', aiEnabled: true });
 const fixture = {
   reset() { this.settings = settings(); this.state = null; this.calls = []; this.uploads = []; this.writes = [];
-    this.saveFails = false; this.imageStatus = 200; this.imageError = null; this.missingImage = false; this.networkFails = false; },
+    this.saveFails = false; this.imageStatus = 200; this.imageError = null; this.missingImage = false; this.networkFails = false; this.responseData = undefined; },
   async cas(revision, next) { if ((this.state?.revision || 0) !== revision) return false; this.state = structuredClone(next); return true; }
 };
 fixture.reset(); globalThis.__blogAiTest = fixture;
@@ -79,6 +79,9 @@ before(async () => {
     if (body.response_format?.type === 'json_object') return Response.json({ choices: [{ message: { content: JSON.stringify(article) } }] });
     if (fixture.imageStatus !== 200) return Response.json({ error: { message: fixture.imageError } }, { status: fixture.imageStatus });
     if (fixture.missingImage) return Response.json({ choices: [{ message: { content: 'No image was generated.' } }] });
+    if (url.endsWith('/responses')) return Response.json(fixture.responseData === undefined
+      ? { status: 'completed', output: [{ type: 'reasoning', summary: [] }, { type: 'image_generation_call', status: 'completed', result: png }] }
+      : fixture.responseData);
     return Response.json(url.endsWith('/images/generations') ? { data: [{ b64_json: png }] }
       : { choices: [{ message: { content: 'Image generated', images: [{ image_url: { url: `data:image/png;base64,${png}` } }] } }] });
   };
@@ -131,6 +134,84 @@ test('the next request uses a changed database image model and GPT Image paramet
   assert.equal(imageCall.body.model, 'gpt-image-2.5-sunburst'); assert.equal(imageCall.body.size, '1024x1024');
   assert.equal('response_format' in imageCall.body, false); assert.equal('modalities' in imageCall.body, false);
   assert.equal(fixture.uploads.length, 1);
+});
+
+test('saved GPT-5.1 invokes the Responses image tool and uploads the result', async () => {
+  await apiClient.saveAiSettings({ avalaiModel: 'gpt-5.1' });
+  const result = await generate({ imageModel: 'wrong-body-image' });
+  assert.equal(result.status, 200); assert.equal(result.data.imageUrl, 'https://images.example.test/blog/generated.png');
+  assert.deepEqual(fixture.calls.map(call => call.body.model), ['gemini-3.7-flash', 'gpt-5.1']);
+  const imageCall = fixture.calls[1]; assert.equal(imageCall.url, 'https://api.avalai.ir/v1/responses');
+  assert.equal(imageCall.headers.Authorization, 'Bearer fixture-api-key');
+  assert.match(imageCall.body.input, /Generate a new image:.*studio table/);
+  assert.deepEqual(imageCall.body.tool_choice, { type: 'image_generation' });
+  assert.deepEqual(imageCall.body.tools, [{ type: 'image_generation', action: 'generate', size: '1024x1024', quality: 'medium' }]);
+  assert.equal('prompt' in imageCall.body, false); assert.equal('messages' in imageCall.body, false);
+  assert.equal('response_format' in imageCall.body, false); assert.equal('n' in imageCall.body, false);
+  assert.equal(fixture.uploads.length, 1); assert.equal(fixture.uploads[0].bytes.toString('base64'), png);
+  assert.equal(fixture.uploads[0].options.contentType, 'image/png');
+});
+
+test('the next generation reads changed GPT aliases and snapshots from the database', async () => {
+  for (const model of ['gpt-5.1', 'gpt-5.2', 'gpt-5.2-2025-12-11', 'gpt-4.1-mini', 'chat-latest']) {
+    fixture.calls = []; fixture.uploads = [];
+    await apiClient.saveAiSettings({ avalaiModel: model });
+    assert.equal((await generate()).status, 200, model);
+    assert.equal(fixture.calls[1].url, 'https://api.avalai.ir/v1/responses', model);
+    assert.equal(fixture.calls[1].body.model, model); assert.equal(fixture.uploads.length, 1);
+  }
+});
+
+test('Responses searches output items for an image after text and reasoning', async () => {
+  fixture.settings.avalaiModel = 'gpt-5.1';
+  fixture.responseData = { status: 'completed', output: [
+    { type: 'message', content: [{ type: 'output_text', text: 'Image created.' }] },
+    { type: 'reasoning', summary: [] },
+    { type: 'image_generation_call', status: 'completed', result: png }
+  ] };
+  const result = await generate(); assert.equal(result.status, 200); assert.equal(fixture.uploads.length, 1);
+  assert.equal(result.data.imageUrl, 'https://images.example.test/blog/generated.png');
+});
+
+test('Responses HTTP rejection preserves the selected model and reason without fallback or secrets', async () => {
+  fixture.settings.avalaiModel = 'gpt-5.1'; fixture.imageStatus = 403;
+  fixture.imageError = 'image_generation tool denied; fixture-api-key; Bearer aa-proj-private';
+  const result = await generate(); assert.equal(result.status, 502);
+  assert.match(result.data.error, /gpt-5\.1/); assert.match(result.data.error, /HTTP 403/); assert.match(result.data.error, /tool denied/);
+  assert.doesNotMatch(result.data.error, /fixture-api-key|aa-proj-private/);
+  assert.equal(fixture.calls.length, 2); assert.equal(fixture.calls[1].url, 'https://api.avalai.ir/v1/responses');
+  assert.equal(fixture.uploads.length, 0); assert.equal(fixture.state, null);
+});
+
+test('failed or incomplete Responses and image calls cannot upload a partial result', async () => {
+  for (const responseData of [
+    { status: 'failed', error: { message: 'tool denied; fixture-api-key' } },
+    { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [{ type: 'image_generation_call', status: 'completed', result: png }] },
+    { status: 'completed', output: [{ type: 'image_generation_call', status: 'failed', error: { message: 'tool failed; fixture-api-key' } }] },
+    { status: 'completed', output: [{ type: 'image_generation_call', status: 'in_progress', result: png }] }
+  ]) {
+    fixture.reset(); fixture.settings.avalaiModel = 'gpt-5.1'; fixture.responseData = responseData;
+    const result = await generate(); assert.equal(result.status, 502);
+    assert.match(result.data.error, /کامل نشد.*gpt-5\.1/); assert.doesNotMatch(result.data.error, /fixture-api-key/);
+    assert.equal(fixture.uploads.length, 0); assert.equal(fixture.state, null); assert.equal(fixture.calls.length, 2);
+    const detail = responseData.error?.message || responseData.incomplete_details?.reason || responseData.output?.[0]?.error?.message;
+    if (detail) assert.ok(result.data.error.includes(detail.split(';')[0]));
+  }
+});
+
+test('text-only or malformed Responses output cannot produce a cover', async () => {
+  for (const responseData of [null, { status: 'completed', output: [null] }, { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'No image.' }] }] }]) {
+    fixture.reset(); fixture.settings.avalaiModel = 'gpt-5.1'; fixture.responseData = responseData;
+    const result = await generate(); assert.equal(result.status, 502); assert.match(result.data.error, /خروجی قابل استفاده.*gpt-5\.1/);
+    assert.equal(fixture.uploads.length, 0); assert.equal(fixture.state, null);
+  }
+});
+
+test('Responses image bytes pass the same format validation before upload', async () => {
+  fixture.settings.avalaiModel = 'gpt-5.1';
+  fixture.responseData = { status: 'completed', output: [{ type: 'image_generation_call', status: 'completed', result: Buffer.from('not an image').toString('base64') }] };
+  const result = await generate(); assert.equal(result.status, 502); assert.match(result.data.error, /فرمت یا اندازه/);
+  assert.equal(fixture.uploads.length, 0); assert.equal(fixture.state, null);
 });
 test('upstream rejection shows the actual model, HTTP status and reason without credentials', async () => {
   fixture.imageStatus = 403; fixture.imageError = 'Requires tier 1; fixture-api-key; Bearer aa-proj-should-be-hidden';
@@ -210,6 +291,8 @@ test('browser AI settings wait for persistence, retain failures and reload befor
     assert.equal(fixture.settings.avalaiModel, 'gpt-image-2.5-sunburst');
     assert.equal(await model.isEnabled(), true);
     fixture.saveFails = false;
+    await model.fill('gpt-5.1');
+    await page.getByPlaceholder('gpt-4o-mini', { exact: true }).fill('gpt-5.1');
     await page.getByRole('button', { name: 'ذخیره تنظیمات', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.' }).waitFor();
     await control.click();
@@ -217,7 +300,9 @@ test('browser AI settings wait for persistence, retain failures and reload befor
     await page.goto(`${base}/admin/posts/write`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: 'تولید و انتشار مطلب', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'منتشر' }).waitFor();
-    assert.deepEqual(fixture.calls.map(call => call.body.model), ['gemini-3.7-flash', 'gemini-3.1-flash-lite-image']);
+    assert.deepEqual(fixture.calls.map(call => call.body.model), ['gpt-5.1', 'gpt-5.1']);
+    assert.equal(fixture.calls[0].url, 'https://api.avalai.ir/v1/chat/completions');
+    assert.equal(fixture.calls[1].url, 'https://api.avalai.ir/v1/responses');
     assert.equal(fixture.state.posts[0].status, 'published');
     const post = fixture.state.posts[0];
     await page.goto(`${base}/blog/${post.slug}/`, { waitUntil: 'networkidle' });
