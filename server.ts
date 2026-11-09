@@ -313,7 +313,8 @@ function sanitizeUsers(users: any[]) {
 // --- Public landing page data (no session required) ---
 app.use(createBlogRouter({ read: readBlogState, compareAndSet: compareAndSetBlogState,
   adminForPreview: async req => (await currentUserFromRequest(req))?.user?.role === 'admin',
-  commentRateLimited: req => hitRateLimit(`blog-comment:${clientIp(req)}`, 5, 10 * 60 * 1000)
+  commentRateLimited: req => hitRateLimit(`blog-comment:${clientIp(req)}`, 5, 10 * 60 * 1000),
+  aiConfig: async () => (await readDb()).settings || {}
 }));
 app.get('/api/public/landing', async (_req, res) => {
   try {
