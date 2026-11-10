@@ -224,7 +224,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
               <tr>
                 <th scope="col" className="w-14 px-3 py-3">ردیف</th>
                 <th scope="col" className="min-w-[190px] px-3 py-3">سایز</th>
-                <th scope="col" className="whitespace-nowrap px-3 py-3">مبلغ سایز</th>
+                <th scope="col" className="whitespace-nowrap px-3 py-3">مبلغ عکس</th>
                 <th scope="col" className="whitespace-nowrap px-3 py-3 text-rose-700">هزینه تمام‌شده</th>
                 <th scope="col" className="whitespace-nowrap px-3 py-3">مبلغ شاسی</th>
                 <th scope="col" className="whitespace-nowrap px-3 py-3 text-rose-700">هزینه تمام‌شده</th>
