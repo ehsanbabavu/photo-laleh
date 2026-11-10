@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Maximize2, Plus, Pencil, Trash2, RotateCcw, X, AlertCircle, Ruler, Star, Lock, Frame } from 'lucide-react';
+import { Maximize2, Plus, Pencil, Trash2, RotateCcw, X, AlertCircle, Ruler, Star, Lock, Frame, LayoutGrid, List, Info } from 'lucide-react';
 import { PrintDimension, PrintTypeOption } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
@@ -25,6 +25,9 @@ const emptyForm = {
   popular: false
 };
 
+type SizesViewMode = 'cards' | 'list';
+const sizesViewStorageKey = 'photo-laleh:admin:sizes:view';
+
 export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
   dimensions,
   printTypes,
@@ -38,6 +41,23 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
   const [form, setForm] = useState({ ...emptyForm });
   const [formError, setFormError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<SizesViewMode>(() => {
+    if (typeof window === 'undefined') return 'cards';
+    try {
+      return window.localStorage.getItem(sizesViewStorageKey) === 'list' ? 'list' : 'cards';
+    } catch {
+      return 'cards';
+    }
+  });
+
+  const selectViewMode = (mode: SizesViewMode) => {
+    setViewMode(mode);
+    try {
+      window.localStorage.setItem(sizesViewStorageKey, mode);
+    } catch {
+      // The selected view remains available when browser storage is disabled.
+    }
+  };
 
   /** Print types that currently offer this size (managed from the print type card). */
   const usedBy = (dimensionId: string) =>
@@ -124,56 +144,87 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
   const deleteUsage = deletingId ? usedBy(deletingId) : [];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-sky-500/25">
-              <Ruler className="w-5 h-5" />
+      <section aria-label="مدیریت سایزهای چاپ" className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-l from-sky-50/70 via-white to-white p-4 shadow-xs sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm shadow-sky-600/20 sm:h-11 sm:w-11">
+              <Ruler className="h-5 w-5" aria-hidden="true" />
             </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+            <div className="min-w-0">
+              <h1 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-slate-900 sm:text-lg">
                 مدیریت سایزهای چاپ
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-mono">
-                  {dimensions.length} سایز
+                <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                  {dimensions.length.toLocaleString('fa-IR')} سایز
                 </span>
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                سایزهایی که در مرحله «ابعاد چاپ» به مشتری نشان داده می‌شود؛ افزودن، ویرایش و حذف
+              <p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">
+                افزودن، ویرایش و قیمت‌گذاری سایزهای چاپ
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
             <button
               type="button"
-              onClick={onResetDimensions}
-              className="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-              title="بازگردانی سایزهای پیش‌فرض"
+              onClick={openCreate}
+              aria-label="افزودن سایز جدید"
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm shadow-sky-600/20 transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 cursor-pointer sm:px-4"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>بازنشانی پیش‌فرض</span>
+              <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>افزودن سایز</span>
             </button>
 
             <button
               type="button"
-              onClick={openCreate}
-              className="bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 active:scale-95 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-sky-500/20 cursor-pointer flex items-center gap-2"
+              onClick={onResetDimensions}
+              aria-label="بازنشانی سایزهای پیش‌فرض"
+              title="بازگردانی سایزهای پیش‌فرض"
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 cursor-pointer sm:px-4"
             >
-              <Plus className="w-4 h-4" />
-              <span>افزودن سایز جدید</span>
+              <RotateCcw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>بازنشانی</span>
             </button>
           </div>
         </div>
 
-        <div className="mt-3 p-3 rounded-xl bg-sky-50/70 border border-sky-200 text-[11px] sm:text-xs text-sky-900 leading-relaxed">
-          برای اینکه یک سایز روی کارت یک نوع چاپ در مرحله ابعاد نمایش داده شود، آن را در
-          «مدیریت انواع چاپ» و در بخش «سایزهای این نوع چاپ» فعال کنید.
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-200/80 pt-3 sm:flex-row sm:items-start sm:justify-between">
+          <div role="group" aria-label="حالت نمایش سایزها" className="flex w-full gap-1 rounded-xl bg-slate-100 p-1 sm:w-auto">
+            <button
+              type="button"
+              aria-label="نمایش کارتی"
+              aria-pressed={viewMode === 'cards'}
+              onClick={() => selectViewMode('cards')}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer ${viewMode === 'cards' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-900'}`}
+            >
+              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+              کارتی
+            </button>
+            <button
+              type="button"
+              aria-label="نمایش لیستی"
+              aria-pressed={viewMode === 'list'}
+              onClick={() => selectViewMode('list')}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer ${viewMode === 'list' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-900'}`}
+            >
+              <List className="h-4 w-4" aria-hidden="true" />
+              لیستی
+            </button>
+          </div>
+          <details className="text-[11px] text-slate-500 sm:max-w-sm sm:pt-3">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+              <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              راهنمای نمایش سایزها
+            </summary>
+            <p className="mt-2 leading-6">
+              برای نمایش سایز به مشتری، آن را در «مدیریت انواع چاپ» و بخش «سایزهای این نوع چاپ» فعال کنید.
+            </p>
+          </details>
         </div>
-      </div>
+      </section>
 
-      {/* Sizes grid */}
+      {/* Sizes display */}
       {dimensions.length === 0 ? (
         <div className="bg-white border border-dashed border-slate-300 rounded-2xl sm:rounded-3xl p-10 text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
@@ -184,6 +235,41 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
             با دکمه «افزودن سایز جدید» اولین سایز چاپ را بسازید.
           </p>
         </div>
+      ) : viewMode === 'list' ? (
+        <ul aria-label="لیست سایزهای چاپ" className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+          {dimensions.map((dim) => (
+            <li key={dim.id} className="grid grid-cols-2 gap-x-4 gap-y-3 p-3 sm:p-4 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))] xl:items-center">
+              <div className="col-span-2 min-w-0 xl:col-span-1">
+                <p className="break-words text-sm font-bold text-slate-900">{dim.title}</p>
+                <p dir="ltr" className="mt-1 text-right font-mono text-[11px] text-slate-500">{dim.dimensionsCm}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-slate-500">مبلغ سایز</p>
+                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-slate-900 sm:text-xs">
+                  {dim.basePrice === 0 ? 'رایگان / هدیه' : formatPrice(dim.basePrice)}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-rose-700">هزینه تمام‌شده</p>
+                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-rose-900 sm:text-xs">
+                  {Number(dim.costPrice) > 0 ? formatPrice(Number(dim.costPrice)) : 'ثبت نشده'}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-slate-500">مبلغ شاسی</p>
+                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-emerald-700 sm:text-xs">
+                  {Number(dim.frameCustomerPrice) > 0 ? formatPrice(Number(dim.frameCustomerPrice)) : '—'}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-rose-700">هزینه شاسی</p>
+                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-rose-900 sm:text-xs">
+                  {Number(dim.frameCostPrice) > 0 ? formatPrice(Number(dim.frameCostPrice)) : '—'}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {dimensions.map((dim, index) => {
