@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Maximize2, Plus, Pencil, Trash2, RotateCcw, X, AlertCircle, Ruler, Layers, Star, Lock, Frame } from 'lucide-react';
+import { Maximize2, Plus, Pencil, Trash2, RotateCcw, X, AlertCircle, Ruler, Star, Lock, Frame } from 'lucide-react';
 import { PrintDimension, PrintTypeOption } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
@@ -185,16 +185,15 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {dimensions.map((dim, index) => {
-            const usage = usedBy(dim.id);
             return (
               <div
                 key={dim.id}
-                className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xs hover:border-sky-300 transition-all flex flex-col justify-between"
+                className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 shadow-xs hover:border-sky-300 transition-all flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-2 mb-1">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 font-mono text-xs font-bold flex items-center justify-center flex-shrink-0">
                         {index + 1}
@@ -222,7 +221,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
                     <span className="font-mono text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-2 py-0.5">
                       {dim.dimensionsCm}
                     </span>
@@ -239,21 +238,20 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                     )}
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between text-xs mb-1.5">
-                    <span className="text-slate-600 font-medium">مبلغ این سایز (مشتری تیتر):</span>
-                    <span className="font-black text-slate-900 font-mono text-xs sm:text-sm">
-                      {dim.basePrice === 0 ? 'رایگان / هدیه' : formatPrice(dim.basePrice)}
-                    </span>
-                  </div>
-
-                  {/* Internal cost — admin only */}
-                  <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200 mb-2.5 space-y-1">
-                    <div className="flex items-center justify-between text-xs">
+                  {/* Customer price and internal cost — admin only */}
+                  <div className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 mb-2 space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="text-slate-600 font-medium">مبلغ این سایز:</span>
+                      <span className="font-black text-slate-900 font-mono text-xs whitespace-nowrap">
+                        {dim.basePrice === 0 ? 'رایگان / هدیه' : formatPrice(dim.basePrice)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 text-[11px]">
                       <span className="text-rose-800 font-bold flex items-center gap-1">
                         <Lock className="w-3 h-3" />
                         هزینه تمام‌شده (محرمانه)
                       </span>
-                      <span className="font-black text-rose-900 font-mono text-xs">
+                      <span className="font-black text-rose-900 font-mono text-xs whitespace-nowrap">
                         {Number(dim.costPrice) > 0 ? formatPrice(Number(dim.costPrice)) : 'ثبت نشده'}
                       </span>
                     </div>
@@ -275,19 +273,19 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
 
                   {/* Optional frame (تخته شاسی) */}
                   <div
-                    className={`p-2.5 rounded-xl border mb-2.5 space-y-1 ${
+                    className={`p-2 rounded-xl border mb-2 space-y-0.5 ${
                       dim.frameEnabled
                         ? 'bg-amber-50/70 border-amber-200'
                         : 'bg-slate-50 border-slate-200'
                     }`}
                   >
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-[11px]">
                       <span className="font-bold flex items-center gap-1 text-slate-700">
                         <Frame className="w-3 h-3" />
                         تخته شاسی
                       </span>
                       <span
-                        className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
                           dim.frameEnabled
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                             : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -330,38 +328,13 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                   </div>
 
                   {dim.description && (
-                    <p className="text-[11px] text-slate-600 leading-relaxed font-medium mb-2.5">
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-medium mb-2">
                       {dim.description}
                     </p>
                   )}
-
-                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Layers className="w-3 h-3 text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-500">
-                        نمایش در {usage.length} نوع چاپ
-                      </span>
-                    </div>
-                    {usage.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {usage.map((pt) => (
-                          <span
-                            key={pt.id}
-                            className="text-[10px] font-bold text-slate-700 bg-white border border-slate-200 rounded-md px-1.5 py-0.5"
-                          >
-                            {pt.title}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] font-bold text-amber-700">
-                        در هیچ نوع چاپی فعال نیست
-                      </span>
-                    )}
-                  </div>
                 </div>
 
-                <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex items-center justify-between">
+                <div className="pt-1.5 mt-1.5 border-t border-slate-100 flex items-center justify-between gap-2">
                   <span className="text-[10px] text-slate-400 font-mono">شناسه: {dim.id}</span>
                   <span className="text-[10px] font-bold text-slate-500">
                     مرحله ابعاد چاپ
