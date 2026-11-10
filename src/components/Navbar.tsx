@@ -54,7 +54,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const menuItems = [
-    { id: '__posts_group__' as any, label: 'نوشته‌ها', icon: LayoutDashboard, badge: null, badgeStyle: null },
     {
       id: 'dashboard' as AdminTab,
       label: 'پیشخوان مدیریت',
@@ -84,14 +83,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       badgeStyle: null
     },
     {
-      id: '__print_group__' as any,
-      label: '',
-      icon: Printer,
-      badge: null,
-      badgeStyle: null
-    },
-
-    {
       id: 'tickets' as AdminTab,
       label: 'تیکت‌های پشتیبانی',
       icon: LifeBuoy,
@@ -102,6 +93,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       id: 'users' as AdminTab,
       label: 'مدیریت کاربران',
       icon: Users,
+      badge: null,
+      badgeStyle: null
+    },
+    { id: '__posts_group__' as any, label: 'نوشته‌ها', icon: LayoutDashboard, badge: null, badgeStyle: null },
+    {
+      id: '__print_group__' as any,
+      label: '',
+      icon: Printer,
       badge: null,
       badgeStyle: null
     },
