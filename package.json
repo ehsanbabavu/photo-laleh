@@ -11,6 +11,7 @@
     "test:maintenance": "tsx --test scripts/test-maintenance-queue.ts scripts/test-maintenance-api.mjs scripts/test-maintenance-storage.mjs",
     "test:blog": "tsx --test scripts/test-blog.mjs scripts/test-blog-ai.mjs",
     "test:admin-posts": "tsx --test scripts/test-admin-posts-navigation.mjs",
+    "test:dimensions": "tsx --test scripts/test-customer-dimensions.tsx",
     "preview": "tsx server.ts",
     "start": "tsx server.ts"
   },

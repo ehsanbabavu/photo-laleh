@@ -49,26 +49,24 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
         .filter((d): d is PrintDimension => Boolean(d))
     : legacyDimensions.filter((legacy) => allDimensions.some((d) => d.id === legacy.id));
 
+  const selectedDimension = availableDimensions.find((dim) => dim.id === draft.dimensionId);
+  const firstDimension = availableDimensions[0];
+  const firstHasFrameOption = Boolean(firstDimension?.frameEnabled && Number(firstDimension?.frameCustomerPrice) > 0);
+  const selectedHasFrameOption = Boolean(selectedDimension?.frameEnabled && Number(selectedDimension?.frameCustomerPrice) > 0);
+
   // Auto-sync dimension ID if the current selection is not offered by this print type
   useEffect(() => {
-    const exists = availableDimensions.some((d) => d.id === draft.dimensionId);
-    if (!exists && availableDimensions.length > 0) {
-      onUpdateDraft({ dimensionId: availableDimensions[0].id });
+    if (!selectedDimension?.id && firstDimension?.id) {
+      onUpdateDraft({ dimensionId: firstDimension.id, hasFrame: firstHasFrameOption });
     }
-  }, [draft.printType, draft.dimensionId, availableDimensions.length]);
+  }, [selectedDimension?.id, firstDimension?.id, firstHasFrameOption, onUpdateDraft]);
 
   // Keep the frame choice in sync with the selected size
   useEffect(() => {
-    const selected = availableDimensions.find((d) => d.id === draft.dimensionId);
-    const hasFrameOption = Boolean(selected?.frameEnabled && Number(selected?.frameCustomerPrice) > 0);
-    if (!hasFrameOption) {
-      if (draft.hasFrame) onUpdateDraft({ hasFrame: false });
-      return;
-    }
-    // A size that offers a frame starts with «با تخته شاسی» selected (the customer can turn it off)
-    if (typeof draft.hasFrame !== 'boolean') onUpdateDraft({ hasFrame: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.dimensionId, availableDimensions.length]);
+    if (!selectedDimension?.id) return;
+    const hasFrame = selectedHasFrameOption && draft.hasFrame !== false;
+    if (draft.hasFrame !== hasFrame) onUpdateDraft({ hasFrame });
+  }, [selectedDimension?.id, selectedHasFrameOption, draft.hasFrame, onUpdateDraft]);
 
   const hasNoSizes = availableDimensions.length === 0;
 
@@ -111,10 +109,17 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
         >
           {availableDimensions.map((dim) => {
             const isSelected = draft.dimensionId === dim.id;
+            const hasFrameOption = Boolean(dim.frameEnabled && Number(dim.frameCustomerPrice) > 0);
+            const withFrame = hasFrameOption && (!isSelected || draft.hasFrame !== false);
+            const framePrice = withFrame ? Math.max(0, Number(dim.frameCustomerPrice) || 0) : 0;
+            const customerTotal = Math.max(0, Number(dim.basePrice) || 0) + framePrice;
             return (
               <div
                 key={dim.id}
-                onClick={() => onUpdateDraft({ dimensionId: dim.id })}
+                data-dimension-id={dim.id}
+                onClick={() => {
+                  if (!isSelected) onUpdateDraft({ dimensionId: dim.id, hasFrame: hasFrameOption });
+                }}
                 className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between active:scale-99 shadow-xs ${
                   isSelected
                     ? 'bg-gradient-to-r from-sky-50/90 to-emerald-50/90 border-sky-400 shadow-md shadow-sky-500/10 ring-2 ring-sky-400/20'
@@ -149,16 +154,17 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                   </p>
 
                   {/* Frame choice — compact two-column switch inside the card */}
-                  {isSelected && dim.frameEnabled && Number(dim.frameCustomerPrice) > 0 && (
+                  {isSelected && hasFrameOption && (
                     <div
                       className="mt-2 grid grid-cols-2 gap-1.5"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <button
                         type="button"
+                        aria-pressed={withFrame}
                         onClick={() => onUpdateDraft({ dimensionId: dim.id, hasFrame: true })}
                         className={`h-8 rounded-lg border text-[11px] font-black transition-all cursor-pointer ${
-                          draft.hasFrame
+                          withFrame
                             ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
                             : 'bg-white border-slate-300 text-slate-600 hover:border-amber-400'
                         }`}
@@ -167,9 +173,10 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                       </button>
                       <button
                         type="button"
+                        aria-pressed={!withFrame}
                         onClick={() => onUpdateDraft({ dimensionId: dim.id, hasFrame: false })}
                         className={`h-8 rounded-lg border text-[11px] font-black transition-all cursor-pointer ${
-                          !draft.hasFrame
+                          !withFrame
                             ? 'bg-sky-500 border-sky-500 text-white shadow-sm'
                             : 'bg-white border-slate-300 text-slate-600 hover:border-sky-400'
                         }`}
@@ -180,35 +187,16 @@ export const StepDimensions: React.FC<StepDimensionsProps> = ({
                   )}
 
                   {/* Price of the current choice only: with frame OR without frame */}
-                  {(() => {
-                    const hasFrameOption = Boolean(dim.frameEnabled && Number(dim.frameCustomerPrice) > 0);
-                    const withFrame = isSelected ? Boolean(draft.hasFrame) && hasFrameOption : false;
-                    const frameCustomer = withFrame ? Number(dim.frameCustomerPrice) || 0 : 0;
-                    const frameCost = withFrame ? Number(dim.frameCostPrice) || 0 : 0;
-                    const customerTotal = Number(dim.basePrice) + frameCustomer;
-                    const costTotal = Number(dim.costPrice) + frameCost;
-                    const suffix = withFrame ? 'با تخته شاسی' : 'بدون تخته شاسی';
-                    return (
-                      <div className="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
-                          <span className="text-slate-700">
-                            قیمت <span className="text-red-600">{suffix}</span>:
-                          </span>
-                          <span className="font-mono font-black text-slate-900">
-                            {formatPrice(customerTotal)}
-                          </span>
-                        </div>
-                        {Number(dim.costPrice) > 0 && (
-                          <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold">
-                            <span className="text-slate-700">
-                              قیمت تمام‌شده <span className="text-red-600">{suffix}</span>:
-                            </span>
-                            <span className="font-mono font-black text-slate-900">{formatPrice(costTotal)}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <div className="mt-2 pt-2 border-t border-slate-200/70">
+                    <div className="flex items-center justify-between gap-2 text-[10px] sm:text-[11px] font-bold">
+                      <span className="text-slate-700">
+                        قیمت <span className="text-red-600">{withFrame ? 'با تخته شاسی' : 'بدون تخته شاسی'}</span>:
+                      </span>
+                      <span className="font-mono font-black text-slate-900 whitespace-nowrap">
+                        {formatPrice(customerTotal)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
