@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Maximize2, Plus, Pencil, Trash2, RotateCcw, X, AlertCircle, Ruler, Star, Lock, Frame, LayoutGrid, List, Info } from 'lucide-react';
+import { Maximize2, Plus, Pencil, Trash2, X, AlertCircle, Ruler, Star, Lock, Frame, LayoutGrid, Table2 } from 'lucide-react';
 import { PrintDimension, PrintTypeOption } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
@@ -9,7 +9,6 @@ interface AdminSizesManagerProps {
   onAddDimension: (item: PrintDimension) => void;
   onUpdateDimension: (item: PrintDimension) => void;
   onDeleteDimension: (id: string) => void;
-  onResetDimensions: () => void;
 }
 
 const emptyForm = {
@@ -25,7 +24,7 @@ const emptyForm = {
   popular: false
 };
 
-type SizesViewMode = 'cards' | 'list';
+type SizesViewMode = 'cards' | 'table';
 const sizesViewStorageKey = 'photo-laleh:admin:sizes:view';
 
 export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
@@ -33,8 +32,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
   printTypes,
   onAddDimension,
   onUpdateDimension,
-  onDeleteDimension,
-  onResetDimensions
+  onDeleteDimension
 }) => {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -44,7 +42,8 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
   const [viewMode, setViewMode] = useState<SizesViewMode>(() => {
     if (typeof window === 'undefined') return 'cards';
     try {
-      return window.localStorage.getItem(sizesViewStorageKey) === 'list' ? 'list' : 'cards';
+      const savedView = window.localStorage.getItem(sizesViewStorageKey);
+      return savedView === 'list' || savedView === 'table' ? 'table' : 'cards';
     } catch {
       return 'cards';
     }
@@ -165,31 +164,25 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+          <div className="flex sm:shrink-0">
             <button
               type="button"
               onClick={openCreate}
               aria-label="افزودن سایز جدید"
-              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm shadow-sky-600/20 transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 cursor-pointer sm:px-4"
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm shadow-sky-600/20 transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 cursor-pointer sm:w-auto sm:px-4"
             >
               <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span>افزودن سایز</span>
             </button>
 
-            <button
-              type="button"
-              onClick={onResetDimensions}
-              aria-label="بازنشانی سایزهای پیش‌فرض"
-              title="بازگردانی سایزهای پیش‌فرض"
-              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 cursor-pointer sm:px-4"
-            >
-              <RotateCcw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>بازنشانی</span>
-            </button>
           </div>
         </div>
+      </section>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-slate-200/80 pt-3 sm:flex-row sm:items-start sm:justify-between">
+      {/* Sizes display */}
+      <section aria-label="سایزها و قیمت‌ها" className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <h2 className="text-sm font-black text-slate-900">سایزها و قیمت‌ها</h2>
           <div role="group" aria-label="حالت نمایش سایزها" className="flex w-full gap-1 rounded-xl bg-slate-100 p-1 sm:w-auto">
             <button
               type="button"
@@ -203,30 +196,18 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
             </button>
             <button
               type="button"
-              aria-label="نمایش لیستی"
-              aria-pressed={viewMode === 'list'}
-              onClick={() => selectViewMode('list')}
-              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer ${viewMode === 'list' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-900'}`}
+              aria-label="نمایش جدولی"
+              aria-pressed={viewMode === 'table'}
+              onClick={() => selectViewMode('table')}
+              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer ${viewMode === 'table' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-900'}`}
             >
-              <List className="h-4 w-4" aria-hidden="true" />
-              لیستی
+              <Table2 className="h-4 w-4" aria-hidden="true" />
+              جدول
             </button>
           </div>
-          <details className="text-[11px] text-slate-500 sm:max-w-sm sm:pt-3">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
-              <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              راهنمای نمایش سایزها
-            </summary>
-            <p className="mt-2 leading-6">
-              برای نمایش سایز به مشتری، آن را در «مدیریت انواع چاپ» و بخش «سایزهای این نوع چاپ» فعال کنید.
-            </p>
-          </details>
         </div>
-      </section>
-
-      {/* Sizes display */}
       {dimensions.length === 0 ? (
-        <div className="bg-white border border-dashed border-slate-300 rounded-2xl sm:rounded-3xl p-10 text-center space-y-3">
+        <div className="p-8 text-center space-y-3 sm:p-10">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
             <Maximize2 className="w-6 h-6" />
           </div>
@@ -235,47 +216,75 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
             با دکمه «افزودن سایز جدید» اولین سایز چاپ را بسازید.
           </p>
         </div>
-      ) : viewMode === 'list' ? (
-        <ul aria-label="لیست سایزهای چاپ" className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-          {dimensions.map((dim) => (
-            <li key={dim.id} className="grid grid-cols-2 gap-x-4 gap-y-3 p-3 sm:p-4 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))] xl:items-center">
-              <div className="col-span-2 min-w-0 xl:col-span-1">
-                <p className="break-words text-sm font-bold text-slate-900">{dim.title}</p>
-                <p dir="ltr" className="mt-1 text-right font-mono text-[11px] text-slate-500">{dim.dimensionsCm}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-slate-500">مبلغ سایز</p>
-                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-slate-900 sm:text-xs">
-                  {dim.basePrice === 0 ? 'رایگان / هدیه' : formatPrice(dim.basePrice)}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-rose-700">هزینه تمام‌شده</p>
-                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-rose-900 sm:text-xs">
-                  {Number(dim.costPrice) > 0 ? formatPrice(Number(dim.costPrice)) : 'ثبت نشده'}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-slate-500">مبلغ شاسی</p>
-                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-emerald-700 sm:text-xs">
-                  {Number(dim.frameCustomerPrice) > 0 ? formatPrice(Number(dim.frameCustomerPrice)) : '—'}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-rose-700">هزینه شاسی</p>
-                <p className="mt-1 whitespace-nowrap font-mono text-[11px] font-bold text-rose-900 sm:text-xs">
-                  {Number(dim.frameCostPrice) > 0 ? formatPrice(Number(dim.frameCostPrice)) : '—'}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
+      ) : viewMode === 'table' ? (
+        <div role="region" aria-label="جدول سایزهای چاپ" tabIndex={0} className="max-w-full overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500">
+          <table className="w-full min-w-[900px] text-right text-xs">
+            <caption className="sr-only">سایزهای چاپ، قیمت‌ها و عملیات ویرایش و حذف</caption>
+            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600">
+              <tr>
+                <th scope="col" className="w-14 px-3 py-3">ردیف</th>
+                <th scope="col" className="min-w-[190px] px-3 py-3">سایز</th>
+                <th scope="col" className="whitespace-nowrap px-3 py-3">مبلغ سایز</th>
+                <th scope="col" className="whitespace-nowrap px-3 py-3 text-rose-700">هزینه تمام‌شده</th>
+                <th scope="col" className="whitespace-nowrap px-3 py-3">مبلغ شاسی</th>
+                <th scope="col" className="whitespace-nowrap px-3 py-3 text-rose-700">هزینه شاسی</th>
+                <th scope="col" className="sticky left-0 z-10 w-28 bg-slate-50 px-3 py-3 text-center">عملیات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {dimensions.map((dim, index) => (
+                <tr key={dim.id} data-dimension-id={dim.id} className="group transition-colors hover:bg-sky-50/40">
+                  <td className="px-3 py-3 font-mono text-[11px] text-slate-400">{(index + 1).toLocaleString('fa-IR')}</td>
+                  <th scope="row" className="px-3 py-3 font-normal">
+                    <p className="break-words font-bold text-slate-900">{dim.title}</p>
+                    <p dir="ltr" className="mt-1 text-right font-mono text-[11px] text-slate-500">{dim.dimensionsCm}</p>
+                  </th>
+                  <td className="whitespace-nowrap px-3 py-3 font-mono text-[11px] font-bold text-slate-900">
+                    {dim.basePrice === 0 ? 'رایگان / هدیه' : formatPrice(dim.basePrice)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 font-mono text-[11px] font-bold text-rose-900">
+                    {Number(dim.costPrice) > 0 ? formatPrice(Number(dim.costPrice)) : 'ثبت نشده'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 font-mono text-[11px] font-bold text-emerald-700">
+                    {Number(dim.frameCustomerPrice) > 0 ? formatPrice(Number(dim.frameCustomerPrice)) : '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 font-mono text-[11px] font-bold text-rose-900">
+                    {Number(dim.frameCostPrice) > 0 ? formatPrice(Number(dim.frameCostPrice)) : '—'}
+                  </td>
+                  <td className="sticky left-0 bg-white px-3 py-3 transition-colors group-hover:bg-sky-50">
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        aria-label={`ویرایش سایز ${dim.title}`}
+                        title="ویرایش سایز"
+                        onClick={() => openEdit(dim)}
+                        className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`حذف سایز ${dim.title}`}
+                        title="حذف سایز"
+                        onClick={() => setDeletingId(dim.id)}
+                        className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-rose-50 text-rose-700 transition-colors hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-3 sm:p-4">
           {dimensions.map((dim, index) => {
             return (
               <div
                 key={dim.id}
+                data-dimension-id={dim.id}
                 className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 shadow-xs hover:border-sky-300 transition-all flex flex-col justify-between"
               >
                 <div>
@@ -291,6 +300,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                       <button
                         type="button"
                         onClick={() => openEdit(dim)}
+                        aria-label={`ویرایش سایز ${dim.title}`}
                         className="p-1.5 rounded-lg bg-slate-100 hover:bg-sky-100 text-slate-600 hover:text-sky-700 active:scale-90 transition-all cursor-pointer"
                         title="ویرایش سایز"
                       >
@@ -299,6 +309,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
                       <button
                         type="button"
                         onClick={() => setDeletingId(dim.id)}
+                        aria-label={`حذف سایز ${dim.title}`}
                         className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-700 active:scale-90 transition-all cursor-pointer"
                         title="حذف سایز"
                       >
@@ -431,6 +442,7 @@ export const AdminSizesManager: React.FC<AdminSizesManagerProps> = ({
           })}
         </div>
       )}
+      </section>
 
       {/* CREATE / EDIT MODAL */}
       {modalMode && (

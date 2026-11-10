@@ -813,12 +813,6 @@ export default function App() {
     }
   };
 
-  const handleResetDimensions = () => {
-    setDimensions(PRINT_DIMENSIONS);
-    apiClient.saveDimensions(PRINT_DIMENSIONS);
-    showToast('سایزها به حالت پیش‌فرض بازنشانی شدند.');
-  };
-
   // Persist Orders when updated
   const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
     const orderToStart = orders.find((order) => order.id === orderId);
@@ -1169,7 +1163,6 @@ export default function App() {
                   onAddDimension={handleAddDimension}
                   onUpdateDimension={handleUpdateDimension}
                   onDeleteDimension={handleDeleteDimension}
-                  onResetDimensions={handleResetDimensions}
                 />
               )}
 
