@@ -20,8 +20,8 @@ export function MaintenanceControl({ maintenanceMode = false, maintenanceNotific
         : 'from-green-100 via-green-200 to-green-100 border-green-200 text-green-900 hover:border-green-300 focus-visible:ring-green-500'}`}>
       <span className="flex items-center gap-2"><Activity className="w-3.5 h-3.5" />
         <span>{isTogglingMaintenance ? 'در حال ذخیره…' : 'حالت به‌روزرسانی'}</span></span>
-      <span aria-hidden="true" className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${maintenanceMode ? 'bg-red-500' : 'bg-green-500'}`}>
-        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${maintenanceMode ? '-translate-x-4' : '-translate-x-0.5'}`} />
+      <span aria-hidden="true" className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${maintenanceMode ? 'bg-red-500' : 'bg-slate-300'}`}>
+        <span className={`absolute right-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${maintenanceMode ? '-translate-x-4' : 'translate-x-0'}`} />
       </span>
     </button>
     {maintenanceNotifications && maintenanceNotifications.status !== 'idle' && (
