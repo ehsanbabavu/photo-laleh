@@ -189,14 +189,66 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     }
   };
 
+  if (purpose === 'blog') {
+    const busy = saving || testStatus === 'testing';
+    return (
+      <section data-blog-models-card aria-labelledby={`${fieldId}-title`} className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs sm:p-3">
+        <header className="flex items-center justify-between gap-2">
+          <h2 id={`${fieldId}-title`} className="flex items-center gap-2 text-sm font-black text-slate-900">
+            <Sparkles className="h-4 w-4 text-violet-600" />مدل‌های تولید مطلب
+          </h2>
+          <button type="button" role="switch" aria-label="فعال‌سازی سرویس هوش مصنوعی" aria-checked={isAiEnabled}
+            onClick={() => void handleToggleAi()} disabled={busy}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-1 text-[11px] font-bold disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:min-h-7">
+            <span className={isAiEnabled ? 'text-emerald-700' : 'text-slate-500'}>{isAiEnabled ? 'فعال' : 'خاموش'}</span>
+            <span dir="ltr" className={`relative h-5 w-9 rounded-full transition-colors ${isAiEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+              <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isAiEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+            </span>
+          </button>
+        </header>
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3">
+          <div className="min-w-0">
+            <label htmlFor={`${fieldId}-text-model`} className="mb-1 block text-[11px] font-bold text-slate-600">مدل تولید متن:</label>
+            <input id={`${fieldId}-text-model`} type="text" dir="ltr" value={inputTextModel} disabled={busy}
+              onChange={e => setInputTextModel(e.target.value)} placeholder="gpt-4o-mini"
+              className="h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono text-slate-900 disabled:opacity-60 focus:border-violet-400 focus:bg-white focus:outline-none sm:h-8" />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor={`${fieldId}-image-model`} className="mb-1 block text-[11px] font-bold text-slate-600">مدل تصویر شاخص:</label>
+            <input id={`${fieldId}-image-model`} type="text" dir="ltr" value={inputModel} disabled={busy}
+              onChange={e => setInputModel(e.target.value)} placeholder="gpt-image-2.5-sunburst"
+              className="h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono text-slate-900 disabled:opacity-60 focus:border-violet-400 focus:bg-white focus:outline-none sm:h-8" />
+          </div>
+        </div>
+        <footer className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <p className="text-[10px] text-slate-500">اتصال از <a href="/admin/chatgpt" className="font-bold text-teal-700 hover:underline"
+            title="کلید و آدرس اتصال از ChatGPT خوانده می‌شوند؛ مدل تصویر و وضعیت سرویس با پردازش عکس مشترک‌اند.">تنظیمات ChatGPT</a></p>
+          <div className="flex items-center gap-1.5">
+            <button type="button" aria-label="تست اتصال به AvalAI" onClick={() => void handleTestConnection()} disabled={busy}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:min-h-8">
+              {testStatus === 'testing' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}
+              {testStatus === 'testing' ? 'بررسی…' : 'تست اتصال'}
+            </button>
+            <button type="button" aria-label={saving ? 'در حال ذخیره…' : 'ذخیره تنظیمات'} onClick={() => void handleSaveAll()} disabled={busy}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-violet-600 px-3 text-[11px] font-bold text-white hover:bg-violet-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 sm:min-h-8">
+              {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {saving ? 'در حال ذخیره…' : 'ذخیره'}
+            </button>
+          </div>
+        </footer>
+        {statusMessage && <p role={testStatus === 'invalid' ? 'alert' : 'status'} className={`text-[11px] leading-5 ${testStatus === 'invalid' ? 'text-rose-700' : 'text-slate-500'}`}>{statusMessage}</p>}
+        {saveMessage && <p role={saveFailed ? 'alert' : 'status'} className={`text-[11px] leading-5 ${saveFailed ? 'text-rose-700' : 'text-emerald-700'}`}>{saveMessage}</p>}
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-xs space-y-6">
         <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-900 pb-4 border-b border-slate-100">
           <Key className="w-5 h-5 text-teal-600" />
-          <span>{purpose === 'blog' ? 'مدل‌های تولید مطلب' : 'پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)'}</span>
+          <span>پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)</span>
         </div>
-        {purpose === 'blog' && <p className="text-xs leading-6 text-slate-500">کلید دسترسی و آدرس پایهٔ تولید مطلب از <a href="/admin/chatgpt" className="font-bold text-teal-600 underline">تنظیمات ChatGPT</a> خوانده می‌شوند. مدل تصویر و روشن یا خاموش بودن سرویس با پردازش عکس سفارش‌ها مشترک است.</p>}
 
         {/* Master AI On/Off Toggle Switch */}
         <div className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -213,7 +265,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-xs sm:text-sm font-black">
-                  {purpose === 'blog' ? 'سرویس هوش مصنوعی:' : 'موتور پردازش و رتوش هوش مصنوعی:'}
+                  موتور پردازش و رتوش هوش مصنوعی:
                 </h3>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                   isAiEnabled
@@ -224,7 +276,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 </span>
               </div>
               <p className="text-[11px] opacity-80 mt-1 leading-relaxed font-medium">
-                {purpose === 'blog' ? (isAiEnabled ? 'تولید متن و تصویر مطلب فعال است.' : 'برای تولید مطلب، سرویس هوش مصنوعی را روشن کنید.') : isAiEnabled
+                {isAiEnabled
                   ? 'سرویس هوش مصنوعی فعال است؛ سفارشات ثبت‌شده توسط مدل اختصاصی AvalAI پردازش و رتوش می‌گردند.'
                   : 'سرویس هوش مصنوعی غیرفعال گردیده است. در این حالت فراخوانی API متوقف شده و عکس‌ها مستقیم ثبت می‌شوند.'}
               </p>
@@ -341,29 +393,10 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
               <span className="text-[10px] text-slate-500">پیش‌فرض رسمی: https://api.avalai.ir/v1</span>
             </div>}
 
-            {purpose === 'blog' && <div className="space-y-1.5">
-              <label htmlFor={`${fieldId}-text-model`} className="block text-xs font-bold text-slate-700">
-                مدل تولید متن:
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  id={`${fieldId}-text-model`}
-                  value={inputTextModel}
-                  disabled={saving || testStatus === 'testing'}
-                  onChange={(e) => setInputTextModel(e.target.value)}
-                  placeholder="gpt-4o-mini"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 font-bold"
-                />
-              </div>
-              <span className="text-[10px] text-slate-500">
-                این مدل برای تولید و بررسی نوشته‌های وبلاگ استفاده می‌شود.
-              </span>
-            </div>}
 
             <div className="space-y-1.5">
               <label htmlFor={`${fieldId}-image-model`} className="block text-xs font-bold text-slate-700">
-                {purpose === 'blog' ? 'مدل تولید تصویر شاخص مطلب:' : 'مدل تولید عکس هوش مصنوعی:'}
+                مدل تولید عکس هوش مصنوعی:
               </label>
               <div className="relative">
                 <input
