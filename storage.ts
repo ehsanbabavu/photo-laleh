@@ -61,7 +61,7 @@ export async function readDb(): Promise<any> {
   });
 }
 
-export async function writeDb(state: any): Promise<void> {
+export async function writeDb(state: any, options?: { atomic?: boolean }): Promise<void> {
   await postgres.withStorageWriteLease(async (provider, db) => {
     const snapshotProvider = readProviderSnapshot(state);
     if (snapshotProvider && snapshotProvider !== provider) {
@@ -69,7 +69,7 @@ export async function writeDb(state: any): Promise<void> {
     }
 
     if (provider === 'postgres') return postgres.writeDb(requirePostgres(db), state);
-    return mongo.writeDb(state);
+    return mongo.writeDb(state, options);
   });
 }
 

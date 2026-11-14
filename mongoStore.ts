@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, Db, type ClientSession } from 'mongodb';
 import { INITIAL_DB } from './seedData';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -426,7 +426,7 @@ export async function readDb(): Promise<any> {
   return stateCache;
 }
 
-export async function writeDb(state: any): Promise<void> {
+export async function writeDb(state: any, options?: { atomic?: boolean }): Promise<void> {
   const db = await getDb();
   if (!db) {
     stateCache = state;
@@ -434,39 +434,53 @@ export async function writeDb(state: any): Promise<void> {
     return;
   }
 
-  for (const name of ARRAY_COLLECTIONS as readonly ArrayCollection[]) {
-    const nextItems: any[] = Array.isArray(state[name]) ? state[name] : [];
-    const stored = signatures[name] || new Map<string, string>();
-    const nextIds = new Set<string>();
+  const persist = async (session?: ClientSession) => {
+    for (const name of ARRAY_COLLECTIONS as readonly ArrayCollection[]) {
+      const nextItems: any[] = Array.isArray(state[name]) ? state[name] : [];
+      const stored = signatures[name] || new Map<string, string>();
+      const nextIds = new Set<string>();
 
-    const operations: any[] = [];
-    for (const item of nextItems) {
-      if (!item || item.id === undefined) continue;
-      const id = String(item.id);
-      nextIds.add(id);
-      const hash = hashDoc(item);
-      if (stored.get(id) !== hash) {
-        const replacement = { ...item };
-        delete replacement._id;
-        operations.push({ replaceOne: { filter: { id: item.id }, replacement, upsert: true } });
+      const operations: any[] = [];
+      for (const item of nextItems) {
+        if (!item || item.id === undefined) continue;
+        const id = String(item.id);
+        nextIds.add(id);
+        const hash = hashDoc(item);
+        if (stored.get(id) !== hash) {
+          const replacement = { ...item };
+          delete replacement._id;
+          operations.push({ replaceOne: { filter: { id: item.id }, replacement, upsert: true } });
+        }
+      }
+      for (const id of stored.keys()) {
+        if (!nextIds.has(id)) {
+          operations.push({ deleteOne: { filter: { id } } });
+        }
+      }
+
+      if (operations.length) {
+        await db.collection(name).bulkWrite(operations, { ordered: false, ...(session ? { session } : {}) });
       }
     }
-    for (const id of stored.keys()) {
-      if (!nextIds.has(id)) {
-        operations.push({ deleteOne: { filter: { id } } });
+
+    for (const name of SINGLETON_COLLECTIONS as readonly SingletonCollection[]) {
+      const nextValue = state[name] || {};
+      if (signatures[name]?.get('main') !== hashDoc(nextValue)) {
+        await db.collection(name).replaceOne({ _id: 'main' as any }, { ...nextValue }, { upsert: true, ...(session ? { session } : {}) });
       }
     }
-
-    if (operations.length) {
-      await db.collection(name).bulkWrite(operations, { ordered: false });
+  };
+  if (options?.atomic) {
+    const client = globalCache.__lalehMongo?.client;
+    if (!client) throw new Error('اتصال MongoDB در دسترس نیست');
+    const session = client.startSession();
+    try {
+      await session.withTransaction(() => persist(session));
+    } finally {
+      await session.endSession();
     }
-  }
-
-  for (const name of SINGLETON_COLLECTIONS as readonly SingletonCollection[]) {
-    const nextValue = state[name] || {};
-    if (signatures[name]?.get('main') !== hashDoc(nextValue)) {
-      await db.collection(name).replaceOne({ _id: 'main' as any }, { ...nextValue }, { upsert: true });
-    }
+  } else {
+    await persist();
   }
 
   stateCache = state;

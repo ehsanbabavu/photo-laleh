@@ -46,6 +46,7 @@ import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/or
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
 import { getPaidBluPalTransactions } from './src/utils/bluPalTransactions';
 import type { DeletionChannel } from './src/types';
+import { canMergeEitaaAccount, mergeEitaaAccount } from './phoneAccountMerge';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1734,6 +1735,10 @@ app.post('/api/auth/login/otp', async (req, res) => {
   res.json({ success: true, user: sanitizeUser(user) });
 });
 
+function profilePhoneOtpKey(userId: string, phone: string): string {
+  return `profile-phone:${crypto.createHash('sha256').update(JSON.stringify([userId, phone])).digest('hex')}`;
+}
+
 app.post('/api/auth/phone/otp/request', async (req: any, res) => {
   try {
     const userId = String(req.currentUser?.id || '');
@@ -1745,10 +1750,12 @@ app.post('/api/auth/phone/otp/request', async (req: any, res) => {
     }
 
     const db = await readDb();
+    const currentUser = (db.users || []).find((user: any) => user.id === userId);
+    if (!currentUser) return res.status(401).json({ success: false, error: 'حساب کاربری یافت نشد' });
     const phoneOwner = (db.users || []).find(
       (user: any) => user.id !== userId && normalizeIranianPhone(user.phone) === phone
     );
-    if (phoneOwner) {
+    if (phoneOwner && !canMergeEitaaAccount(currentUser, phoneOwner)) {
       return res.status(409).json({ success: false, error: 'این شماره موبایل قبلاً برای حساب دیگری ثبت شده است.' });
     }
 
@@ -1761,7 +1768,7 @@ app.post('/api/auth/phone/otp/request', async (req: any, res) => {
       return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
 
-    const sent = await sendOtpSms(phone);
+    const sent = await sendOtpSms(phone, profilePhoneOtpKey(userId, phone));
     if (!sent.ok) {
       return res.status(400).json({ success: false, error: sent.error });
     }
@@ -1794,20 +1801,43 @@ app.post('/api/auth/phone/otp/verify', async (req: any, res) => {
       return res.status(429).json({ success: false, error: 'تلاش‌های تأیید بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
 
-    const db = await readDb();
-    const currentUser = (db.users || []).find((user: any) => user.id === userId);
+    let db = await readDb();
+    let currentUser = (db.users || []).find((user: any) => user.id === userId);
     if (!currentUser) return res.status(401).json({ success: false, error: 'حساب کاربری یافت نشد' });
 
-    const phoneOwner = (db.users || []).find(
+    let phoneOwner = (db.users || []).find(
       (user: any) => user.id !== userId && normalizeIranianPhone(user.phone) === phone
     );
-    if (phoneOwner) {
+    if (phoneOwner && !canMergeEitaaAccount(currentUser, phoneOwner)) {
       return res.status(409).json({ success: false, error: 'این شماره موبایل قبلاً برای حساب دیگری ثبت شده است.' });
     }
 
-    const verification = await verifyOtpCode(phone, code);
+    const verification = await verifyOtpCode(profilePhoneOtpKey(userId, phone), code);
     if (!verification.ok) {
       return res.status(400).json({ success: false, error: verification.error });
+    }
+
+    // Recheck ownership after the asynchronous verification using a fresh snapshot.
+    db = await readDb();
+    currentUser = (db.users || []).find((user: any) => user.id === userId);
+    if (!currentUser) return res.status(401).json({ success: false, error: 'حساب کاربری یافت نشد' });
+    phoneOwner = (db.users || []).find((user: any) => user.id !== userId && normalizeIranianPhone(user.phone) === phone);
+    if (phoneOwner) {
+      if (!canMergeEitaaAccount(currentUser, phoneOwner)) {
+        return res.status(409).json({ success: false, error: 'ادغام این حساب‌ها ممکن نیست. با پشتیبانی تماس بگیرید.' });
+      }
+      const merged = mergeEitaaAccount(db, currentUser, phoneOwner, phone);
+      const token = await createSession(merged.user.id, undefined, sessionMeta(req));
+      if (!token) return res.status(503).json({ success: false, error: 'ایجاد نشست حساب ناموفق بود. دوباره تلاش کنید.' });
+      try {
+        await writeDb(merged.db, { atomic: true });
+      } catch (error) {
+        await deleteSession(token);
+        throw error;
+      }
+      await deleteUserSessions(userId);
+      setSessionCookie(res, token);
+      return res.json({ success: true, user: sanitizeUser(merged.user), merged: true });
     }
 
     const updatedUser = {
