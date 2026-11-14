@@ -33,6 +33,7 @@ export interface RouteInfo {
 export function parseRoute(pathname: string, search = ''): RouteInfo {
   const parts = (pathname || '/').split('/').filter(Boolean);
   if (parts[0] === 'admin') {
+    if (parts[1] === 'all-setting') return { view: 'admin', tab: 'storage' };
     if (parts[1] === 'posts') {
       const section = parts[2] || new URLSearchParams(search).get('section') || 'list';
       return { view: 'admin', tab: adminPostSectionPage(section)?.tab || 'posts' };
@@ -49,6 +50,7 @@ export function parseRoute(pathname: string, search = ''): RouteInfo {
 
 export function routeToPath(view: AppView, tab: string): string {
   if (view === 'admin') {
+    if (tab === 'storage') return '/admin/all-setting';
     const page = adminPostPage(tab);
     if (page) return page.path;
   }
