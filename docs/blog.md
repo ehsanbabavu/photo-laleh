@@ -41,6 +41,10 @@ The blog rewrite uses `/blog/(.*)` to preserve trailing slashes and nested archi
 
 ## Storage and backups
 
+Published article pages show a Persian-formatted view count beside the author, date and reading time. Each GET of the canonical article URL records one view, including reloads; HEAD requests, redirects, archives, missing/unpublished articles and administrator previews do not. Counts are page loads, not unique visitors, and existing articles start at zero because historical views were not recorded.
+
+The count uses the existing revision-based compare-and-set storage, so concurrent visits and edits preserve it without changing the article's edit version or modification date. Editing ignores client-supplied counts, duplicates start at zero, and blog/site backups preserve counts. Older backups without a count restore it as zero. If a count write fails, the article still renders with its last saved count.
+
 Blog data is stored separately from ordinary application state: MongoDB `blog_cms` (`_id: main`) or PostgreSQL `laleh_app_records` (`collection: __blog_cms`, `recordId: main`). Writes require a durable database and use revision-based compare-and-set. Provider migration copies and verifies blog data along with other operational data; no schema migration is needed.
 
 The blog supports a maximum 12 MiB state and 200,000 characters per article. Images are stored externally. Blog settings offer JSON export/import; imports are validated, sanitized and applied atomically within blog storage. Full-site backups also include a `blog` field. Restoring an older site backup without that field preserves existing blog data. Full-site state and blog restoration are separate writes, not a cross-store transaction.

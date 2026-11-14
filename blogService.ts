@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import sanitizeHtml from 'sanitize-html';
-import { emptyBlogState, isBlogPublished, type BlogState, type BlogPost } from './src/types/blog';
+import { emptyBlogState, isBlogPublished, normalizeBlogViewCount, type BlogState, type BlogPost } from './src/types/blog';
 import { blogSlug, safeBlogUrl } from './src/utils/blogContent';
 
 export class BlogError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -29,7 +29,10 @@ export function validateBlogSlug(value: unknown, used: string[] = []) {
 }
 type BlogDependencies = { read: () => Promise<BlogState | null>; compareAndSet: (revision: number, next: BlogState) => Promise<boolean> };
 export function createBlogService(deps: BlogDependencies) {
-  const read = async () => (await deps.read()) || emptyBlogState();
+  const read = async () => {
+    const state = (await deps.read()) || emptyBlogState();
+    return { ...state, posts: state.posts.map(post => ({ ...post, viewCount: normalizeBlogViewCount(post.viewCount) })) };
+  };
   const mutate = async <T>(change: (state: BlogState) => T) => {
     for (let attempt = 0; attempt < 20; attempt++) {
       const state = structuredClone(await read());
@@ -60,7 +63,7 @@ export function createBlogService(deps: BlogDependencies) {
     const coverImage = safeBlogUrl(raw.coverImage);
     if (raw.coverImage && !coverImage) throw new BlogError(400, 'آدرس تصویر شاخص معتبر نیست.');
     const post: BlogPost = {
-      id: id || newBlogId(), version: (existing?.version || 0) + 1, title, slug, content,
+      id: id || newBlogId(), version: (existing?.version || 0) + 1, viewCount: normalizeBlogViewCount(existing?.viewCount), title, slug, content,
       excerpt: blogText(raw.excerpt || plainBlogText(content), 500), authorName: blogText(raw.authorName || author || state.settings.defaultAuthor, 100),
       status, coverImage, coverAlt: blogText(raw.coverAlt || title, 300), categoryIds: pickIds(raw.categoryIds, state.categories), tagIds: pickIds(raw.tagIds, state.tags),
       featured: raw.featured === true, allowComments: raw.allowComments !== false, seoTitle: blogText(raw.seoTitle, 180), seoDescription: blogText(raw.seoDescription, 320), noIndex: raw.noIndex === true,
@@ -82,7 +85,7 @@ export function createBlogService(deps: BlogDependencies) {
       let slug = `${post.slug}-copy`, suffix = 2;
       const used = new Set(state.posts.flatMap(item => [item.slug, ...item.previousSlugs]));
       while (used.has(slug)) slug = `${post.slug}-copy-${suffix++}`;
-      const copy = { ...structuredClone(post), id: newBlogId(), version: 1, title: `${post.title} (کپی)`, slug, status: 'draft' as const, publishedAt: null,
+      const copy = { ...structuredClone(post), id: newBlogId(), version: 1, viewCount: 0, title: `${post.title} (کپی)`, slug, status: 'draft' as const, publishedAt: null,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), previousSlugs: [], revisions: [], featured: false };
       state.posts.push(copy); return copy;
     }
@@ -99,7 +102,13 @@ export function createBlogService(deps: BlogDependencies) {
       Object.assign(state, restored, { revision }); return { success: true };
     });
   };
-  return { read, mutate, savePost, postAction, restore };
+  const recordView = (id: string) => mutate(state => {
+    const post = state.posts.find(item => item.id === id && isBlogPublished(item));
+    if (!post) throw new BlogError(404, 'نوشته پیدا نشد.');
+    post.viewCount = Math.min(Number.MAX_SAFE_INTEGER, normalizeBlogViewCount(post.viewCount) + 1);
+    return post;
+  });
+  return { read, mutate, savePost, postAction, restore, recordView };
 }
 export function normalizeBlogSnapshot(raw: any): BlogState {
   if (!raw || !['posts', 'categories', 'tags', 'media', 'comments'].every(key => Array.isArray(raw[key])) || !raw.settings) throw new BlogError(400, 'ساختار پشتیبان وبلاگ معتبر نیست.');
@@ -124,7 +133,7 @@ export function normalizeBlogSnapshot(raw: any): BlogState {
     if (!post?.title || !Number.isSafeInteger(post.version) || post.version < 1 || !['draft', 'published', 'scheduled', 'trash'].includes(post?.status) || (['published', 'scheduled'].includes(post.status) && !validDate(post.publishedAt))) throw new BlogError(400, 'نوشته‌های پشتیبان معتبر نیست.');
     const coverImage = safeBlogUrl(post.coverImage); if (post.coverImage && !coverImage) throw new BlogError(400, 'تصویر پشتیبان معتبر نیست.');
     const pick = (ids: any, list: { id: string }[]) => Array.isArray(ids) ? [...new Set(ids.filter(value => list.some(item => item.id === value)))] as string[] : [];
-    return { id: id(post.id), version: Math.max(1, Number(post.version) || 1), title: blogText(post.title, 180), slug, previousSlugs,
+    return { id: id(post.id), version: Math.max(1, Number(post.version) || 1), viewCount: normalizeBlogViewCount(post.viewCount), title: blogText(post.title, 180), slug, previousSlugs,
       content: sanitizeBlogContent(post.content || ''), excerpt: blogText(post.excerpt, 500), authorName: blogText(post.authorName, 100), status: post.status,
       coverImage, coverAlt: blogText(post.coverAlt || post.title, 300), categoryIds: pick(post.categoryIds, state.categories), tagIds: pick(post.tagIds, state.tags),
       featured: post.featured === true, allowComments: post.allowComments !== false, noIndex: post.noIndex === true, seoTitle: blogText(post.seoTitle, 180), seoDescription: blogText(post.seoDescription, 320),

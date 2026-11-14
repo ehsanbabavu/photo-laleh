@@ -3,7 +3,7 @@ export interface BlogTaxon { id: string; name: string; slug: string; description
 export interface BlogMedia { id: string; url: string; title: string; alt: string; createdAt: string }
 export interface BlogRevision { id: string; savedAt: string; title: string; content: string; excerpt: string }
 export interface BlogPost {
-  id: string; version: number; title: string; slug: string; excerpt: string; content: string;
+  id: string; version: number; viewCount: number; title: string; slug: string; excerpt: string; content: string;
   status: BlogStatus; authorName: string; coverImage: string; coverAlt: string;
   categoryIds: string[]; tagIds: string[]; featured: boolean; allowComments: boolean;
   seoTitle: string; seoDescription: string; noIndex: boolean;
@@ -28,3 +28,5 @@ export const emptyBlogState = (): BlogState => ({ revision: 0, posts: [], catego
 export const isBlogPublished = (post: BlogPost, now = Date.now()) =>
   (post.status === 'published' || post.status === 'scheduled') && !!post.publishedAt && Date.parse(post.publishedAt) <= now;
 export const blogPostPath = (slug: string) => `/blog/${encodeURIComponent(slug)}/`;
+export const normalizeBlogViewCount = (value: unknown): number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;

@@ -162,13 +162,20 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
   router.get('/blog/category/:slug', list('category')); router.get('/blog/tag/:slug', list('tag'));
   router.get('/blog/:slug', handle(async (req, res) => {
     const state = await blog.read(); const posts = publicBlogPosts(state);
-    const post = posts.find(item => item.slug === req.params.slug);
+    let post = posts.find(item => item.slug === req.params.slug);
     if (!post) {
       const moved = posts.find(item => item.previousSlugs.includes(req.params.slug));
       if (moved) return res.redirect(301, blogPostPath(moved.slug));
       return res.status(404).type('html').send(await blogHtml(state, { missing: true }));
     }
     if (!req.path.endsWith('/')) return res.redirect(301, blogPostPath(post.slug));
+    if (req.method === 'GET') {
+      try { post = await blog.recordView(post.id); }
+      catch (error) {
+        if (error instanceof BlogError && error.status === 404) return res.status(404).type('html').send(await blogHtml(state, { missing: true }));
+        console.warn('Could not record blog view for post', post.id);
+      }
+    }
     res.type('html').send(await blogHtml(state, { post }));
   }));
   router.use('/blog', handle(async (_req, res) => res.status(404).type('html').send(await blogHtml(await blog.read(), { missing: true }))));

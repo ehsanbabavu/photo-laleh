@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { blogPostPath, type BlogState, type BlogPost } from './src/types/blog';
+import { blogPostPath, normalizeBlogViewCount, type BlogState, type BlogPost } from './src/types/blog';
 import { escapeHtml as e } from './src/utils/blogContent';
 import { publicBlogPosts, sanitizeBlogContent, plainBlogText, blogCategoryIds } from './blogService';
 
@@ -38,7 +38,7 @@ export async function blogHtml(state: BlogState, options: { post?: BlogPost; pos
     content = `<article class="blog-article">${preview ? '<p class="blog-preview">پیش‌نمایش مدیر — این صفحه برای موتورهای جست‌وجو قابل ایندکس نیست.</p>' : ''}
       <nav class="blog-breadcrumb" aria-label="مسیر صفحه"><a href="/">خانه</a> / <a href="/blog/">وبلاگ</a> / <span>${e(post.title)}</span></nav>
       <div class="blog-eyebrow">${categories.map(taxon => `<a href="${taxPath('category', taxon.slug)}">${e(taxon.name)}</a>`).join(' · ')}</div>
-      <h1>${e(post.title)}</h1><p class="blog-lead">${e(post.excerpt)}</p><div class="blog-meta">${e(post.authorName)} · ${e(date(post.publishedAt || post.updatedAt))} · ${Math.max(1, Math.ceil(plainBlogText(post.content).split(/\s+/).length / 200)).toLocaleString('fa-IR')} دقیقه مطالعه</div>
+      <h1>${e(post.title)}</h1><p class="blog-lead">${e(post.excerpt)}</p><div class="blog-meta">${e(post.authorName)} · ${e(date(post.publishedAt || post.updatedAt))} · ${Math.max(1, Math.ceil(plainBlogText(post.content).split(/\s+/).length / 200)).toLocaleString('fa-IR')} دقیقه مطالعه · <span class="blog-views">${normalizeBlogViewCount(post.viewCount).toLocaleString('fa-IR')} بازدید</span></div>
       ${post.coverImage ? `<img class="blog-cover" src="${e(post.coverImage)}" alt="${e(post.coverAlt)}" fetchpriority="high">` : ''}
       <div class="blog-prose">${sanitizeBlogContent(post.content)}</div>
       ${tags.length ? `<div class="blog-tags"><span>برچسب‌ها:</span> ${tags.map(taxon => `<a class="blog-chip" href="${taxPath('tag', taxon.slug)}">${e(taxon.name)}</a>`).join('')}</div>` : ''}
