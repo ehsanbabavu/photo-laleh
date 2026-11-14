@@ -14,6 +14,7 @@ export const ADMIN_TABS = [
   'prompts_manager',
   'orders',
   'transactions',
+  'invoices',
   'tickets',
   'users',
   'chatgpt',

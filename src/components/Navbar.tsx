@@ -76,6 +76,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       badgeStyle: null
     },
     {
+      id: 'invoices' as AdminTab,
+      label: 'فاکتورها',
+      icon: Receipt,
+      badge: null,
+      badgeStyle: null
+    },
+    {
       id: 'announcements' as AdminTab,
       label: 'مدیریت اطلاعیه‌ها',
       icon: Volume2,

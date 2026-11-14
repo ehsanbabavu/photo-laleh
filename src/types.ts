@@ -378,6 +378,24 @@ export interface AvalAiSettings {
   aiEnabled: boolean;
 }
 
+export type IssuedInvoiceStatus = 'pending' | 'paid' | 'expired' | 'failed' | 'canceled' | 'unknown';
+
+export interface IssuedInvoice {
+  id: string;
+  invoiceId: string;
+  userId: string;
+  customerName: string;
+  customerPhone: string;
+  orderId: string;
+  orderTrackingCode: string;
+  amountRial: number | null;
+  status: IssuedInvoiceStatus;
+  createdAt: string;
+  expiresAt: string;
+  paidAt: string;
+  referenceCode: string;
+}
+
 export interface BluPalTransaction {
   id: string;
   invoiceId: string;

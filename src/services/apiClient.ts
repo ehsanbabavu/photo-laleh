@@ -4,6 +4,7 @@
 
 import { Order, SupportTicket, Announcement, PrintTypeOption, PrintDimension, User, DeliveryMethod, PrintImageKey, LostOrder, BluPalTransaction, DeletionChannel, DeletionCodeDelivery } from '../types';
 import type { AvalAiSettings } from '../types';
+import type { IssuedInvoice } from '../types';
 
 export const apiClient = {
   async getAllDb() {
@@ -366,6 +367,13 @@ export const apiClient = {
     } catch (err: any) {
       return { success: false, message: err.message || 'خطا در شبکه' };
     }
+  },
+
+  async getIssuedInvoices(): Promise<IssuedInvoice[]> {
+    const res = await fetch('/api/admin/invoices', { cache: 'no-store' });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !Array.isArray(data)) throw new Error(data?.error || 'دریافت فاکتورها ناموفق بود.');
+    return data;
   },
 
   async getBluPalTransactions(): Promise<BluPalTransaction[]> {
