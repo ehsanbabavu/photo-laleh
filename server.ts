@@ -40,7 +40,7 @@ import { readBlogState, compareAndSetBlogState } from './storage';
 import { createBlogRouter } from './blogRoutes';
 import { createBlogService, normalizeBlogSnapshot, BlogError } from './blogService';
 import { emptyBlogState } from './src/types/blog';
-import { normalizeAvalAiSettingsPatch } from './blogAiGeneration';
+import { normalizeAvalAiSettingsPatch, resolveAvalAiConnection, requestAvalAi } from './blogAiGeneration';
 import { createMaintenanceQueue, maintenanceQueueSummary, type MaintenanceTick } from './maintenanceQueue';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
@@ -265,6 +265,7 @@ function isHashedPassword(value: string | undefined | null): boolean {
 
 const SECRET_SETTING_KEYS = [
   'avalaiApiKey',
+  'avalaiBlogApiKey',
   'blupalToken',
   'eitaaToken',
   'blupalWebhookSecret',
@@ -2611,6 +2612,27 @@ app.delete('/api/announcements/:id', async (req, res) => {
 });
 
 // Settings APIs
+app.post('/api/settings/ai-test', async (req, res) => {
+  try {
+    const purpose = req.body?.purpose;
+    if (purpose !== 'blog' && purpose !== 'orders') throw new BlogError(400, 'نوع تنظیمات هوش مصنوعی معتبر نیست.');
+    const db = await readDb();
+    const patch = normalizeAvalAiSettingsPatch({
+      [purpose === 'blog' ? 'avalaiBlogApiKey' : 'avalaiApiKey']: req.body?.apiKey ?? '',
+      [purpose === 'blog' ? 'avalaiBlogBaseUrl' : 'avalaiBaseUrl']: req.body?.baseUrl ?? '',
+      avalaiTextModel: req.body?.textModel ?? 'gpt-4o-mini'
+    });
+    const config = { ...resolveAvalAiConnection({ ...db.settings, ...patch }, purpose === 'blog'),
+      textModel: patch.avalaiTextModel as string, imageModel: '' };
+    await requestAvalAi(config, '/chat/completions', { model: config.textModel,
+      messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }, 'متن');
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(error instanceof BlogError ? error.status : 503).json({ success: false,
+      error: { message: error instanceof BlogError ? error.message : 'تست اتصال به هوش مصنوعی انجام نشد.' } });
+  }
+});
+
 app.get('/api/settings', async (req: any, res) => {
   const [db, maintenance] = await Promise.all([readDb(), readMaintenanceQueue()]);
   res.json(sanitizeSettings({ ...db.settings, maintenanceMode: maintenance?.enabled ?? db.settings?.maintenanceMode === true }, req.currentUser?.role === 'admin'));
