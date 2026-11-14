@@ -196,6 +196,8 @@ export default function App() {
 
   // AvalAI Base URL state (https://api.avalai.ir/v1)
   const [avalaiBaseUrl, setAvalaiBaseUrl] = useState<string>('https://api.avalai.ir/v1');
+  const [avalaiBlogApiKey, setAvalaiBlogApiKey] = useState('');
+  const [avalaiBlogBaseUrl, setAvalaiBlogBaseUrl] = useState('');
 
   // Active Image Generation Model (gpt-image-2.5-sunburst)
   const [avalaiModel, setAvalaiModel] = useState<string>('gpt-image-2.5-sunburst');
@@ -413,6 +415,8 @@ export default function App() {
           setAnnouncements(data.announcements);
         }
         if (data.settings) {
+          setAvalaiBlogApiKey(data.settings.avalaiBlogApiKey || '');
+          setAvalaiBlogBaseUrl(data.settings.avalaiBlogBaseUrl || '');
           if (data.settings.avalaiApiKey) {
             setAvalaiApiKey(data.settings.avalaiApiKey);
           }
@@ -488,6 +492,8 @@ export default function App() {
     const saved = await apiClient.saveAiSettings(settings);
     setAvalaiApiKey(saved.avalaiApiKey);
     setAvalaiBaseUrl(saved.avalaiBaseUrl);
+    setAvalaiBlogApiKey(saved.avalaiBlogApiKey || '');
+    setAvalaiBlogBaseUrl(saved.avalaiBlogBaseUrl || '');
     setAvalaiModel(saved.avalaiModel);
     setAvalaiTextModel(saved.avalaiTextModel);
     setAiEnabled(saved.aiEnabled);
@@ -1135,7 +1141,7 @@ export default function App() {
                 />
               )}
               {adminTab === 'posts_ai_settings' && <AdminBlogAiSettings
-                settings={{ avalaiApiKey, avalaiBaseUrl, avalaiModel, avalaiTextModel, aiEnabled }}
+                settings={{ avalaiApiKey, avalaiBaseUrl, avalaiBlogApiKey, avalaiBlogBaseUrl, avalaiModel, avalaiTextModel, aiEnabled }}
                 onSaveSettings={handleSaveAvalaiSettings} onUpdateAiEnabled={handleUpdateAiEnabled}
                 onBack={() => navigateAdminPost('list')}
                 onPublished={post => navigateAdminPost('write', post.id)} onNavigationGuardChange={onAdminNavigationGuardChange} />}

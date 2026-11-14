@@ -41,7 +41,8 @@ export default function AdminBlogAiSettings({ settings, onSaveSettings, onUpdate
       <button type="button" onClick={onBack} disabled={generating || savingSettings} className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs disabled:opacity-50"><ArrowRight className="h-4 w-4" />همه نوشته‌ها</button>
     </header>
     <div className={generating ? 'pointer-events-none opacity-60' : undefined} inert={generating}>
-      <ChatGPTConnect purpose="blog" apiKey={settings.avalaiApiKey} baseUrl={settings.avalaiBaseUrl}
+      <ChatGPTConnect purpose="blog" apiKey={settings.avalaiBlogApiKey || ''} baseUrl={settings.avalaiBlogBaseUrl || ''}
+        fallbackBaseUrl={settings.avalaiBaseUrl}
         model={settings.avalaiModel} textModel={settings.avalaiTextModel} aiEnabled={settings.aiEnabled}
         onSaveSettings={onSaveSettings} onUpdateAiEnabled={onUpdateAiEnabled} onBusyChange={setSavingSettings} />
     </div>

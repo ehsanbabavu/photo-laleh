@@ -18,6 +18,7 @@ interface ChatGPTConnectProps {
   apiKey?: string;
   onUpdateApiKey?: (key: string) => void;
   baseUrl?: string;
+  fallbackBaseUrl?: string;
   onUpdateBaseUrl?: (url: string) => void;
   model?: string;
   onUpdateModel?: (model: string) => void;
@@ -39,6 +40,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   apiKey = '',
   onUpdateApiKey,
   baseUrl = 'https://api.avalai.ir/v1',
+  fallbackBaseUrl = 'https://api.avalai.ir/v1',
   onUpdateBaseUrl,
   model = 'gpt-image-2.5-sunburst',
   onUpdateModel,
@@ -54,7 +56,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 }) => {
   const fieldId = useId();
   const currentKey = apiKey || (openaiTokens && openaiTokens[0]) || '';
-  const currentBaseUrl = baseUrl || openaiBaseUrl || 'https://api.avalai.ir/v1';
+  const currentBaseUrl = purpose === 'blog' ? baseUrl : baseUrl || openaiBaseUrl || 'https://api.avalai.ir/v1';
 
   const [inputKey, setInputKey] = useState(currentKey);
   const [inputBaseUrl, setInputBaseUrl] = useState(currentBaseUrl);
@@ -72,13 +74,13 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   useEffect(() => { onBusyChange?.(saving || testStatus === 'testing'); }, [saving, testStatus, onBusyChange]);
 
   useEffect(() => {
-    if (apiKey) setInputKey(apiKey);
+    if (purpose === 'blog' || apiKey) setInputKey(apiKey);
     else if (openaiTokens && openaiTokens[0]) setInputKey(openaiTokens[0]);
-  }, [apiKey, openaiTokens]);
+  }, [apiKey, openaiTokens, purpose]);
 
   useEffect(() => {
-    if (baseUrl) setInputBaseUrl(baseUrl);
-  }, [baseUrl]);
+    if (purpose === 'blog' || baseUrl) setInputBaseUrl(baseUrl);
+  }, [baseUrl, purpose]);
 
   useEffect(() => {
     if (model) setInputModel(model);
@@ -114,7 +116,9 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 
     try {
       if (onSaveSettings) {
-        await onSaveSettings({ avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl,
+        await onSaveSettings({ ...(purpose === 'blog'
+          ? { avalaiBlogApiKey: trimmedKey, avalaiBlogBaseUrl: trimmedUrl }
+          : { avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl }),
           avalaiModel: trimmedModel, ...(purpose === 'blog' ? { avalaiTextModel: trimmedTextModel } : {}), aiEnabled: isAiEnabled });
       } else {
         if (onUpdateApiKey) await onUpdateApiKey(trimmedKey);
@@ -140,9 +144,9 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   // Test AvalAI API Connection
   const handleTestConnection = async () => {
     const cleanKey = inputKey.trim();
-    const cleanUrl = inputBaseUrl.trim().replace(/\/$/, '');
+    const cleanUrl = inputBaseUrl.trim().replace(/\/+$/, '');
 
-    if (!cleanKey) {
+    if (!cleanKey && purpose !== 'blog') {
       setTestStatus('invalid');
       setStatusMessage('لطفاً کلید API را وارد کنید.');
       return;
@@ -152,16 +156,13 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     setStatusMessage('در حال برقراری ارتباط با سرور AvalAI...');
 
     try {
-      const response = await fetch(`${cleanUrl}/chat/completions`, {
+      const response = await fetch('/api/settings/ai-test', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${cleanKey}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: inputTextModel.trim() || 'gpt-4o-mini',
-          messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 5
+          purpose, apiKey: cleanKey, baseUrl: cleanUrl, textModel: inputTextModel.trim() || 'gpt-4o-mini'
         })
       });
 
@@ -197,7 +198,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
           <Key className="w-5 h-5 text-teal-600" />
           <span>{purpose === 'blog' ? 'اتصال و مدل‌های تولید مطلب' : 'پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)'}</span>
         </div>
-        {purpose === 'blog' && <p className="text-xs leading-6 text-slate-500">کلید دسترسی، اتصال، مدل تصویر و روشن یا خاموش بودن سرویس با پردازش عکس سفارش‌ها مشترک است. مدل متن از این صفحه تنظیم می‌شود.</p>}
+        {purpose === 'blog' && <p className="text-xs leading-6 text-slate-500">کلید دسترسی و آدرس پایهٔ تولید مطلب از این صفحه خوانده می‌شوند. هر کادر که خالی باشد، از مقدار تنظیمات ChatGPT استفاده می‌کند. مدل تصویر و روشن یا خاموش بودن سرویس با پردازش عکس سفارش‌ها مشترک است.</p>}
 
         {/* Master AI On/Off Toggle Switch */}
         <div className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -264,7 +265,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 value={inputKey}
                 disabled={saving || testStatus === 'testing'}
                 onChange={(e) => setInputKey(e.target.value)}
-                placeholder="aa-proj-................................................"
+                placeholder={purpose === 'blog' ? 'خالی = کلید تنظیمات ChatGPT' : 'aa-proj-................................................'}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 pr-10 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 shadow-xs"
               />
               <button
@@ -336,10 +337,10 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 value={inputBaseUrl}
                 disabled={saving || testStatus === 'testing'}
                 onChange={(e) => setInputBaseUrl(e.target.value)}
-                placeholder="https://api.avalai.ir/v1"
+                placeholder={purpose === 'blog' ? fallbackBaseUrl : 'https://api.avalai.ir/v1'}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500"
               />
-              <span className="text-[10px] text-slate-500">پیش‌فرض رسمی: https://api.avalai.ir/v1</span>
+              <span className="text-[10px] text-slate-500">{purpose === 'blog' ? `پیش‌فرض از تنظیمات ChatGPT: ${fallbackBaseUrl}` : 'پیش‌فرض رسمی: https://api.avalai.ir/v1'}</span>
             </div>
 
             {purpose === 'blog' && <div className="space-y-1.5">

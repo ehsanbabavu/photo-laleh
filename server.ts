@@ -40,7 +40,7 @@ import { readBlogState, compareAndSetBlogState } from './storage';
 import { createBlogRouter } from './blogRoutes';
 import { createBlogService, normalizeBlogSnapshot, BlogError } from './blogService';
 import { emptyBlogState } from './src/types/blog';
-import { normalizeAvalAiSettingsPatch } from './blogAiGeneration';
+import { normalizeAvalAiSettingsPatch, resolveAvalAiConnection, requestAvalAi } from './blogAiGeneration';
 import { createMaintenanceQueue, maintenanceQueueSummary, type MaintenanceTick } from './maintenanceQueue';
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
@@ -267,6 +267,7 @@ function isHashedPassword(value: string | undefined | null): boolean {
 
 const SECRET_SETTING_KEYS = [
   'avalaiApiKey',
+  'avalaiBlogApiKey',
   'blupalToken',
   'eitaaToken',
   'blupalWebhookSecret',
@@ -559,23 +560,35 @@ app.get('/api/storage/files', async (req: any, res) => {
       for (const blob of page.blobs || []) files.push(blob);
       cursor = page.hasMore ? page.cursor : undefined;
     } while (cursor && files.length < 10000);
-    const db = await readDb();
-    const galleryUrls = new Set((Array.isArray(db.settings?.landingGallery) ? db.settings.landingGallery : []).map((item: any) => String(item?.src || item?.url || item || '')));
+    const [db, blog] = await Promise.all([readDb(), readBlogState()]);
+    const assetUrl = (value: unknown) => String(value || '').split(/[?#]/)[0];
+    const galleryUrls = new Set((Array.isArray(db.settings?.landingGallery) ? db.settings.landingGallery : []).map((item: any) => assetUrl(item?.src || item?.url || item)));
     const serviceImageUrls = new Set<string>();
     for (const printType of Array.isArray(db.printTypes) ? db.printTypes : []) {
       for (const value of [printType?.sampleImage, printType?.cardBgImage]) {
-        if (typeof value === 'string' && value) serviceImageUrls.add(value);
+        if (typeof value === 'string' && value) serviceImageUrls.add(assetUrl(value));
       }
     }
+    const blogImageUrls = new Set((blog?.media || []).map((item) => assetUrl(item.url)));
+    if (blog?.settings?.seoImage) blogImageUrls.add(assetUrl(blog.settings.seoImage));
+    for (const post of blog?.posts || []) {
+      if (post.coverImage) blogImageUrls.add(assetUrl(post.coverImage));
+    }
+    const blogContents = (blog?.posts || []).flatMap((post) => [
+      post.content, ...(post.revisions || []).map((revision) => revision.content)
+    ]).join('\n').replace(/&amp;/g, '&');
     res.json({
       success: true,
       files: files.filter((file) => {
-        const url = String(file.url || '');
+        const url = assetUrl(file.url);
         const pathname = String(file.pathname || '');
+        const assetPath = (pathname || url.replace(/^https?:\/\/[^/]+\//i, '')).replace(/^\/+/, '');
+        const isSiteAsset = /^(?:gallery|service-cards|blog)\//i.test(assetPath);
         const isGallery = galleryUrls.has(url);
         const isServiceImage = serviceImageUrls.has(url);
+        const isBlogImage = blogImageUrls.has(url) || Boolean(url && blogContents.includes(url));
         const isLicenseAsset = /(?:legal-qr|license|مجوز)/i.test(`${url} ${pathname}`);
-        return !isGallery && !isServiceImage && !isLicenseAsset;
+        return !isSiteAsset && !isGallery && !isServiceImage && !isBlogImage && !isLicenseAsset;
       })
     });
   } catch (err: any) {
@@ -2601,6 +2614,27 @@ app.delete('/api/announcements/:id', async (req, res) => {
 });
 
 // Settings APIs
+app.post('/api/settings/ai-test', async (req, res) => {
+  try {
+    const purpose = req.body?.purpose;
+    if (purpose !== 'blog' && purpose !== 'orders') throw new BlogError(400, 'نوع تنظیمات هوش مصنوعی معتبر نیست.');
+    const db = await readDb();
+    const patch = normalizeAvalAiSettingsPatch({
+      [purpose === 'blog' ? 'avalaiBlogApiKey' : 'avalaiApiKey']: req.body?.apiKey ?? '',
+      [purpose === 'blog' ? 'avalaiBlogBaseUrl' : 'avalaiBaseUrl']: req.body?.baseUrl ?? '',
+      avalaiTextModel: req.body?.textModel ?? 'gpt-4o-mini'
+    });
+    const config = { ...resolveAvalAiConnection({ ...db.settings, ...patch }, purpose === 'blog'),
+      textModel: patch.avalaiTextModel as string, imageModel: '' };
+    await requestAvalAi(config, '/chat/completions', { model: config.textModel,
+      messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }, 'متن');
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(error instanceof BlogError ? error.status : 503).json({ success: false,
+      error: { message: error instanceof BlogError ? error.message : 'تست اتصال به هوش مصنوعی انجام نشد.' } });
+  }
+});
+
 app.get('/api/settings', async (req: any, res) => {
   const [db, maintenance] = await Promise.all([readDb(), readMaintenanceQueue()]);
   res.json(sanitizeSettings({ ...db.settings, maintenanceMode: maintenance?.enabled ?? db.settings?.maintenanceMode === true }, req.currentUser?.role === 'admin'));

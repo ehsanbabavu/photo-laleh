@@ -371,6 +371,8 @@ export interface BluPalInvoice {
 export interface AvalAiSettings {
   avalaiApiKey: string;
   avalaiBaseUrl: string;
+  avalaiBlogApiKey?: string;
+  avalaiBlogBaseUrl?: string;
   avalaiModel: string;
   avalaiTextModel: string;
   aiEnabled: boolean;
