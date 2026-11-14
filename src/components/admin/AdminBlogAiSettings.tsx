@@ -6,10 +6,9 @@ import { blogRequest } from '../../services/blogClient';
 import { ChatGPTConnect } from './ChatGPTConnect';
 import { AiBlogGenerator } from './AiBlogGenerator';
 
-export default function AdminBlogAiSettings({ settings, onSaveSettings, onUpdateAiEnabled, onPublished, onBack, onNavigationGuardChange }: {
+export default function AdminBlogAiSettings({ settings, onSaveSettings, onPublished, onBack, onNavigationGuardChange }: {
   settings: AvalAiSettings;
   onSaveSettings: (settings: Partial<AvalAiSettings>) => Promise<void>;
-  onUpdateAiEnabled: (enabled: boolean) => Promise<void>;
   onPublished: (post: BlogPost) => void;
   onBack: () => void;
   onNavigationGuardChange: (guard: (() => boolean) | null) => void;
@@ -43,7 +42,7 @@ export default function AdminBlogAiSettings({ settings, onSaveSettings, onUpdate
     <div className={generating ? 'pointer-events-none opacity-60' : undefined} inert={generating}>
       <ChatGPTConnect purpose="blog"
         model={settings.avalaiModel} textModel={settings.avalaiTextModel} aiEnabled={settings.aiEnabled}
-        onSaveSettings={onSaveSettings} onUpdateAiEnabled={onUpdateAiEnabled} onBusyChange={setSavingSettings} />
+        onSaveSettings={onSaveSettings} onBusyChange={setSavingSettings} />
     </div>
     {error ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
       <p>{error}</p><button type="button" onClick={() => setReload(value => value + 1)} className="mt-3 rounded-lg border bg-white px-3 py-2 text-xs">تلاش دوباره</button>

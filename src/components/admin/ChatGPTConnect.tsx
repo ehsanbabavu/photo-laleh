@@ -114,8 +114,8 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 
     try {
       if (onSaveSettings) {
-        await onSaveSettings({ ...(purpose === 'orders' ? { avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl } : {}),
-          avalaiModel: trimmedModel, ...(purpose === 'blog' ? { avalaiTextModel: trimmedTextModel } : {}), aiEnabled: isAiEnabled });
+        await onSaveSettings({ ...(purpose === 'orders' ? { avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl, aiEnabled: isAiEnabled } : {}),
+          avalaiModel: trimmedModel, ...(purpose === 'blog' ? { avalaiTextModel: trimmedTextModel } : {}) });
       } else {
         if (purpose === 'orders') {
           if (onUpdateApiKey) await onUpdateApiKey(trimmedKey);
@@ -129,7 +129,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
         }
         if (onUpdateModel) await onUpdateModel(trimmedModel);
         if (purpose === 'blog' && onUpdateTextModel) await onUpdateTextModel(trimmedTextModel);
-        if (onUpdateAiEnabled) await onUpdateAiEnabled(isAiEnabled);
+        if (purpose === 'orders' && onUpdateAiEnabled) await onUpdateAiEnabled(isAiEnabled);
       }
       setSaveMessage('تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.');
       return true;
@@ -190,21 +190,13 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   };
 
   if (purpose === 'blog') {
-    const busy = saving || testStatus === 'testing';
+    const busy = saving;
     return (
       <section data-blog-models-card aria-labelledby={`${fieldId}-title`} className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs sm:p-3">
         <header className="flex items-center justify-between gap-2">
           <h2 id={`${fieldId}-title`} className="flex items-center gap-2 text-sm font-black text-slate-900">
             <Sparkles className="h-4 w-4 text-violet-600" />مدل‌های تولید مطلب
           </h2>
-          <button type="button" role="switch" aria-label="فعال‌سازی سرویس هوش مصنوعی" aria-checked={isAiEnabled}
-            onClick={() => void handleToggleAi()} disabled={busy}
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-1 text-[11px] font-bold disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:min-h-7">
-            <span className={isAiEnabled ? 'text-emerald-700' : 'text-slate-500'}>{isAiEnabled ? 'فعال' : 'خاموش'}</span>
-            <span dir="ltr" className={`relative h-5 w-9 rounded-full transition-colors ${isAiEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}>
-              <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isAiEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
-            </span>
-          </button>
         </header>
         <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3">
           <div className="min-w-0">
@@ -224,11 +216,6 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
           <p className="text-[10px] text-slate-500">اتصال از <a href="/admin/chatgpt" className="font-bold text-teal-700 hover:underline"
             title="کلید و آدرس اتصال از ChatGPT خوانده می‌شوند؛ مدل تصویر و وضعیت سرویس با پردازش عکس مشترک‌اند.">تنظیمات ChatGPT</a></p>
           <div className="flex items-center gap-1.5">
-            <button type="button" aria-label="تست اتصال به AvalAI" onClick={() => void handleTestConnection()} disabled={busy}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:min-h-8">
-              {testStatus === 'testing' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}
-              {testStatus === 'testing' ? 'بررسی…' : 'تست اتصال'}
-            </button>
             <button type="button" aria-label={saving ? 'در حال ذخیره…' : 'ذخیره تنظیمات'} onClick={() => void handleSaveAll()} disabled={busy}
               className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-violet-600 px-3 text-[11px] font-bold text-white hover:bg-violet-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 sm:min-h-8">
               {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -236,7 +223,6 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
             </button>
           </div>
         </footer>
-        {statusMessage && <p role={testStatus === 'invalid' ? 'alert' : 'status'} className={`text-[11px] leading-5 ${testStatus === 'invalid' ? 'text-rose-700' : 'text-slate-500'}`}>{statusMessage}</p>}
         {saveMessage && <p role={saveFailed ? 'alert' : 'status'} className={`text-[11px] leading-5 ${saveFailed ? 'text-rose-700' : 'text-emerald-700'}`}>{saveMessage}</p>}
       </section>
     );

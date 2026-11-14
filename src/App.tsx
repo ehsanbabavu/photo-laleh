@@ -1136,7 +1136,7 @@ export default function App() {
               )}
               {adminTab === 'posts_ai_settings' && <AdminBlogAiSettings
                 settings={{ avalaiApiKey, avalaiBaseUrl, avalaiModel, avalaiTextModel, aiEnabled }}
-                onSaveSettings={handleSaveAvalaiSettings} onUpdateAiEnabled={handleUpdateAiEnabled}
+                onSaveSettings={handleSaveAvalaiSettings}
                 onBack={() => navigateAdminPost('list')}
                 onPublished={post => navigateAdminPost('write', post.id)} onNavigationGuardChange={onAdminNavigationGuardChange} />}
               {adminPostPage(adminTab) && adminTab !== 'posts_ai_settings' && <AdminBlog key={`${adminTab}:${adminPageVersion}`} section={adminPostPage(adminTab)!.section}
