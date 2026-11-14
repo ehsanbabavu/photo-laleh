@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Wand2,
   ZoomIn,
+  Menu,
   X,
   Printer,
   Truck,
@@ -122,6 +123,8 @@ const FAQS = [
 ];
 
 const NAV_LINKS = [
+  { href: '/blog/', label: 'وبلاگ' },
+  { href: '#licenses', label: 'مجوزات' },
   { href: '#services', label: 'خدمات' },
   { href: '#features', label: 'مزیت‌ها' },
   { href: '#steps', label: 'مراحل سفارش' },
@@ -142,6 +145,8 @@ const ENAMAD_SEAL_MAX_RETRIES = 3;
 export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuButton = useRef<HTMLButtonElement>(null);
   const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
   const [dimensions, setDimensions] = useState<PrintDimension[]>([]);
   const [gallerySlides, setGallerySlides] = useState(HERO_SLIDES);
@@ -150,6 +155,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [licenseOpen, setLicenseOpen] = useState(false);
   const [sealSrc, setSealSrc] = useState(ENAMAD_SEAL_SRC);
   const sealRetries = useRef(0);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+        mobileMenuButton.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileMenuOpen]);
 
   // Close the licence lightbox with Esc and lock background scrolling while open
   useEffect(() => {
@@ -214,9 +231,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
     return prices.length > 0 ? Math.min(...prices) : 0;
   }, [printTypes]);
 
-  const goTo = (href: string) => {
-    const target = document.querySelector(href);
-    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const handleNavClick = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    setMobileMenuOpen(false);
+    if (!href.startsWith('#')) return;
+    const target = document.getElementById(href.slice(1));
+    if (target) {
+      event.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   /** The seal host occasionally times out; retry a few times with a fresh URL. */
@@ -253,29 +275,39 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            <nav className="hidden tab:flex items-center gap-1">
-              <a href="/blog/" className="px-3.5 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:text-sky-700 hover:bg-sky-50">وبلاگ</a>
-              <button
-                onClick={() => goTo('#licenses')}
-                className="group hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 me-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 text-[11px] font-black transition-colors cursor-pointer"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>مجوزات</span>
-              </button>
+            <nav aria-label="منوی اصلی دسکتاپ" className="hidden lg:flex items-center gap-1">
               {NAV_LINKS.map((link) => (
-                <button
+                <a
                   key={link.href}
-                  onClick={() => goTo(link.href)}
-                  className="px-3.5 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:text-sky-700 hover:bg-sky-50 transition-colors cursor-pointer"
+                  href={link.href}
+                  onClick={(event) => handleNavClick(event, link.href)}
+                  className={link.href === '#licenses'
+                    ? 'inline-flex items-center gap-1.5 px-3 py-1.5 me-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 text-[11px] font-black transition-colors'
+                    : 'px-3.5 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:text-sky-700 hover:bg-sky-50 transition-colors'}
                 >
+                  {link.href === '#licenses' && <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />}
                   {link.label}
-                </button>
+                </a>
               ))}
             </nav>
-            <a href="/blog/" className="tab:hidden rounded-xl px-3 py-2 text-xs font-bold text-sky-700 bg-sky-50">وبلاگ</a>
+            <button ref={mobileMenuButton} type="button" aria-label="منوی سایت"
+              aria-expanded={mobileMenuOpen} aria-controls="landing-mobile-menu"
+              onClick={() => setMobileMenuOpen(value => !value)}
+              className="lg:hidden flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+              {mobileMenuOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
+            </button>
           </div>
         </div>
-
+        <nav id="landing-mobile-menu" aria-label="منوی اصلی موبایل" hidden={!mobileMenuOpen}
+          className="lg:hidden border-t border-slate-200 bg-white shadow-lg">
+          <div className="grid grid-cols-2 gap-1 px-4 py-3 max-h-[calc(100dvh-4rem)] overflow-y-auto">
+            {NAV_LINKS.map(link => <a key={link.href} href={link.href}
+              onClick={event => handleNavClick(event, link.href)}
+              className="flex min-h-[44px] items-center rounded-xl px-3 py-2 text-sm font-bold text-slate-600 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+              {link.label}
+            </a>)}
+          </div>
+        </nav>
       </header>
 
       {/* ================= HERO ================= */}

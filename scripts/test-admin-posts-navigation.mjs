@@ -29,3 +29,17 @@ test('unknown posts sections fall back to all posts without affecting other rout
   assert.equal(routeToPath('admin', 'orders'), '/admin/orders');
   assert.equal(routeToPath('user', 'orders'), '/user/orders');
 });
+
+test('print management and colleague menu URLs survive reloads and browser history', () => {
+  const pages = [
+    ['admin', 'print_sizes'], ['admin', 'transport'], ['admin', 'partner_invoices'], ['admin', 'cost_requests'],
+    ['user', 'partner_orders'], ['user', 'partner_prices']
+  ];
+  for (const [view, tab] of pages) {
+    const path = `/${view}/${tab}`;
+    assert.equal(routeToPath(view, tab), path);
+    assert.deepEqual(parseRoute(path), { view, tab });
+    assert.deepEqual(parseRoute(`${path}/`), { view, tab });
+    assert.deepEqual(parseRoute(path, '?from=menu'), { view, tab });
+  }
+});
