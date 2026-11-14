@@ -9,9 +9,15 @@ import {
   Loader2,
   RefreshCw,
   Save,
-  Upload
+  Upload,
+  Wallet
 } from 'lucide-react';
 import { HERO_SLIDES } from '../../data/heroSlides';
+import {
+  DEFAULT_NEW_USER_WALLET_CREDIT,
+  MAX_NEW_USER_WALLET_CREDIT,
+  normalizeNewUserWalletCredit
+} from '../../utils/newUserWalletCredit';
 
 type StorageMode = 'local' | 'blob';
 
@@ -22,6 +28,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
   const [saving, setSaving] = useState(false);
   const [migrating, setMigrating] = useState<StorageMode | null>(null);
   const [maxUploadImages, setMaxUploadImages] = useState(50);
+  const [newUserWalletCredit, setNewUserWalletCredit] = useState(DEFAULT_NEW_USER_WALLET_CREDIT);
   const [gallery, setGallery] = useState<Array<{ src: string; alt: string }>>(
     HERO_SLIDES.map((slide) => ({ src: slide.src, alt: slide.alt }))
   );
@@ -37,6 +44,7 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
       const data = await response.json();
       if (data?.storageMode === 'blob' || data?.storageMode === 'local') setMode(data.storageMode);
       if (Number.isFinite(Number(data?.maxUploadImages))) setMaxUploadImages(Math.max(1, Math.min(500, Number(data.maxUploadImages))));
+      setNewUserWalletCredit(normalizeNewUserWalletCredit(data?.newUserWalletCredit));
       if (Array.isArray(data?.landingGallery) && data.landingGallery.length > 0) {
         setGallery(data.landingGallery.filter((item: any) => item?.src));
       } else {
@@ -81,12 +89,12 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storageMode: mode, maxUploadImages, landingGallery: gallery })
+        body: JSON.stringify({ storageMode: mode, maxUploadImages, landingGallery: gallery, newUserWalletCredit })
       });
       if (!response.ok) throw new Error();
-      showToast('تنظیمات ذخیره‌سازی ذخیره شد.');
+      showToast('تنظیمات کلی ذخیره شد.');
     } catch {
-      showToast('ذخیره تنظیمات ذخیره‌سازی ناموفق بود.');
+      showToast('ذخیره تنظیمات کلی ناموفق بود.');
     } finally {
       setSaving(false);
     }
@@ -121,8 +129,8 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
             <Database className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h1 id="storage-settings-title" className="text-sm font-black text-slate-900">تنظیمات ذخیره‌سازی</h1>
-            <p className="mt-0.5 text-[10px] text-slate-500 sm:text-[11px]">محل نگهداری فایل‌های جدید و انتقال فایل‌های قبلی</p>
+            <h1 id="storage-settings-title" className="text-sm font-black text-slate-900">تنظیمات کلی</h1>
+            <p className="mt-0.5 text-[10px] text-slate-500 sm:text-[11px]">تنظیمات ثبت‌نام، سفارش و محل نگهداری فایل‌ها</p>
           </div>
         </div>
         <span
@@ -144,6 +152,36 @@ export const AdminStorageSettings: React.FC<{ showToast: (message: string) => vo
           </button>
         </div>
       )}
+
+      <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+        <div className="flex items-start gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+            <Wallet className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <label htmlFor="new-user-wallet-credit" className="block text-[11px] font-black text-slate-800">
+              اعتبار اولیه کیف پول کاربران جدید
+            </label>
+            <p className="mt-1 text-[10px] leading-5 text-slate-500">
+              این مبلغ فقط هنگام ثبت‌نام کاربران جدید به کیف پول آن‌ها اضافه می‌شود. برای غیرفعال کردن هدیه، مقدار صفر را وارد کنید.
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                id="new-user-wallet-credit"
+                type="number"
+                min={0}
+                max={MAX_NEW_USER_WALLET_CREDIT}
+                step={1000}
+                value={newUserWalletCredit}
+                disabled={actionsDisabled}
+                onChange={(event) => setNewUserWalletCredit(normalizeNewUserWalletCredit(event.target.value, 0))}
+                className="w-40 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 disabled:opacity-50"
+              />
+              <span className="text-[10px] font-bold text-slate-600">تومان</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <fieldset disabled={actionsDisabled} className="mt-3 grid gap-2 sm:grid-cols-2">
         <legend className="sr-only">انتخاب محل ذخیره فایل‌های جدید</legend>

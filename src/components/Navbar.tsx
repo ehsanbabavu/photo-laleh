@@ -125,7 +125,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'backup' as AdminTab, label: 'پشتیبان‌گیری و بازیابی', icon: HardDrive },
     { id: 'sms' as AdminTab, label: 'تنظیمات پیامک', icon: MessageSquare },
     { id: 'sessions' as AdminTab, label: 'دستگاه‌های فعال', icon: ShieldCheck },
-    { id: 'audit' as AdminTab, label: 'گزارش فعالیت‌ها', icon: Activity }
+    { id: 'audit' as AdminTab, label: 'گزارش فعالیت‌ها', icon: Activity },
+    { id: 'storage' as AdminTab, label: 'تنظیمات کلی', icon: HardDrive }
   ];
 
   const isSettingsActive = settingsItems.some((item) => item.id === adminTab);

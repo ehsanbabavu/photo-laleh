@@ -45,6 +45,7 @@ import { createMaintenanceQueue, maintenanceQueueSummary, type MaintenanceTick }
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
 import { getPaidBluPalTransactions } from './src/utils/bluPalTransactions';
+import { getNewUserWalletCredit, normalizeNewUserWalletCredit } from './src/utils/newUserWalletCredit';
 import type { DeletionChannel } from './src/types';
 import { canMergeEitaaAccount, mergeEitaaAccount } from './phoneAccountMerge';
 
@@ -364,7 +365,14 @@ app.get('/api/public/landing', async (_req, res) => {
       }));
 
     const gallery = Array.isArray(db.settings?.landingGallery) ? db.settings.landingGallery : [];
-    res.json({ success: true, printTypes, dimensions, deliveryMethods, gallery });
+    res.json({
+      success: true,
+      printTypes,
+      dimensions,
+      deliveryMethods,
+      gallery,
+      newUserWalletCredit: getNewUserWalletCredit(db.settings)
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'landing data error' });
   }
@@ -1188,7 +1196,7 @@ async function messengerSignup(
       role: 'user',
       category: 'customer',
       createdAt: new Date().toLocaleDateString('fa-IR'),
-      walletBalance: 100000,
+      walletBalance: getNewUserWalletCredit(db.settings),
       hasUsedFirstOrderGift: false,
       registeredVia: provider
     };
@@ -1369,7 +1377,7 @@ app.post('/api/auth/telegram/session', async (req: any, res) => {
         role: 'user',
         category: 'customer',
         createdAt: new Date().toLocaleDateString('fa-IR'),
-        walletBalance: 100000,
+        walletBalance: getNewUserWalletCredit(db.settings),
         hasUsedFirstOrderGift: false,
         registeredVia: 'telegram'
       };
@@ -1625,7 +1633,7 @@ app.post('/api/auth/register', async (req, res) => {
       // Self-registration always creates a customer; colleagues are admin-created only
       category: 'customer',
       createdAt: new Date().toLocaleDateString('fa-IR'),
-      walletBalance: 100000,
+      walletBalance: getNewUserWalletCredit(db.settings),
       hasUsedFirstOrderGift: false
     };
 
@@ -2601,6 +2609,9 @@ app.post('/api/settings', async (req, res) => {
     const db = await readDb();
     const incoming = normalizeAvalAiSettingsPatch(req.body || {});
     delete incoming.maintenanceMode;
+    if (incoming.newUserWalletCredit !== undefined) {
+      incoming.newUserWalletCredit = normalizeNewUserWalletCredit(incoming.newUserWalletCredit);
+    }
     // Never store invisible characters in provider tokens
     if (incoming.eitaaToken !== undefined) incoming.eitaaToken = normalizeEitaaToken(incoming.eitaaToken);
     if (incoming.telegramToken !== undefined) incoming.telegramToken = String(incoming.telegramToken || '').trim();
@@ -4492,7 +4503,7 @@ async function handleTelegramUpdate(update: any, token: string, req?: any) {
           role: 'user',
           category: 'customer',
           createdAt: new Date().toLocaleDateString('fa-IR'),
-          walletBalance: 100000,
+          walletBalance: getNewUserWalletCredit(db.settings),
           hasUsedFirstOrderGift: false,
           registeredVia: 'telegram',
           phoneVerifiedAt: new Date().toISOString()

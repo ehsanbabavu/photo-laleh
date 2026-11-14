@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Lock, User as UserIcon, Phone, ArrowLeft } from 'lucide-react';
 import { User } from '../types';
 import { TulipIcon } from './TulipIcon';
+import { DEFAULT_NEW_USER_WALLET_CREDIT, normalizeNewUserWalletCredit } from '../utils/newUserWalletCredit';
 
 interface AuthViewProps {
   onLogin: (user: User) => void;
@@ -35,6 +36,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
   const [loginOtpCode, setLoginOtpCode] = useState('');
   const [loginOtpPhone, setLoginOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const [newUserWalletCredit, setNewUserWalletCredit] = useState(DEFAULT_NEW_USER_WALLET_CREDIT);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/public/landing', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        if (active) setNewUserWalletCredit(normalizeNewUserWalletCredit(data?.newUserWalletCredit));
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const sendOtpCode = async () => {
     setRegError('');
@@ -417,18 +433,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
         ) : mode === 'register' ? (
           /* REGISTER FORM */
           <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-            {/* 100,000 Tomans Welcome Gift Banner */}
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200/80 flex items-center gap-2.5 text-right">
-              <span className="text-xl">🎁</span>
-              <div>
-                <p className="text-xs font-black text-amber-900">
-                  ۱۰۰٬۰۰۰ تومان اعتبار هدیه کیف پول
-                </p>
-                <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
-                  با ثبت‌نام شما، این اعتبار به‌صورت خودکار در فاکتور اولین سفارش کسر می‌شود.
-                </p>
+            {newUserWalletCredit > 0 && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200/80 flex items-center gap-2.5 text-right">
+                <span className="text-xl">🎁</span>
+                <div>
+                  <p className="text-xs font-black text-amber-900">
+                    {newUserWalletCredit.toLocaleString('fa-IR')} تومان اعتبار هدیه کیف پول
+                  </p>
+                  <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
+                    با ثبت‌نام شما، این اعتبار به‌صورت خودکار در فاکتور اولین سفارش کسر می‌شود.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             {regError && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs text-right font-medium">
