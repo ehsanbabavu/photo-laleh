@@ -7,6 +7,10 @@ export const ADMIN_TABS = [
   'announcements',
   ...ADMIN_POST_PAGES.map(page => page.tab),
   'print_types',
+  'print_sizes',
+  'transport',
+  'partner_invoices',
+  'cost_requests',
   'prompts_manager',
   'orders',
   'transactions',
@@ -23,7 +27,7 @@ export const ADMIN_TABS = [
   'audit'
 ] as const;
 
-export const USER_TABS = ['dashboard', 'wizard', 'orders', 'tickets'] as const;
+export const USER_TABS = ['dashboard', 'wizard', 'orders', 'tickets', 'partner_orders', 'partner_prices'] as const;
 
 export interface RouteInfo {
   view: AppView;
