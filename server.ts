@@ -45,6 +45,7 @@ import { createMaintenanceQueue, maintenanceQueueSummary, type MaintenanceTick }
 import { getOrderPrintAssets, getSelectedOrderPrintAssets } from './src/utils/orderPrintAssets';
 import { isValidIranianPhone, normalizeIranianPhone, toAsciiDigits } from './src/utils/phone';
 import { getPaidBluPalTransactions } from './src/utils/bluPalTransactions';
+import { getIssuedInvoices } from './src/utils/issuedInvoices';
 import { getNewUserWalletCredit, normalizeNewUserWalletCredit } from './src/utils/newUserWalletCredit';
 import type { DeletionChannel } from './src/types';
 import { canMergeEitaaAccount, mergeEitaaAccount } from './phoneAccountMerge';
@@ -133,6 +134,7 @@ const ADMIN_ONLY_PREFIXES = [
   '/api/admin/blog',
   '/api/admin/maintenance',
   '/api/admin/transactions',
+  '/api/admin/invoices',
   '/api/users',
   '/api/settings',
   '/api/db',
@@ -2989,7 +2991,7 @@ app.post('/api/blupal/create-invoice', async (req: any, res: any) => {
       invoiceDetails: invoiceDetails || null
     };
 
-    db.invoices = [newInvoice, ...(db.invoices || []).slice(0, 99)];
+    db.invoices = [newInvoice, ...(db.invoices || [])];
     await writeDb(db);
 
     res.json({
@@ -3309,6 +3311,17 @@ app.post(['/api/blupal/webhook', '/api/webhook/blupal'], async (req: any, res) =
   } catch (err: any) {
     console.error('Error handling BluPal webhook:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// All user-issued invoices, including unpaid invoices and unfinished orders.
+app.get('/api/admin/invoices', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  try {
+    res.json(getIssuedInvoices(await readDb()));
+  } catch (err) {
+    console.error('Error loading issued invoices:', err);
+    res.status(500).json({ success: false, error: 'دریافت فاکتورها ناموفق بود.' });
   }
 });
 

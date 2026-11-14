@@ -165,6 +165,41 @@ const confirm = (id, code, session = 'admin-1', channel = 'sms') => post(`/api/a
 const code = () => fixture.sent.at(-1).code;
 const wrongCode = () => code() === '123456' ? '654321' : '123456';
 
+test('all issued invoices are readable only by administrators', async () => {
+  for (const session of [null, 'customer', 'admin-1']) {
+    const response = await nativeFetch(`${base}/api/admin/invoices`, {
+      headers: session ? { Cookie: `laleh_session=${session}` } : {}
+    });
+    assert.equal(response.status, session === 'admin-1' ? 200 : session ? 403 : 401);
+    if (session === 'admin-1') {
+      const invoices = await response.json();
+      assert.equal(invoices.length, 3);
+      assert.deepEqual(invoices.map(invoice => invoice.status), ['paid', 'paid', 'pending']);
+      assert.match(response.headers.get('cache-control'), /no-store/);
+    }
+  }
+});
+
+test('listing displays expired pending invoices without writing payment state', async () => {
+  fixture.db.invoices.push({ id: 'expired', invoiceId: '104', status: 'pending', expiresAt: Date.now() - 60_000 });
+  const before = structuredClone(fixture.db);
+  const response = await nativeFetch(`${base}/api/admin/invoices`, { headers: { Cookie: 'laleh_session=admin-1' } });
+  const invoices = await response.json();
+  assert.equal(invoices.find(invoice => invoice.id === 'expired').status, 'expired');
+  assert.deepEqual(fixture.db, before);
+});
+
+test('issuing another invoice retains records beyond the previous 100-invoice limit', async () => {
+  fixture.db.invoices = Array.from({ length: 110 }, (_, index) => ({ id: `old-${index}`, invoiceId: `old-${index}`, status: 'paid' }));
+  const result = await post('/api/blupal/create-invoice', { amount: 0, orderId: 'new-draft' }, 'customer');
+  assert.equal(result.status, 200);
+  assert.equal(result.body.success, true);
+  assert.equal(fixture.db.invoices.length, 111);
+  assert.equal(fixture.db.invoices.at(-1).id, 'old-109');
+  const response = await nativeFetch(`${base}/api/admin/invoices`, { headers: { Cookie: 'laleh_session=admin-1' } });
+  assert.equal((await response.json()).length, 111);
+});
+
 test('requires an admin session for both deletion endpoints', async () => {
   for (const session of [null, 'customer']) {
     assert.equal((await requestCode('txn-1', session)).status, session ? 403 : 401);

@@ -22,6 +22,7 @@ const AdminBlogAiSettings = React.lazy(() => import('./components/admin/AdminBlo
 const ChatGPTConnect = React.lazy(() => import('./components/admin/ChatGPTConnect').then((m) => ({ default: m.ChatGPTConnect })));
 const AdminOrders = React.lazy(() => import('./components/admin/AdminOrders').then((m) => ({ default: m.AdminOrders })));
 const AdminTransactions = React.lazy(() => import('./components/admin/AdminTransactions').then((m) => ({ default: m.AdminTransactions })));
+const AdminInvoices = React.lazy(() => import('./components/admin/AdminInvoices').then((m) => ({ default: m.AdminInvoices })));
 const PrintTypeManager = React.lazy(() => import('./components/admin/PrintTypeManager').then((m) => ({ default: m.PrintTypeManager })));
 const AdminSizesManager = React.lazy(() => import('./components/admin/AdminSizesManager').then((m) => ({ default: m.AdminSizesManager })));
 const AdminPartnerInvoices = React.lazy(() => import('./components/admin/AdminPartnerInvoices').then((m) => ({ default: m.AdminPartnerInvoices })));
@@ -1142,6 +1143,7 @@ export default function App() {
                 onNavigate={navigateAdminPost} onNavigationGuardChange={onAdminNavigationGuardChange} />}
 
               {adminTab === 'transactions' && <AdminTransactions />}
+              {adminTab === 'invoices' && <AdminInvoices />}
 
               {adminTab === 'announcements' && (
                 <AdminAnnouncements
