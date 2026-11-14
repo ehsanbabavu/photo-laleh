@@ -4,11 +4,13 @@ import { safeBlogUrl } from './src/utils/blogContent';
 const modelName = /^[\w./:-]{1,100}$/;
 export function normalizeAvalAiSettingsPatch(value: Record<string, any>) {
   const patch = { ...value };
-  for (const key of ['avalaiApiKey', 'avalaiBaseUrl', 'avalaiBlogApiKey', 'avalaiBlogBaseUrl', 'avalaiModel', 'avalaiTextModel']) {
+  delete patch.avalaiBlogApiKey;
+  delete patch.avalaiBlogBaseUrl;
+  for (const key of ['avalaiApiKey', 'avalaiBaseUrl', 'avalaiModel', 'avalaiTextModel']) {
     if (patch[key] === undefined) continue;
     if (typeof patch[key] !== 'string') throw new BlogError(400, 'تنظیمات اتصال به هوش مصنوعی معتبر نیست.');
     patch[key] = patch[key].trim();
-    if (key === 'avalaiBaseUrl' || key === 'avalaiBlogBaseUrl') patch[key] = patch[key].replace(/\/+$/, '');
+    if (key === 'avalaiBaseUrl') patch[key] = patch[key].replace(/\/+$/, '');
     if ((key === 'avalaiModel' || key === 'avalaiTextModel') && !modelName.test(patch[key])) {
       throw new BlogError(400, 'نام مدل متن و تصویر را در تنظیمات هوش مصنوعی بررسی کنید.');
     }
@@ -19,11 +21,11 @@ export function normalizeAvalAiSettingsPatch(value: Record<string, any>) {
 
 // Model selection belongs to the saved administrator settings, never to env
 // overrides or the request body. Read it again for every generation request.
-export function resolveAvalAiConnection(settings: Record<string, any>, blog = false) {
+export function resolveAvalAiConnection(settings: Record<string, any>) {
   const config = normalizeAvalAiSettingsPatch(settings);
-  const apiKey = String((blog && config.avalaiBlogApiKey) || config.avalaiApiKey || process.env.AVALAI_API_KEY || '').trim();
+  const apiKey = String(config.avalaiApiKey || process.env.AVALAI_API_KEY || '').trim();
   if (!apiKey) throw new BlogError(400, 'کلید AvalAI را در تنظیمات هوش مصنوعی ثبت و ذخیره کنید.');
-  const baseUrl = String((blog && config.avalaiBlogBaseUrl) || config.avalaiBaseUrl || process.env.AVALAI_BASE_URL || 'https://api.avalai.ir/v1').trim().replace(/\/+$/, '');
+  const baseUrl = String(config.avalaiBaseUrl || process.env.AVALAI_BASE_URL || 'https://api.avalai.ir/v1').trim().replace(/\/+$/, '');
   return { apiKey, baseUrl };
 }
 
@@ -33,7 +35,7 @@ export function resolveAvalAiBlogSettings(settings: Record<string, any>) {
   for (const [key, label] of [['avalaiTextModel', 'متن'], ['avalaiModel', 'تصویر']]) {
     if (!config[key]) throw new BlogError(400, `مدل تولید ${label} را در تنظیمات هوش مصنوعی ثبت و ذخیره کنید.`);
   }
-  return { ...resolveAvalAiConnection(config, true), textModel: config.avalaiTextModel as string, imageModel: config.avalaiModel as string };
+  return { ...resolveAvalAiConnection(config), textModel: config.avalaiTextModel as string, imageModel: config.avalaiModel as string };
 }
 type AiConfig = ReturnType<typeof resolveAvalAiBlogSettings>;
 

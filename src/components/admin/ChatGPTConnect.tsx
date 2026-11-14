@@ -18,7 +18,6 @@ interface ChatGPTConnectProps {
   apiKey?: string;
   onUpdateApiKey?: (key: string) => void;
   baseUrl?: string;
-  fallbackBaseUrl?: string;
   onUpdateBaseUrl?: (url: string) => void;
   model?: string;
   onUpdateModel?: (model: string) => void;
@@ -40,7 +39,6 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   apiKey = '',
   onUpdateApiKey,
   baseUrl = 'https://api.avalai.ir/v1',
-  fallbackBaseUrl = 'https://api.avalai.ir/v1',
   onUpdateBaseUrl,
   model = 'gpt-image-2.5-sunburst',
   onUpdateModel,
@@ -56,7 +54,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 }) => {
   const fieldId = useId();
   const currentKey = apiKey || (openaiTokens && openaiTokens[0]) || '';
-  const currentBaseUrl = purpose === 'blog' ? baseUrl : baseUrl || openaiBaseUrl || 'https://api.avalai.ir/v1';
+  const currentBaseUrl = baseUrl || openaiBaseUrl || 'https://api.avalai.ir/v1';
 
   const [inputKey, setInputKey] = useState(currentKey);
   const [inputBaseUrl, setInputBaseUrl] = useState(currentBaseUrl);
@@ -116,19 +114,19 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 
     try {
       if (onSaveSettings) {
-        await onSaveSettings({ ...(purpose === 'blog'
-          ? { avalaiBlogApiKey: trimmedKey, avalaiBlogBaseUrl: trimmedUrl }
-          : { avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl }),
+        await onSaveSettings({ ...(purpose === 'orders' ? { avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl } : {}),
           avalaiModel: trimmedModel, ...(purpose === 'blog' ? { avalaiTextModel: trimmedTextModel } : {}), aiEnabled: isAiEnabled });
       } else {
-        if (onUpdateApiKey) await onUpdateApiKey(trimmedKey);
-        if (onUpdateOpenaiTokens) {
-          const arr = Array(10).fill('');
-          arr[0] = trimmedKey;
-          await onUpdateOpenaiTokens(arr);
+        if (purpose === 'orders') {
+          if (onUpdateApiKey) await onUpdateApiKey(trimmedKey);
+          if (onUpdateOpenaiTokens) {
+            const arr = Array(10).fill('');
+            arr[0] = trimmedKey;
+            await onUpdateOpenaiTokens(arr);
+          }
+          if (onUpdateBaseUrl) await onUpdateBaseUrl(trimmedUrl);
+          if (onUpdateOpenaiBaseUrl) await onUpdateOpenaiBaseUrl(trimmedUrl);
         }
-        if (onUpdateBaseUrl) await onUpdateBaseUrl(trimmedUrl);
-        if (onUpdateOpenaiBaseUrl) await onUpdateOpenaiBaseUrl(trimmedUrl);
         if (onUpdateModel) await onUpdateModel(trimmedModel);
         if (purpose === 'blog' && onUpdateTextModel) await onUpdateTextModel(trimmedTextModel);
         if (onUpdateAiEnabled) await onUpdateAiEnabled(isAiEnabled);
@@ -162,7 +160,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          purpose, apiKey: cleanKey, baseUrl: cleanUrl, textModel: inputTextModel.trim() || 'gpt-4o-mini'
+          purpose, ...(purpose === 'orders' ? { apiKey: cleanKey, baseUrl: cleanUrl } : {}), textModel: inputTextModel.trim() || 'gpt-4o-mini'
         })
       });
 
@@ -196,9 +194,9 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-xs space-y-6">
         <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-900 pb-4 border-b border-slate-100">
           <Key className="w-5 h-5 text-teal-600" />
-          <span>{purpose === 'blog' ? 'اتصال و مدل‌های تولید مطلب' : 'پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)'}</span>
+          <span>{purpose === 'blog' ? 'مدل‌های تولید مطلب' : 'پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)'}</span>
         </div>
-        {purpose === 'blog' && <p className="text-xs leading-6 text-slate-500">کلید دسترسی و آدرس پایهٔ تولید مطلب از این صفحه خوانده می‌شوند. هر کادر که خالی باشد، از مقدار تنظیمات ChatGPT استفاده می‌کند. مدل تصویر و روشن یا خاموش بودن سرویس با پردازش عکس سفارش‌ها مشترک است.</p>}
+        {purpose === 'blog' && <p className="text-xs leading-6 text-slate-500">کلید دسترسی و آدرس پایهٔ تولید مطلب از <a href="/admin/chatgpt" className="font-bold text-teal-600 underline">تنظیمات ChatGPT</a> خوانده می‌شوند. مدل تصویر و روشن یا خاموش بودن سرویس با پردازش عکس سفارش‌ها مشترک است.</p>}
 
         {/* Master AI On/Off Toggle Switch */}
         <div className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -254,7 +252,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 
         <div className="space-y-5">
           {/* API Key Field */}
-          <div className="space-y-1.5">
+          {purpose === 'orders' && <div className="space-y-1.5">
             <label htmlFor={`${fieldId}-key`} className="block text-xs font-bold text-slate-800">
               کلید دسترسی (AvalAI API Key):
             </label>
@@ -265,7 +263,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 value={inputKey}
                 disabled={saving || testStatus === 'testing'}
                 onChange={(e) => setInputKey(e.target.value)}
-                placeholder={purpose === 'blog' ? 'خالی = کلید تنظیمات ChatGPT' : 'aa-proj-................................................'}
+                placeholder="aa-proj-................................................"
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 pr-10 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 shadow-xs"
               />
               <button
@@ -280,7 +278,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
             <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
               کلید دریافتی از پنل <a href="https://avalai.ir" target="_blank" rel="noreferrer" className="text-teal-600 underline font-bold">avalai.ir</a> را در این کادر قرار دهید.
             </p>
-          </div>
+          </div>}
 
           {/* Test Connection Button & Status */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
@@ -327,7 +325,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
 
           {/* Advanced Base URL & Model Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
-            <div className="space-y-1.5">
+            {purpose === 'orders' && <div className="space-y-1.5">
               <label htmlFor={`${fieldId}-url`} className="block text-xs font-bold text-slate-700">
                 آدرس پایه API (API Base URL):
               </label>
@@ -337,11 +335,11 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 value={inputBaseUrl}
                 disabled={saving || testStatus === 'testing'}
                 onChange={(e) => setInputBaseUrl(e.target.value)}
-                placeholder={purpose === 'blog' ? fallbackBaseUrl : 'https://api.avalai.ir/v1'}
+                placeholder="https://api.avalai.ir/v1"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500"
               />
-              <span className="text-[10px] text-slate-500">{purpose === 'blog' ? `پیش‌فرض از تنظیمات ChatGPT: ${fallbackBaseUrl}` : 'پیش‌فرض رسمی: https://api.avalai.ir/v1'}</span>
-            </div>
+              <span className="text-[10px] text-slate-500">پیش‌فرض رسمی: https://api.avalai.ir/v1</span>
+            </div>}
 
             {purpose === 'blog' && <div className="space-y-1.5">
               <label htmlFor={`${fieldId}-text-model`} className="block text-xs font-bold text-slate-700">

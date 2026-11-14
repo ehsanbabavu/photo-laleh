@@ -37,12 +37,11 @@ export default function AdminBlogAiSettings({ settings, onSaveSettings, onUpdate
   return <section aria-labelledby="blog-ai-title" data-blog-section="ai-settings" className="min-w-0 space-y-4">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 id="blog-ai-title" className="flex items-center gap-2 text-xl font-black"><Sparkles className="h-6 w-6 text-violet-600" />تنظیمات هوش مصنوعی نوشته‌ها</h1>
-        <p className="mt-2 text-xs leading-6 text-slate-500">تنظیم اتصال و مدل‌ها، انتخاب موضوع و تولید مطلب همراه با تصویر شاخص</p></div>
+        <p className="mt-2 text-xs leading-6 text-slate-500">تنظیم مدل‌ها، انتخاب موضوع و تولید مطلب همراه با تصویر شاخص</p></div>
       <button type="button" onClick={onBack} disabled={generating || savingSettings} className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs disabled:opacity-50"><ArrowRight className="h-4 w-4" />همه نوشته‌ها</button>
     </header>
     <div className={generating ? 'pointer-events-none opacity-60' : undefined} inert={generating}>
-      <ChatGPTConnect purpose="blog" apiKey={settings.avalaiBlogApiKey || ''} baseUrl={settings.avalaiBlogBaseUrl || ''}
-        fallbackBaseUrl={settings.avalaiBaseUrl}
+      <ChatGPTConnect purpose="blog"
         model={settings.avalaiModel} textModel={settings.avalaiTextModel} aiEnabled={settings.aiEnabled}
         onSaveSettings={onSaveSettings} onUpdateAiEnabled={onUpdateAiEnabled} onBusyChange={setSavingSettings} />
     </div>

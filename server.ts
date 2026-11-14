@@ -2620,11 +2620,10 @@ app.post('/api/settings/ai-test', async (req, res) => {
     if (purpose !== 'blog' && purpose !== 'orders') throw new BlogError(400, 'نوع تنظیمات هوش مصنوعی معتبر نیست.');
     const db = await readDb();
     const patch = normalizeAvalAiSettingsPatch({
-      [purpose === 'blog' ? 'avalaiBlogApiKey' : 'avalaiApiKey']: req.body?.apiKey ?? '',
-      [purpose === 'blog' ? 'avalaiBlogBaseUrl' : 'avalaiBaseUrl']: req.body?.baseUrl ?? '',
+      ...(purpose === 'orders' ? { avalaiApiKey: req.body?.apiKey ?? '', avalaiBaseUrl: req.body?.baseUrl ?? '' } : {}),
       avalaiTextModel: req.body?.textModel ?? 'gpt-4o-mini'
     });
-    const config = { ...resolveAvalAiConnection({ ...db.settings, ...patch }, purpose === 'blog'),
+    const config = { ...resolveAvalAiConnection({ ...db.settings, ...patch }),
       textModel: patch.avalaiTextModel as string, imageModel: '' };
     await requestAvalAi(config, '/chat/completions', { model: config.textModel,
       messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }, 'متن');
