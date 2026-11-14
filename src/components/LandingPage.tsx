@@ -603,7 +603,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               >
                 <div className="relative h-40 sm:h-44 overflow-hidden bg-slate-100">
                   <img
-                    src={SERVICE_IMAGE[service.id] || service.cardBgImage || service.sampleImage || '/logo.png'}
+                    src={service.cardBgImage || service.sampleImage || SERVICE_IMAGE[service.id] || '/logo.png'}
                     alt={service.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
