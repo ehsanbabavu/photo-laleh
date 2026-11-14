@@ -10,7 +10,7 @@ import { BlogComments, BlogMediaLibrary, BlogSettingsForm, BlogTaxonomies, BlogF
 import { adminPostSectionPage, type AdminPostSection } from '../../utils/adminPostsNavigation';
 
 const statusLabels = { draft: 'پیش‌نویس', published: 'منتشرشده', scheduled: 'زمان‌بندی‌شده', trash: 'زباله‌دان' };
-const blankPost = (state: BlogState): BlogPost => ({ id: '', version: 0, title: '', slug: '', content: '', excerpt: '', coverImage: '', coverAlt: '',
+const blankPost = (state: BlogState): BlogPost => ({ id: '', version: 0, viewCount: 0, title: '', slug: '', content: '', excerpt: '', coverImage: '', coverAlt: '',
   status: 'draft', authorName: state.settings.defaultAuthor, categoryIds: [], tagIds: [], featured: false, allowComments: true, seoTitle: '', seoDescription: '', noIndex: false,
   createdAt: '', updatedAt: '', publishedAt: null, previousSlugs: [], revisions: [] });
 const localDate = (date: string | null) => { if (!date) return ''; const parsed = new Date(date); return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };

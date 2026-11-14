@@ -117,6 +117,67 @@ test('HTML is sanitized, image and link protocols are checked, and metadata is e
   assert.match(page.text, /&lt;script&gt;unsafe&lt;\/script&gt;/);
   assert.equal((await create({ slug: 'invalid-cover', coverImage: 'javascript:alert(1)' })).status, 400);
 });
+test('only canonical article GETs count views and render the saved total in Persian', async () => {
+  const post = (await create({ status: 'published' })).data;
+  assert.equal(post.viewCount, 0);
+  const other = (await create({ status: 'published', slug: 'other-guide' })).data;
+  for (const route of ['/blog/', '/api/public/blog', '/sitemap.xml', '/blog/feed.xml', `/blog/preview/${post.id}`, '/blog/photo-guide', '/blog/missing/']) await request(route);
+  await request('/blog/photo-guide/', { method: 'HEAD', session: null });
+  assert.equal(fixture.state.posts.find(item => item.id === post.id).viewCount, 0);
+  const first = await request('/blog/photo-guide/', { session: null });
+  assert.equal(first.status, 200); assert.match(first.text, /class="blog-views">۱ بازدید<\/span>/);
+  assert.match(first.headers.get('cache-control'), /no-store/);
+  assert.match((await request('/blog/photo-guide/', { session: null })).text, /class="blog-views">۲ بازدید<\/span>/);
+  assert.equal(fixture.state.posts.find(item => item.id === other.id).viewCount, 0);
+  const moved = (await update(post, { slug: 'new-guide' })).data;
+  assert.equal((await request('/blog/photo-guide/', { session: null })).status, 301);
+  assert.equal(fixture.state.posts.find(item => item.id === post.id).viewCount, 2);
+  assert.match((await request(`/blog/${moved.slug}/`, { session: null })).text, /class="blog-views">۳ بازدید<\/span>/);
+});
+test('concurrent visits preserve all increments and do not invalidate an open editor', async () => {
+  const post = (await create({ status: 'published' })).data;
+  fixture.casConflict = true;
+  const pages = await Promise.all(Array.from({ length: 8 }, () => request('/blog/photo-guide/', { session: null })));
+  assert.ok(pages.every(page => page.status === 200));
+  const counted = fixture.state.posts[0];
+  assert.equal(counted.viewCount, 8); assert.equal(counted.version, post.version); assert.equal(counted.updatedAt, post.updatedAt);
+  const results = await Promise.all([
+    update(post, { title: 'راهنمای تازه', viewCount: 999999 }),
+    request('/blog/photo-guide/', { session: null })
+  ]);
+  assert.deepEqual(results.map(result => result.status), [200, 200]);
+  assert.equal(fixture.state.posts[0].viewCount, 9); assert.equal(fixture.state.posts[0].title, 'راهنمای تازه');
+  const copy = (await action(results[0].data, 'duplicate')).data;
+  assert.equal(copy.viewCount, 0); assert.equal(fixture.state.posts.find(item => item.id === post.id).viewCount, 9);
+});
+test('legacy posts and backups default to zero while valid view totals survive export and restore', async () => {
+  const post = (await create({ status: 'published' })).data;
+  delete fixture.state.posts[0].viewCount;
+  assert.equal((await cms()).data.posts[0].viewCount, 0);
+  assert.match((await request('/blog/photo-guide/', { session: null })).text, /class="blog-views">۱ بازدید<\/span>/);
+  fixture.state.posts[0].viewCount = 1233;
+  assert.match((await request('/blog/photo-guide/', { session: null })).text, /class="blog-views">۱٬۲۳۴ بازدید<\/span>/);
+  const snapshot = (await cms('/export')).data;
+  assert.equal(snapshot.data.posts[0].viewCount, 1234);
+  assert.equal((await request('/api/backup')).data.blog.posts[0].viewCount, 1234);
+  await action(post, 'trash');
+  assert.equal((await cms('/import', 'POST', snapshot)).status, 200);
+  assert.equal(fixture.state.posts[0].viewCount, 1234);
+  for (const value of [undefined, -1, 1.5, '1000', Number.MAX_SAFE_INTEGER + 1]) {
+    const older = structuredClone(snapshot); older.data.posts[0].viewCount = value;
+    assert.equal((await cms('/import', 'POST', older)).status, 200);
+    assert.equal(fixture.state.posts[0].viewCount, 0);
+  }
+});
+test('failed view writes leave the article readable and do not display an unsaved increment', async () => {
+  await create({ status: 'published' });
+  const before = structuredClone(fixture.state); fixture.saveFails = true;
+  const page = await request('/blog/photo-guide/', { session: null });
+  assert.equal(page.status, 200); assert.match(page.text, /class="blog-views">۰ بازدید<\/span>/);
+  assert.deepEqual(fixture.state, before);
+  fixture.saveFails = false;
+  assert.match((await request('/blog/photo-guide/', { session: null })).text, /class="blog-views">۱ بازدید<\/span>/);
+});
 test('scheduled posts become public when due without cron writes, while noindex is excluded from sitemap', async () => {
   const scheduled = (await create({ status: 'scheduled', publishedAt: new Date(Date.now() + 86400000).toISOString() })).data;
   assert.equal((await request('/blog/photo-guide/', { session: null })).status, 404);
@@ -271,6 +332,7 @@ test('browser CMS and public blog support draft, publication, moderation, mobile
     const article = await publicContext.newPage(); article.on('pageerror', err => errors.push(err.message));
     await article.goto(`${base}/blog/${encodeURIComponent(post.slug)}/`, { waitUntil: 'networkidle' });
     await article.getByRole('heading', { name: post.title, exact: true }).waitFor();
+    assert.equal(await article.locator('.blog-views').textContent(), '۱ بازدید');
     assert.match(await article.title(), /راهنمای وبلاگ آزمایشی/);
     assert.ok(await article.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await article.getByLabel('نام', { exact: true }).fill('خواننده وبلاگ');
