@@ -1,8 +1,8 @@
 import { useEffect, useId, useState } from 'react';
-import { ChevronDown, FileText, Plus, Folder, Tags, MessageSquare, Image, Settings, Trash2 } from 'lucide-react';
+import { ChevronDown, FileText, Plus, Folder, Tags, MessageSquare, Image, Settings, Trash2, Sparkles } from 'lucide-react';
 import { ADMIN_POST_PAGES, adminPostPage, type AdminPostTab } from '../../utils/adminPostsNavigation';
 
-const icons = { list: FileText, write: Plus, categories: Folder, tags: Tags, comments: MessageSquare, media: Image, settings: Settings, trash: Trash2 };
+const icons = { list: FileText, write: Plus, categories: Folder, tags: Tags, comments: MessageSquare, media: Image, 'ai-settings': Sparkles, settings: Settings, trash: Trash2 };
 
 export function AdminPostsMenu({ currentTab, onSelect, mobile = false }: {
   currentTab: string;

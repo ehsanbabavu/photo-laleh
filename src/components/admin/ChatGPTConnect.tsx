@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import type { AvalAiSettings } from '../../types';
 import {
   Key,
@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 
 interface ChatGPTConnectProps {
+  purpose?: 'orders' | 'blog';
+  onBusyChange?: (busy: boolean) => void;
   apiKey?: string;
   onUpdateApiKey?: (key: string) => void;
   baseUrl?: string;
@@ -23,7 +25,7 @@ interface ChatGPTConnectProps {
   onUpdateTextModel?: (model: string) => void;
   aiEnabled?: boolean;
   onUpdateAiEnabled?: (enabled: boolean) => void | Promise<void>;
-  onSaveSettings?: (settings: AvalAiSettings) => Promise<void>;
+  onSaveSettings?: (settings: Partial<AvalAiSettings>) => Promise<void>;
   // Legacy props compatibility
   openaiTokens?: string[];
   onUpdateOpenaiTokens?: (tokens: string[]) => void;
@@ -32,6 +34,8 @@ interface ChatGPTConnectProps {
 }
 
 export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
+  purpose = 'orders',
+  onBusyChange,
   apiKey = '',
   onUpdateApiKey,
   baseUrl = 'https://api.avalai.ir/v1',
@@ -48,6 +52,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   openaiBaseUrl,
   onUpdateOpenaiBaseUrl
 }) => {
+  const fieldId = useId();
   const currentKey = apiKey || (openaiTokens && openaiTokens[0]) || '';
   const currentBaseUrl = baseUrl || openaiBaseUrl || 'https://api.avalai.ir/v1';
 
@@ -64,6 +69,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
   const [saveMessage, setSaveMessage] = useState('');
   const [saveFailed, setSaveFailed] = useState(false);
   const savingRef = useRef(false);
+  useEffect(() => { onBusyChange?.(saving || testStatus === 'testing'); }, [saving, testStatus, onBusyChange]);
 
   useEffect(() => {
     if (apiKey) setInputKey(apiKey);
@@ -109,7 +115,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
     try {
       if (onSaveSettings) {
         await onSaveSettings({ avalaiApiKey: trimmedKey, avalaiBaseUrl: trimmedUrl,
-          avalaiModel: trimmedModel, avalaiTextModel: trimmedTextModel, aiEnabled: isAiEnabled });
+          avalaiModel: trimmedModel, ...(purpose === 'blog' ? { avalaiTextModel: trimmedTextModel } : {}), aiEnabled: isAiEnabled });
       } else {
         if (onUpdateApiKey) await onUpdateApiKey(trimmedKey);
         if (onUpdateOpenaiTokens) {
@@ -120,7 +126,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
         if (onUpdateBaseUrl) await onUpdateBaseUrl(trimmedUrl);
         if (onUpdateOpenaiBaseUrl) await onUpdateOpenaiBaseUrl(trimmedUrl);
         if (onUpdateModel) await onUpdateModel(trimmedModel);
-        if (onUpdateTextModel) await onUpdateTextModel(trimmedTextModel);
+        if (purpose === 'blog' && onUpdateTextModel) await onUpdateTextModel(trimmedTextModel);
         if (onUpdateAiEnabled) await onUpdateAiEnabled(isAiEnabled);
       }
       setSaveMessage('تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.');
@@ -189,8 +195,9 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-xs space-y-6">
         <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-900 pb-4 border-b border-slate-100">
           <Key className="w-5 h-5 text-teal-600" />
-          <span>پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)</span>
+          <span>{purpose === 'blog' ? 'اتصال و مدل‌های تولید مطلب' : 'پیکربندی کلید دسترسی به AvalAI (اول ای‌آی)'}</span>
         </div>
+        {purpose === 'blog' && <p className="text-xs leading-6 text-slate-500">کلید دسترسی، اتصال، مدل تصویر و روشن یا خاموش بودن سرویس با پردازش عکس سفارش‌ها مشترک است. مدل متن از این صفحه تنظیم می‌شود.</p>}
 
         {/* Master AI On/Off Toggle Switch */}
         <div className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -207,7 +214,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-xs sm:text-sm font-black">
-                  موتور پردازش و رتوش هوش مصنوعی:
+                  {purpose === 'blog' ? 'سرویس هوش مصنوعی:' : 'موتور پردازش و رتوش هوش مصنوعی:'}
                 </h3>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                   isAiEnabled
@@ -218,7 +225,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
                 </span>
               </div>
               <p className="text-[11px] opacity-80 mt-1 leading-relaxed font-medium">
-                {isAiEnabled
+                {purpose === 'blog' ? (isAiEnabled ? 'تولید متن و تصویر مطلب فعال است.' : 'برای تولید مطلب، سرویس هوش مصنوعی را روشن کنید.') : isAiEnabled
                   ? 'سرویس هوش مصنوعی فعال است؛ سفارشات ثبت‌شده توسط مدل اختصاصی AvalAI پردازش و رتوش می‌گردند.'
                   : 'سرویس هوش مصنوعی غیرفعال گردیده است. در این حالت فراخوانی API متوقف شده و عکس‌ها مستقیم ثبت می‌شوند.'}
               </p>
@@ -247,11 +254,12 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
         <div className="space-y-5">
           {/* API Key Field */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-800">
+            <label htmlFor={`${fieldId}-key`} className="block text-xs font-bold text-slate-800">
               کلید دسترسی (AvalAI API Key):
             </label>
             <div className="relative flex items-center">
               <input
+                id={`${fieldId}-key`}
                 type={showKey ? 'text' : 'password'}
                 value={inputKey}
                 disabled={saving || testStatus === 'testing'}
@@ -262,6 +270,7 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
+                aria-label={showKey ? 'پنهان کردن کلید دسترسی' : 'نمایش کلید دسترسی'}
                 className="absolute right-3 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -318,11 +327,12 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
           {/* Advanced Base URL & Model Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
+              <label htmlFor={`${fieldId}-url`} className="block text-xs font-bold text-slate-700">
                 آدرس پایه API (API Base URL):
               </label>
               <input
                 type="text"
+                id={`${fieldId}-url`}
                 value={inputBaseUrl}
                 disabled={saving || testStatus === 'testing'}
                 onChange={(e) => setInputBaseUrl(e.target.value)}
@@ -332,13 +342,14 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
               <span className="text-[10px] text-slate-500">پیش‌فرض رسمی: https://api.avalai.ir/v1</span>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
+            {purpose === 'blog' && <div className="space-y-1.5">
+              <label htmlFor={`${fieldId}-text-model`} className="block text-xs font-bold text-slate-700">
                 مدل تولید متن:
               </label>
               <div className="relative">
                 <input
                   type="text"
+                  id={`${fieldId}-text-model`}
                   value={inputTextModel}
                   disabled={saving || testStatus === 'testing'}
                   onChange={(e) => setInputTextModel(e.target.value)}
@@ -349,15 +360,16 @@ export const ChatGPTConnect: React.FC<ChatGPTConnectProps> = ({
               <span className="text-[10px] text-slate-500">
                 این مدل برای تولید و بررسی نوشته‌های وبلاگ استفاده می‌شود.
               </span>
-            </div>
+            </div>}
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
-                مدل تولید عکس هوش مصنوعی:
+              <label htmlFor={`${fieldId}-image-model`} className="block text-xs font-bold text-slate-700">
+                {purpose === 'blog' ? 'مدل تولید تصویر شاخص مطلب:' : 'مدل تولید عکس هوش مصنوعی:'}
               </label>
               <div className="relative">
                 <input
                   type="text"
+                  id={`${fieldId}-image-model`}
                   value={inputModel}
                   disabled={saving || testStatus === 'testing'}
                   onChange={(e) => setInputModel(e.target.value)}

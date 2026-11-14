@@ -5,6 +5,7 @@ export const ADMIN_POST_PAGES = [
   { tab: 'posts_tags', section: 'tags', label: 'برچسب‌ها', path: '/admin/posts/tags' },
   { tab: 'posts_comments', section: 'comments', label: 'دیدگاه‌ها', path: '/admin/posts/comments' },
   { tab: 'posts_media', section: 'media', label: 'رسانه‌ها', path: '/admin/posts/media' },
+  { tab: 'posts_ai_settings', section: 'ai-settings', label: 'تنظیمات هوش مصنوعی', path: '/admin/posts/ai-settings' },
   { tab: 'posts_settings', section: 'settings', label: 'تنظیمات', path: '/admin/posts/settings' },
   { tab: 'posts_trash', section: 'trash', label: 'زباله‌دان', path: '/admin/posts/trash' },
 ] as const;

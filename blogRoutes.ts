@@ -4,6 +4,7 @@ import { blogHtml, blogSitemap, blogFeed } from './blogPages';
 import { safeBlogUrl } from './src/utils/blogContent';
 import { blogPostPath, type BlogState } from './src/types/blog';
 import { resolveAvalAiBlogSettings, requestAvalAi, generateAvalAiBlogCover } from './blogAiGeneration';
+import { blogArticleType, blogArticleTopic } from './src/utils/blogAiOptions';
 
 export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; compareAndSet: (revision: number, next: BlogState) => Promise<boolean>;
   adminForPreview: (req: any) => Promise<boolean>; commentRateLimited: (req: any) => Promise<boolean>; aiConfig?: () => Promise<Record<string, any>> }) {
@@ -18,13 +19,16 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
   router.get('/api/admin/blog', handle(async (_req, res) => res.json(await blog.read())));
   router.post('/api/admin/blog/ai-generate', handle(async (req, res) => {
     const config = resolveAvalAiBlogSettings(await deps.aiConfig?.() || {});
-    const kind = req.body?.kind === 'news' ? 'news' : 'guide';
+    const articleType = blogArticleType(req.body?.kind ?? 'guide');
+    const topic = blogArticleTopic(req.body?.topic ?? 'auto');
+    if (!articleType || !topic) throw new BlogError(400, 'نوع مطلب یا موضوع انتخاب‌شده معتبر نیست.');
+    const kind = articleType.id;
     const source = blogText(req.body?.source, 12000);
     const sourceUrl = blogText(req.body?.sourceUrl, 1000);
     if (kind === 'news' && (!source || !/^https?:\/\//i.test(sourceUrl))) throw new BlogError(400, 'برای خبر، متن منبع و نشانی معتبر آن لازم است.');
     const brief = kind === 'news'
       ? `خبر را فقط بر اساس متن منبع زیر بنویس. هیچ تاریخ، آمار، نقل‌قول یا جزئیات دیگری را حدس نزن؛ اگر متن برای یک خبر مفید کافی نیست، درخواست را با خطا متوقف کن. منبع را در انتهای مطلب پیوند بده.\nنشانی: ${sourceUrl}\nمتن منبع:\n${source}`
-      : 'یک راهنمای کاربردی، دقیق و اصیل فارسی درباره عکاسی، چاپ عکس یا نگهداری خاطره‌ها انتخاب کن. نکته‌های عملی و مثال‌های روشن بده و ادعای فنی بی‌پشتوانه نساز.';
+      : `${articleType.brief}\n${topic.brief}\nمطلب کاربردی، دقیق و اصیل فارسی باشد و ادعای فنی بی‌پشتوانه نساز.`;
     const response = await requestAvalAi(config, '/chat/completions', {
       model: config.textModel, response_format: { type: 'json_object' }, messages: [
         { role: 'system', content: 'تو دبیر فارسی‌زبان مجله آتلیه دیجیتال لاله هستی. یک مقاله مفید و طبیعی برای مخاطب ایرانی بنویس، بدون لحن کلیشه‌ای یا ادعای پنهان‌کاری درباره نویسندگی هوش مصنوعی. حداکثر ۱۸۰۰ واژه. خروجی فقط JSON معتبر با کلیدهای title, slug, excerpt, html, seoTitle, seoDescription, category, tags (آرایه رشته‌ای), imagePrompt, imageAlt باشد. html امن و ساده با p,h2,h3,ul,ol,li,strong باشد.' },

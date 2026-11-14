@@ -4,7 +4,7 @@ import { ADMIN_POST_PAGES } from '../src/utils/adminPostsNavigation.ts';
 import { parseRoute, routeToPath } from '../src/utils/router.ts';
 
 test('each posts submenu has an independent URL that survives a refresh', () => {
-  assert.equal(new Set(ADMIN_POST_PAGES.map(page => page.path)).size, 8);
+  assert.equal(new Set(ADMIN_POST_PAGES.map(page => page.path)).size, 9);
   for (const page of ADMIN_POST_PAGES) {
     assert.equal(routeToPath('admin', page.tab), page.path);
     assert.deepEqual(parseRoute(page.path), { view: 'admin', tab: page.tab });

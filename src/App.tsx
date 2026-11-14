@@ -18,6 +18,7 @@ import { EitaaLanding, TelegramLanding } from './components/EitaaLanding';
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
 const AdminAnnouncements = React.lazy(() => import('./components/admin/AdminAnnouncements').then((m) => ({ default: m.AdminAnnouncements })));
 const AdminBlog = React.lazy(() => import('./components/admin/AdminBlog'));
+const AdminBlogAiSettings = React.lazy(() => import('./components/admin/AdminBlogAiSettings'));
 const ChatGPTConnect = React.lazy(() => import('./components/admin/ChatGPTConnect').then((m) => ({ default: m.ChatGPTConnect })));
 const AdminOrders = React.lazy(() => import('./components/admin/AdminOrders').then((m) => ({ default: m.AdminOrders })));
 const AdminTransactions = React.lazy(() => import('./components/admin/AdminTransactions').then((m) => ({ default: m.AdminTransactions })));
@@ -482,7 +483,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSaveAvalaiSettings = async (settings: AvalAiSettings) => {
+  const handleSaveAvalaiSettings = async (settings: Partial<AvalAiSettings>) => {
     const saved = await apiClient.saveAiSettings(settings);
     setAvalaiApiKey(saved.avalaiApiKey);
     setAvalaiBaseUrl(saved.avalaiBaseUrl);
@@ -1132,7 +1133,12 @@ export default function App() {
                   onNavigateTab={(tab) => setAdminTab(tab as AdminTab)}
                 />
               )}
-              {adminPostPage(adminTab) && <AdminBlog key={`${adminTab}:${adminPageVersion}`} section={adminPostPage(adminTab)!.section}
+              {adminTab === 'posts_ai_settings' && <AdminBlogAiSettings
+                settings={{ avalaiApiKey, avalaiBaseUrl, avalaiModel, avalaiTextModel, aiEnabled }}
+                onSaveSettings={handleSaveAvalaiSettings} onUpdateAiEnabled={handleUpdateAiEnabled}
+                onBack={() => navigateAdminPost('list')}
+                onPublished={post => navigateAdminPost('write', post.id)} onNavigationGuardChange={onAdminNavigationGuardChange} />}
+              {adminPostPage(adminTab) && adminTab !== 'posts_ai_settings' && <AdminBlog key={`${adminTab}:${adminPageVersion}`} section={adminPostPage(adminTab)!.section}
                 onNavigate={navigateAdminPost} onNavigationGuardChange={onAdminNavigationGuardChange} />}
 
               {adminTab === 'transactions' && <AdminTransactions />}

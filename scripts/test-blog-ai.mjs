@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { apiClient } from '../src/services/apiClient.ts';
+import { BLOG_ARTICLE_TYPES, BLOG_ARTICLE_TOPICS } from '../src/utils/blogAiOptions.ts';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(path.join(repo, 'package.json'));
@@ -64,7 +65,7 @@ before(async () => {
   } }] });
   const handler = (await import(pathToFileURL(handlerPath).href)).default;
   const outer = express();
-  outer.get('/__test/sign-in', (_req, res) => { res.cookie('laleh_session', 'admin'); res.redirect('/admin/chatgpt'); });
+  outer.get('/__test/sign-in', (_req, res) => { res.cookie('laleh_session', 'admin'); res.redirect('/admin/posts/ai-settings'); });
   outer.all('/api/blog-ai-generate', handler); outer.use(app);
   outer.use(express.static(path.join(repo, 'dist')));
   outer.use((_req, res) => res.sendFile(path.join(repo, 'dist/index.html')));
@@ -99,6 +100,25 @@ async function request(route, body = {}, session = 'admin') {
   return { status: response.status, data: await response.json() };
 }
 const generate = (body = {}) => request('/api/admin/blog/ai-generate', body);
+
+test('article types and topics reach the provider prompt and unknown selections are rejected', async () => {
+  for (const type of BLOG_ARTICLE_TYPES.filter(item => item.id !== 'news')) {
+    fixture.calls = [];
+    assert.equal((await generate({ kind: type.id, topic: 'restoration' })).status, 200);
+    const prompt = fixture.calls[0].body.messages[1].content;
+    assert.ok(prompt.includes(type.brief));
+    assert.ok(prompt.includes(BLOG_ARTICLE_TOPICS.find(item => item.id === 'restoration').brief));
+  }
+  for (const topic of BLOG_ARTICLE_TOPICS) {
+    fixture.calls = [];
+    assert.equal((await generate({ kind: 'guide', topic: topic.id })).status, 200);
+    assert.ok(fixture.calls[0].body.messages[1].content.includes(topic.brief));
+  }
+  fixture.calls = [];
+  assert.equal((await generate({ kind: 'unknown' })).status, 400);
+  assert.equal((await generate({ topic: 'unknown' })).status, 400);
+  assert.equal(fixture.calls.length, 0);
+});
 
 test('AI settings are normalized and saved together in one acknowledged database write', async () => {
   const saved = await apiClient.saveAiSettings({ ...settings(), avalaiModel: ' gemini-3.1-flash-lite-image ', avalaiBaseUrl: ' https://api.avalai.ir/v1/// ' });
@@ -262,6 +282,11 @@ test('browser AI settings wait for persistence, retain failures and reload befor
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.route('https://images.example.test/**', route => route.fulfill({ body: Buffer.from(png, 'base64'), contentType: 'image/png' }));
     await page.goto(`${base}/__test/sign-in`, { waitUntil: 'networkidle' });
+    assert.ok(page.url().endsWith('/admin/posts/ai-settings'));
+    await page.getByRole('heading', { name: 'تنظیمات هوش مصنوعی نوشته‌ها', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'تنظیمات هوش مصنوعی', exact: true }).getAttribute('aria-current'), 'page');
+    const generator = page.getByRole('button', { name: 'تولید و انتشار مطلب', exact: true });
+    assert.equal(await generator.isDisabled(), true);
     const control = page.getByRole('switch', { name: 'فعال‌سازی سرویس هوش مصنوعی' });
     assert.equal(await control.getAttribute('aria-checked'), 'false');
     const model = page.getByPlaceholder('gpt-image-2.5-sunburst', { exact: true });
@@ -276,6 +301,7 @@ test('browser AI settings wait for persistence, retain failures and reload befor
     await page.getByRole('button', { name: 'ذخیره تنظیمات', exact: true }).click();
     await page.getByRole('button', { name: 'در حال ذخیره…', exact: true }).waitFor();
     assert.equal(await model.isDisabled(), true);
+    assert.equal(await generator.isDisabled(), true);
     assert.equal(fixture.writes.length, 0);
     releaseSave();
     await page.getByRole('status').filter({ hasText: 'تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.' }).waitFor();
@@ -297,14 +323,38 @@ test('browser AI settings wait for persistence, retain failures and reload befor
     await page.getByRole('status').filter({ hasText: 'تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.' }).waitFor();
     await control.click();
     await page.waitForFunction(() => document.querySelector('[aria-label="فعال‌سازی سرویس هوش مصنوعی"]').getAttribute('aria-checked') === 'true');
-    await page.goto(`${base}/admin/posts/write`, { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: 'تولید و انتشار مطلب', exact: true }).click();
-    await page.getByRole('status').filter({ hasText: 'منتشر' }).waitFor();
+    await page.goto(`${base}/admin/chatgpt`, { waitUntil: 'networkidle' });
+    assert.equal(await page.getByLabel('مدل تولید متن:', { exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'ذخیره تنظیمات', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'تنظیمات هوش مصنوعی در دیتابیس ذخیره شد.' }).waitFor();
+    assert.equal(fixture.settings.avalaiTextModel, 'gpt-5.1');
+    await page.goto(`${base}/admin/posts/ai-settings`, { waitUntil: 'networkidle' });
+    await page.getByLabel('نوع مطلب', { exact: true }).selectOption('comparison');
+    await page.getByLabel('موضوع تولید مطلب', { exact: true }).selectOption('mobile-photography');
+    if (process.env.BLOG_AI_SCREENSHOTS) {
+      await fs.mkdir(process.env.BLOG_AI_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: path.join(process.env.BLOG_AI_SCREENSHOTS, 'desktop.png'), fullPage: true });
+    }
+    await generator.click();
+    await page.waitForURL('**/admin/posts/write?id=*');
+    await page.getByRole('heading', { name: 'ویرایش نوشته', exact: true, level: 1 }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'تولید و انتشار مطلب', exact: true }).count(), 0);
     assert.deepEqual(fixture.calls.map(call => call.body.model), ['gpt-5.1', 'gpt-5.1']);
     assert.equal(fixture.calls[0].url, 'https://api.avalai.ir/v1/chat/completions');
+    assert.ok(fixture.calls[0].body.messages[1].content.includes(BLOG_ARTICLE_TOPICS.find(topic => topic.id === 'mobile-photography').brief));
     assert.equal(fixture.calls[1].url, 'https://api.avalai.ir/v1/responses');
     assert.equal(fixture.state.posts[0].status, 'published');
     const post = fixture.state.posts[0];
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'منوی مدیریت', exact: true }).click();
+    await page.getByRole('button', { name: 'تنظیمات هوش مصنوعی', exact: true }).click();
+    await page.waitForURL('**/admin/posts/ai-settings');
+    await page.getByRole('heading', { name: 'تنظیمات هوش مصنوعی نوشته‌ها', exact: true }).waitFor();
+    assert.equal(await page.getByLabel('مدل تولید متن:', { exact: true }).inputValue(), 'gpt-5.1');
+    await page.getByLabel('موضوع تولید مطلب', { exact: true }).waitFor();
+    assert.equal(await page.getByLabel('موضوع تولید مطلب', { exact: true }).locator('option').count(), BLOG_ARTICLE_TOPICS.length);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+    if (process.env.BLOG_AI_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.BLOG_AI_SCREENSHOTS, 'mobile.png'), fullPage: true });
     await page.goto(`${base}/blog/${post.slug}/`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: post.title, exact: true }).waitFor();
     assert.match(await (await nativeFetch(`${base}/sitemap.xml`)).text(), /choose-photo-paper/);

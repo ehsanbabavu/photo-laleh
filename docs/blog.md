@@ -10,6 +10,7 @@ The administrator's **نوشته‌ها** menu expands into independent pages in
 | Tags | `/admin/posts/tags` |
 | Comments | `/admin/posts/comments` |
 | Media | `/admin/posts/media` |
+| AI article settings and generation | `/admin/posts/ai-settings` |
 | Settings | `/admin/posts/settings` |
 | Trash | `/admin/posts/trash` |
 
@@ -56,7 +57,11 @@ After installing dependencies, run `npm run build`, `npm run test:blog` and `npm
 
 ## AI-assisted article generation
 
-The post editor includes **تولید خودکار توسط هوش مصنوعی**. It asks AvalAI for a Persian article (maximum 2,000 words), SEO fields, a category and tags, then generates a cover image with the saved image model and publishes through the normal CMS flow. Published articles enter the dynamic sitemap automatically. News generation requires the operator to provide both the source text and its URL; the model is instructed to use only those supplied facts.
+The **نوشته‌ها → تنظیمات هوش مصنوعی** page (`/admin/posts/ai-settings`) contains the connection/model settings and **تولید خودکار توسط هوش مصنوعی**. The text-model input is no longer shown in the general photo AI settings, and the generator is no longer embedded in the post editor. The key, base URL, enabled flag and image model remain shared with photo processing; saving the general photo settings does not overwrite the blog text model.
+
+The generator offers guides, practical tips, comparisons, buying guides and source-based news. Topics include photo printing/paper/sizes, mobile photography, portrait/ID photography, restoration, photo preservation, editing, home decor and family occasions, plus automatic topic selection. The server validates both selectors and includes their instructions in the text-generation request. News still requires source text and its URL and uses only those supplied facts.
+
+AvalAI returns a Persian article (maximum 2,000 words), SEO fields, a category and tags, then generates a cover image with the saved image model and publishes through the normal CMS flow. The page opens the generated article in the editor after publication. Published articles enter the dynamic sitemap automatically.
 
 Save the AI settings once before generating. The panel sends the key, base URL, text model, image model and enabled flag in one `/api/settings` request and reports success only after the database acknowledges it. Failed writes are shown in the panel. Generation reads these settings afresh from the active MongoDB/PostgreSQL database for every request:
 
