@@ -1324,8 +1324,9 @@ export default function App() {
                   onOrderCompleted={handleNewOrder}
                   onUserUpdate={handleUpdateUser}
                   onPhoneVerified={(updatedUser) => {
+                    const merged = updatedUser.id !== currentUser.id;
                     setCurrentUser(updatedUser);
-                    showToast('شماره موبایل تأیید و در پروفایل ذخیره شد.');
+                    showToast(merged ? 'حساب ایتا به حساب قبلی این شماره متصل شد.' : 'شماره موبایل تأیید و در پروفایل ذخیره شد.');
                   }}
                   printTypes={printTypes}
                   avalaiApiKey={avalaiApiKey}
