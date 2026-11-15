@@ -49,6 +49,7 @@ import { getIssuedInvoices } from './src/utils/issuedInvoices';
 import { getNewUserWalletCredit, normalizeNewUserWalletCredit } from './src/utils/newUserWalletCredit';
 import type { DeletionChannel } from './src/types';
 import { canMergeEitaaAccount, mergeEitaaAccount } from './phoneAccountMerge';
+import { isValidRecoveryIdentifier, normalizeRecoveryIdentifier, parseRecoveryChannel, recoveryChannelLabels, type RecoveryChannel } from './src/utils/passwordRecovery';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1663,28 +1664,70 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Forgot password: send a code to the registered mobile number
+function passwordRecoveryTarget(db: any, identifier: string, channel: RecoveryChannel) {
+  const field = channel === 'telegram' ? 'telegramId' : 'eitaaId';
+  const isPhone = /^09\d{9}$/.test(identifier);
+  const user = (db.users || []).find((candidate: any) => isPhone
+    ? normalizePhone(candidate.phone) === identifier
+    : channel !== 'sms' && toAsciiDigits(candidate[field]).trim() === identifier);
+  if (!user) return null;
+  // Only deliver to the private destination already stored on this account.
+  const recipient = channel === 'sms' ? normalizePhone(user.phone) : toAsciiDigits(user[field]).trim();
+  if (!(channel === 'sms' ? /^09\d{9}$/ : /^[1-9]\d{0,19}$/).test(recipient)) return null;
+  return { user, recipient };
+}
+
+function passwordRecoveryOtpKey(user: any, channel: RecoveryChannel, recipient: string): string {
+  // Changing the password also invalidates outstanding codes on other channels.
+  const digest = crypto.createHash('sha256')
+    .update(JSON.stringify([user.id, channel, recipient, user.password || ''])).digest('hex');
+  return `password-reset:${digest}`;
+}
+
+async function sendPasswordRecoveryCode(db: any, channel: RecoveryChannel, recipient: string, otpKey: string) {
+  if (channel === 'sms') return sendOtpSms(recipient, otpKey);
+  const token = String(channel === 'telegram'
+    ? db.settings?.telegramToken || process.env.TELEGRAM_BOT_TOKEN || ''
+    : db.settings?.eitaaToken || process.env.EITAA_TOKEN || '').trim();
+  const label = recoveryChannelLabels[channel];
+  if (!token) return { ok: false, error: `ارسال کد از طریق ${label} در حال حاضر فعال نیست. روش دیگری را انتخاب کنید.` };
+  const code = String(crypto.randomInt(100000, 1000000));
+  const message = `کد بازیابی رمز عبور آتلیه دیجیتال لاله: ${code}\nاین کد تا ۲ دقیقه معتبر است. آن را در اختیار دیگران قرار ندهید.`;
+  const sent = channel === 'telegram'
+    ? await sendTelegramMessage(token, recipient, message)
+    : await sendEitaaMessage(token, recipient, message);
+  if (!sent.ok) return { ok: false, error: `ارسال کد از طریق ${label} ناموفق بود. دوباره تلاش کنید یا روش دیگری را انتخاب کنید.` };
+  const saved = await saveOtpCode(otpKey, code, 2 * 60 * 1000);
+  return saved ? { ok: true } : { ok: false, error: 'ذخیره کد ناموفق بود' };
+}
+
+// Forgot password: send a recovery-only code through the selected channel.
 app.post('/api/auth/password/otp', async (req, res) => {
   try {
-    const phone = normalizePhone(req.body?.phone);
-    if (!/^09\d{9}$/.test(phone)) {
-      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    const channel = parseRecoveryChannel(req.body?.channel);
+    if (!channel) return res.status(400).json({ success: false, error: 'روش ارسال کد معتبر نیست' });
+    const identifier = normalizeRecoveryIdentifier(req.body?.identifier ?? req.body?.phone);
+    if (!isValidRecoveryIdentifier(identifier, channel)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل یا شناسه واردشده معتبر نیست' });
+    }
+    if (await hitRateLimit(`pwotp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
     const db = await readDb();
-    const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
-    // Do not reveal whether the number exists
-    if (!user) {
-      return res.json({ success: true });
-    }
-    if (await hitRateLimit(`pwotp:${phone}`, 3, 15 * 60 * 1000) || await hitRateLimit(`pwotp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
+    const target = passwordRecoveryTarget(db, identifier, channel);
+    const response = { success: true, channel, expiresIn: 120 };
+    // Do not reveal whether an account or a linked messenger destination exists.
+    if (!target) return res.json(response);
+    if (await hitRateLimit(`pwotp:${target.user.id}`, 3, 15 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
 
-    const sent = await sendOtpSms(phone);
+    const otpKey = passwordRecoveryOtpKey(target.user, channel, target.recipient);
+    const sent = await sendPasswordRecoveryCode(db, channel, target.recipient, otpKey);
     if (!sent.ok) {
       return res.status(400).json({ success: false, error: sent.error });
     }
-    res.json({ success: true });
+    res.json(response);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'خطای سرور' });
   }
@@ -1693,27 +1736,33 @@ app.post('/api/auth/password/otp', async (req, res) => {
 // Forgot password: verify the code and set a new password
 app.post('/api/auth/password/reset', async (req, res) => {
   try {
-    const phone = normalizePhone(req.body?.phone);
-    const code = String(req.body?.code || '').trim();
+    const channel = parseRecoveryChannel(req.body?.channel);
+    if (!channel) return res.status(400).json({ success: false, error: 'روش ارسال کد معتبر نیست' });
+    const identifier = normalizeRecoveryIdentifier(req.body?.identifier ?? req.body?.phone);
+    const code = toAsciiDigits(req.body?.code).trim();
     const password = String(req.body?.password || '');
 
-    if (!/^09\d{9}$/.test(phone)) {
-      return res.status(400).json({ success: false, error: 'شماره موبایل نامعتبر است' });
+    if (!isValidRecoveryIdentifier(identifier, channel)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل یا شناسه واردشده معتبر نیست' });
     }
-    if (!code) {
-      return res.status(400).json({ success: false, error: 'کد تایید را وارد کنید' });
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({ success: false, error: 'کد تایید ۶ رقمی را وارد کنید' });
     }
     if (password.length < 6) {
-      return res.status(400).json({ success: false, error: '��مز عبور باید حداقل ۶ نویسه باشد' });
+      return res.status(400).json({ success: false, error: 'رمز عبور باید حداقل ۶ نویسه باشد' });
+    }
+    if (await hitRateLimit(`pwreset-ip:${clientIp(req)}`, 20, 15 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'تعداد تلاش‌ها بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
 
     const db = await readDb();
-    const user = (db.users || []).find((u: any) => normalizePhone(u.phone) === phone);
-    if (!user) {
-      return res.status(400).json({ success: false, error: 'کاربری با این شماره یافت نشد' });
+    const target = passwordRecoveryTarget(db, identifier, channel);
+    if (!target) {
+      return res.status(400).json({ success: false, error: 'کد تایید نادرست یا منقضی شده است' });
     }
+    const { user, recipient } = target;
 
-    const verification = await verifyOtpCode(phone, code);
+    const verification = await verifyOtpCode(passwordRecoveryOtpKey(user, channel, recipient), code);
     if (!verification.ok) {
       return res.status(400).json({ success: false, error: verification.error });
     }

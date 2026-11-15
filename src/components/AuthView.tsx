@@ -3,6 +3,7 @@ import { Lock, User as UserIcon, Phone, ArrowLeft } from 'lucide-react';
 import { User } from '../types';
 import { TulipIcon } from './TulipIcon';
 import { DEFAULT_NEW_USER_WALLET_CREDIT, normalizeNewUserWalletCredit } from '../utils/newUserWalletCredit';
+import { isValidRecoveryIdentifier, normalizeRecoveryIdentifier, recoveryChannelLabels, type RecoveryChannel } from '../utils/passwordRecovery';
 
 interface AuthViewProps {
   onLogin: (user: User) => void;
@@ -13,7 +14,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
 
   // Forgot password state
-  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotChannel, setForgotChannel] = useState<RecoveryChannel>('sms');
+  const [forgotResendSeconds, setForgotResendSeconds] = useState(0);
   const [forgotCode, setForgotCode] = useState('');
   const [forgotPassword, setForgotPassword] = useState('');
   const [forgotStep, setForgotStep] = useState(false);
@@ -37,6 +40,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
   const [loginOtpPhone, setLoginOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [newUserWalletCredit, setNewUserWalletCredit] = useState(DEFAULT_NEW_USER_WALLET_CREDIT);
+
+  useEffect(() => {
+    if (forgotResendSeconds <= 0) return;
+    const timer = window.setTimeout(() => setForgotResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [forgotResendSeconds]);
 
   useEffect(() => {
     let active = true;
@@ -200,40 +209,48 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
     }
   };
 
-  const handleForgotSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const sendForgotCode = async () => {
     setForgotError('');
-    const enteredPhone = normalizeDigits(forgotPhone);
-
-    if (!forgotStep) {
-      if (!/^09\d{9}$/.test(enteredPhone)) {
-        setForgotError('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
+    const identifier = normalizeRecoveryIdentifier(forgotIdentifier);
+    if (!isValidRecoveryIdentifier(identifier, forgotChannel)) {
+      setForgotError(forgotChannel === 'sms'
+        ? 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.'
+        : 'شماره موبایل ثبت‌شده یا شناسه عددی پیام‌رسان را وارد کنید.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/auth/password/otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, channel: forgotChannel })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setForgotError(data?.error || 'ارسال کد تایید ناموفق بود.');
         return;
       }
-      setIsSubmitting(true);
-      try {
-        const res = await fetch('/api/auth/password/otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: enteredPhone })
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || data?.success === false) {
-          setForgotError(data?.error || 'ارسال کد تایید ناموفق بود.');
-          return;
-        }
-        setForgotStep(true);
-        setForgotCode('');
-      } catch {
-        setForgotError('ارسال کد تایید ناموفق بود.');
-      } finally {
-        setIsSubmitting(false);
-      }
+      setForgotStep(true);
+      setForgotCode('');
+      setForgotResendSeconds(60);
+    } catch {
+      setForgotError('ارسال کد تایید ناموفق بود.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setForgotError('');
+    if (!forgotStep) {
+      await sendForgotCode();
       return;
     }
 
-    if (!forgotCode.trim()) {
-      setForgotError('کد تایید را وارد کنید.');
+    if (!/^\d{6}$/.test(normalizeDigits(forgotCode))) {
+      setForgotError('کد تایید ۶ رقمی را وارد کنید.');
       return;
     }
     if (forgotPassword.trim().length < 6) {
@@ -247,7 +264,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: enteredPhone,
+          identifier: normalizeRecoveryIdentifier(forgotIdentifier),
+          channel: forgotChannel,
           code: normalizeDigits(forgotCode.trim()),
           password: forgotPassword.trim()
         })
@@ -423,7 +441,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
                 setForgotStep(false);
                 setForgotCode('');
                 setForgotPassword('');
-                setForgotPhone(phone);
+                setForgotIdentifier(phone);
               }}
               className="w-full text-[11px] font-bold text-slate-500 hover:text-sky-600 hover:underline cursor-pointer pt-1"
             >
@@ -582,47 +600,72 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
             <p className="text-xs font-black text-slate-900 text-right">بازیابی رمز عبور</p>
 
             {forgotError && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs text-right font-medium">
+              <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs text-right font-medium">
                 {forgotError}
               </div>
             )}
 
             {!forgotStep ? (
-              <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
-                شماره موبایل
-              </label>
-              <div className="relative">
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  required
-                  placeholder="09123456789"
-                  value={forgotPhone}
-                    onChange={(e) => setForgotPhone(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
-                  />
-                  <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
+              <>
+                <fieldset disabled={isSubmitting} className="space-y-2" dir="rtl">
+                  <legend className="text-xs font-bold text-slate-700 mb-2">روش دریافت کد بازیابی</legend>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['sms', 'telegram', 'eitaa'] as const).map((channel) => (
+                      <label key={channel} className={`flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl border text-xs font-bold cursor-pointer transition-colors ${forgotChannel === channel ? 'border-sky-500 bg-sky-50 text-sky-800' : 'border-slate-200 bg-slate-50 text-slate-600'} ${isSubmitting ? 'opacity-60' : ''}`}>
+                        <input type="radio" name="recovery-channel" value={channel} checked={forgotChannel === channel}
+                          onChange={() => { setForgotChannel(channel); setForgotError(''); }} className="accent-sky-600" />
+                        {recoveryChannelLabels[channel]}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <div>
+                  <label htmlFor="recovery-identifier" className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                    {forgotChannel === 'sms' ? 'شماره موبایل' : `شماره موبایل یا شناسه عددی ${recoveryChannelLabels[forgotChannel]}`}
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="recovery-identifier"
+                      type="tel"
+                      inputMode="numeric"
+                      required
+                      disabled={isSubmitting}
+                      aria-describedby="recovery-help"
+                      placeholder={forgotChannel === 'sms' ? '09123456789' : 'شماره موبایل یا شناسه عددی'}
+                      value={forgotIdentifier}
+                      onChange={(e) => setForgotIdentifier(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                    />
+                    <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
+                  </div>
+                  <p id="recovery-help" className="mt-2 text-[11px] leading-6 text-slate-500 text-right" dir="rtl">
+                    {forgotChannel === 'sms'
+                      ? 'کد بازیابی به شماره موبایل ثبت‌شده در حساب شما پیامک می‌شود.'
+                      : `کد فقط به حساب ${recoveryChannelLabels[forgotChannel]} متصل به حساب کاربری شما ارسال می‌شود. اگر شماره موبایل ندارید، شناسه عددی همان پیام‌رسان را وارد کنید.`}
+                    {forgotChannel === 'telegram' && ' ابتدا ربات تلگرام آتلیه را شروع کنید.'}
+                  </p>
                 </div>
-              </div>
+              </>
             ) : (
               <>
-                <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-800">
-                  کد تایید به {normalizeDigits(forgotPhone)} ارسال شد
+                <div role="status" className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] leading-6 text-sky-800 text-right" dir="rtl">
+                  اگر اطلاعات واردشده با حساب شما مطابقت داشته باشد، کد بازیابی از طریق {recoveryChannelLabels[forgotChannel]} ارسال می‌شود. اعتبار کد ۲ دقیقه است.
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                  <label htmlFor="recovery-code" className="block text-xs font-bold text-slate-700 mb-1 text-right">
                     کد تایید
                   </label>
                   <div className="relative">
                     <input
+                      id="recovery-code"
                       type="text"
                       inputMode="numeric"
+                      autoComplete="one-time-code"
                       required
                       maxLength={6}
                       placeholder="------"
                       value={forgotCode}
-                      onChange={(e) => setForgotCode(e.target.value.replace(/[^0-9۰-۹]/g, ''))}
+                      onChange={(e) => setForgotCode(e.target.value.replace(/[^0-9۰-۹٠-٩]/g, ''))}
                       dir="ltr"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-sm tracking-[0.4em] text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all font-mono"
                     />
@@ -630,12 +673,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 text-right">
+                  <label htmlFor="recovery-password" className="block text-xs font-bold text-slate-700 mb-1 text-right">
                     رمز عبور جدید
                   </label>
                   <div className="relative">
                     <input
+                      id="recovery-password"
                       type="password"
+                      autoComplete="new-password"
                       required
                       minLength={6}
                       placeholder="حداقل ۶ نویسه"
@@ -659,14 +704,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
                   ? 'در حال پردازش...'
                   : forgotStep
                     ? 'تغییر رمز عبور'
-                    : 'ارسال کد تایید'}
+                    : `ارسال کد از طریق ${recoveryChannelLabels[forgotChannel]}`}
               </span>
               <ArrowLeft className="w-4 h-4" />
             </button>
 
+            {forgotStep && (
+              <button type="button" disabled={isSubmitting || forgotResendSeconds > 0} onClick={sendForgotCode}
+                className="w-full min-h-[44px] text-xs font-bold text-sky-700 disabled:text-slate-400 disabled:cursor-not-allowed">
+                {forgotResendSeconds > 0 ? `ارسال مجدد کد تا ${forgotResendSeconds.toLocaleString('fa-IR')} ثانیه دیگر` : `ارسال مجدد از طریق ${recoveryChannelLabels[forgotChannel]}`}
+              </button>
+            )}
             <div className="flex items-center justify-between text-[11px] pt-1">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => { setMode('login'); setForgotError(''); setForgotStep(false); }}
                 className="text-slate-500 font-bold hover:underline cursor-pointer"
               >
@@ -675,14 +727,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
               {forgotStep && (
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => {
                     setForgotStep(false);
                     setForgotCode('');
                     setForgotPassword('');
+                    setForgotError('');
                   }}
                   className="text-sky-600 font-bold hover:underline cursor-pointer"
                 >
-                  تغییر شماره
+                  تغییر اطلاعات یا روش ارسال
                 </button>
               )}
             </div>
