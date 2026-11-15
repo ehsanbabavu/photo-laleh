@@ -12,6 +12,6 @@ export function normalizeRecoveryIdentifier(value: unknown): string {
   return toAsciiDigits(value).replace(/[\s()-]/g, '');
 }
 
-export function isValidRecoveryIdentifier(identifier: string, channel: RecoveryChannel): boolean {
-  return /^09\d{9}$/.test(identifier) || (channel !== 'sms' && /^[1-9]\d{0,19}$/.test(identifier));
+export function isValidRecoveryIdentifier(identifier: string): boolean {
+  return /^09\d{9}$/.test(identifier);
 }

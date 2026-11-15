@@ -212,10 +212,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
   const sendForgotCode = async () => {
     setForgotError('');
     const identifier = normalizeRecoveryIdentifier(forgotIdentifier);
-    if (!isValidRecoveryIdentifier(identifier, forgotChannel)) {
-      setForgotError(forgotChannel === 'sms'
-        ? 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.'
-        : 'شماره موبایل ثبت‌شده یا شناسه عددی پیام‌رسان را وارد کنید.');
+    if (!isValidRecoveryIdentifier(identifier)) {
+      setForgotError('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
       return;
     }
     setIsSubmitting(true);
@@ -621,16 +619,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
                 </fieldset>
                 <div>
                   <label htmlFor="recovery-identifier" className="block text-xs font-bold text-slate-700 mb-1 text-right">
-                    {forgotChannel === 'sms' ? 'شماره موبایل' : `شماره موبایل یا شناسه عددی ${recoveryChannelLabels[forgotChannel]}`}
+                    شماره موبایل
                   </label>
                   <div className="relative">
                     <input
                       id="recovery-identifier"
                       type="tel"
                       inputMode="numeric"
+                      autoComplete="tel"
                       required
                       disabled={isSubmitting}
-                      placeholder={forgotChannel === 'sms' ? '09123456789' : 'شماره موبایل یا شناسه عددی'}
+                      placeholder="09123456789"
                       value={forgotIdentifier}
                       onChange={(e) => setForgotIdentifier(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-10 py-3 text-center placeholder:text-center text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
