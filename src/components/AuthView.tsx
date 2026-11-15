@@ -630,7 +630,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
                       inputMode="numeric"
                       required
                       disabled={isSubmitting}
-                      aria-describedby="recovery-help"
                       placeholder={forgotChannel === 'sms' ? '09123456789' : 'شماره موبایل یا شناسه عددی'}
                       value={forgotIdentifier}
                       onChange={(e) => setForgotIdentifier(e.target.value)}
@@ -638,12 +637,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin, onBackToHome }) => 
                     />
                     <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
                   </div>
-                  <p id="recovery-help" className="mt-2 text-[11px] leading-6 text-slate-500 text-right" dir="rtl">
-                    {forgotChannel === 'sms'
-                      ? 'کد بازیابی به شماره موبایل ثبت‌شده در حساب شما پیامک می‌شود.'
-                      : `کد فقط به حساب ${recoveryChannelLabels[forgotChannel]} متصل به حساب کاربری شما ارسال می‌شود. اگر شماره موبایل ندارید، شناسه عددی همان پیام‌رسان را وارد کنید.`}
-                    {forgotChannel === 'telegram' && ' ابتدا ربات تلگرام آتلیه را شروع کنید.'}
-                  </p>
                 </div>
               </>
             ) : (
