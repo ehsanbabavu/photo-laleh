@@ -69,26 +69,60 @@ test('legacy SMS payloads without a channel still work', async () => {
   assert.equal((await post('reset', { phone: '09120000001', code: lastCode(), password: 'new-password' })).status, 200);
 });
 
-for (const [channel, identifier, id] of [['eitaa', '444444444', 'eitaa-only'], ['telegram', '555555555', 'telegram-only']]) {
-  test(`${channel}: a messenger-only account can recover using its numeric ID`, async () => {
-    assert.equal((await request(channel, identifier)).status, 200);
-    assert.equal(fixture.sent[0].recipient, identifier);
-    assert.equal((await reset(channel, lastCode(), identifier)).body.user.id, id);
+for (const [channel, linkedId, messengerOnlyId] of [['telegram', '123456789', '555555555'], ['eitaa', '987654321', '444444444']]) {
+  test(`${channel}: recovery requires a mobile number even when a numeric messenger ID is registered`, async () => {
+    for (const identifier of [linkedId, messengerOnlyId]) {
+      assert.equal((await request(channel, identifier)).status, 400);
+      assert.equal((await reset(channel, '123456', identifier)).status, 400);
+    }
+    assert.equal(fixture.sent.length, 0);
+    assert.equal(fixture.codes.size, 0);
+    assert.equal((await request(channel)).status, 200);
+    const code = lastCode();
+    assert.equal((await reset(channel, code, linkedId)).status, 400);
+    assert.equal((await reset(channel, code)).body.user.id, 'customer');
   });
 }
 
-test('unknown accounts and missing or non-private destinations receive the same response', async () => {
-  const valid = await request('telegram');
+const unavailableMethod = { success: false, error: 'این روش برای شما غیر فعال است. از روش دیگری استفاده کنید.' };
+
+for (const channel of ['telegram', 'eitaa']) {
+  test(`${channel}: missing accounts and missing or non-private destinations report that the method is unavailable`, async () => {
+    for (const identifier of ['09129999999', '09120000003']) {
+      const result = await request(channel, identifier, { telegramId: '111111111', eitaaId: '111111111' });
+      assert.equal(result.status, 400);
+      assert.deepEqual(result.body, unavailableMethod);
+    }
+    for (const invalid of [undefined, null, '', '  ', '-100123456789', '@group', '0', '123456789012345678901']) {
+      fixture.reset();
+      fixture.db.users[0][`${channel}Id`] = invalid;
+      const usersBeforeRequest = structuredClone(fixture.db.users);
+      const result = await request(channel);
+      assert.equal(result.status, 400);
+      assert.deepEqual(result.body, unavailableMethod);
+      assert.equal(fixture.sent.length, 0);
+      assert.equal(fixture.codes.size, 0);
+      assert.deepEqual(fixture.db.users, usersBeforeRequest);
+    }
+  });
+
+  test(`${channel}: an unavailable method still allows recovery through another registered method`, async () => {
+    delete fixture.db.users[0][`${channel}Id`];
+    const otherChannel = channel === 'telegram' ? 'eitaa' : 'telegram';
+    assert.deepEqual((await request(channel)).body, unavailableMethod);
+    assert.equal((await request(otherChannel)).status, 200);
+    assert.equal((await reset(otherChannel, lastCode())).body.user.id, 'customer');
+    assert.equal((await request('sms')).status, 200);
+    assert.deepEqual(fixture.sent.map(message => message.channel), [otherChannel, 'sms']);
+  });
+}
+
+test('SMS recovery keeps a generic response for an unknown mobile number', async () => {
+  const valid = await request();
   fixture.sent = [];
-  for (const identifier of ['09129999999', '09120000003']) {
-    assert.deepEqual((await request('telegram', identifier)).body, valid.body);
-  }
-  for (const invalid of ['-100123456789', '@group', '']) {
-    fixture.db.users[0].telegramId = invalid;
-    assert.deepEqual((await request('telegram')).body, valid.body);
-  }
-  fixture.db.users[0].eitaaId = '-100123456789';
-  assert.equal((await request('eitaa')).status, 200);
+  const unknown = await request('sms', '09129999999');
+  assert.equal(unknown.status, 200);
+  assert.deepEqual(unknown.body, valid.body);
   assert.equal(fixture.sent.length, 0);
 });
 
@@ -97,8 +131,11 @@ test('invalid channels, identifiers and reset inputs are rejected', async () => 
     assert.equal((await request(channel)).status, 400);
     assert.equal((await reset(channel, '123456')).status, 400);
   }
-  for (const [channel, identifier] of [['sms', '123456789'], ['telegram', '@name'], ['eitaa', ''], ['sms', '09abc000000']]) {
-    assert.equal((await request(channel, identifier)).status, 400);
+  for (const channel of ['sms', 'telegram', 'eitaa']) {
+    for (const identifier of ['123456789', '@name', '', '09abc000000']) {
+      assert.equal((await request(channel, identifier)).status, 400);
+      assert.equal((await reset(channel, '123456', identifier)).status, 400);
+    }
   }
   await request();
   assert.equal((await reset('sms', '12345')).status, 400);
@@ -149,10 +186,10 @@ test('expired codes and repeated incorrect attempts do not change passwords', as
   assert.equal(fixture.db.users[0].password, 'old-password');
 });
 
-test('send throttling follows the account across channels and phone/ID aliases', async () => {
+test('send throttling follows the mobile number across channels and digit formats', async () => {
   assert.equal((await request('sms')).status, 200);
-  assert.equal((await request('telegram', '123456789')).status, 200);
-  assert.equal((await request('eitaa', '987654321')).status, 200);
+  assert.equal((await request('telegram', '۰۹۱۲ ۰۰۰ ۰۰۰۱')).status, 200);
+  assert.equal((await request('eitaa', '٠٩١٢-٠٠٠-٠٠٠١')).status, 200);
   assert.equal((await request('telegram')).status, 429);
   assert.equal(fixture.sent.length, 3);
 });

@@ -1666,10 +1666,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 function passwordRecoveryTarget(db: any, identifier: string, channel: RecoveryChannel) {
   const field = channel === 'telegram' ? 'telegramId' : 'eitaaId';
-  const isPhone = /^09\d{9}$/.test(identifier);
-  const user = (db.users || []).find((candidate: any) => isPhone
-    ? normalizePhone(candidate.phone) === identifier
-    : channel !== 'sms' && toAsciiDigits(candidate[field]).trim() === identifier);
+  const user = (db.users || []).find((candidate: any) => normalizePhone(candidate.phone) === identifier);
   if (!user) return null;
   // Only deliver to the private destination already stored on this account.
   const recipient = channel === 'sms' ? normalizePhone(user.phone) : toAsciiDigits(user[field]).trim();
@@ -1707,8 +1704,8 @@ app.post('/api/auth/password/otp', async (req, res) => {
     const channel = parseRecoveryChannel(req.body?.channel);
     if (!channel) return res.status(400).json({ success: false, error: 'روش ارسال کد معتبر نیست' });
     const identifier = normalizeRecoveryIdentifier(req.body?.identifier ?? req.body?.phone);
-    if (!isValidRecoveryIdentifier(identifier, channel)) {
-      return res.status(400).json({ success: false, error: 'شماره موبایل یا شناسه واردشده معتبر نیست' });
+    if (!isValidRecoveryIdentifier(identifier)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل واردشده معتبر نیست' });
     }
     if (await hitRateLimit(`pwotp-ip:${clientIp(req)}`, 10, 15 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
@@ -1716,8 +1713,12 @@ app.post('/api/auth/password/otp', async (req, res) => {
     const db = await readDb();
     const target = passwordRecoveryTarget(db, identifier, channel);
     const response = { success: true, channel, expiresIn: 120 };
-    // Do not reveal whether an account or a linked messenger destination exists.
-    if (!target) return res.json(response);
+    if (!target) {
+      if (channel !== 'sms') {
+        return res.status(400).json({ success: false, error: 'این روش برای شما غیر فعال است. از روش دیگری استفاده کنید.' });
+      }
+      return res.json(response);
+    }
     if (await hitRateLimit(`pwotp:${target.user.id}`, 3, 15 * 60 * 1000)) {
       return res.status(429).json({ success: false, error: 'تعداد درخواست کد بیش از حد مجاز است. کمی بعد تلاش کنید.' });
     }
@@ -1742,8 +1743,8 @@ app.post('/api/auth/password/reset', async (req, res) => {
     const code = toAsciiDigits(req.body?.code).trim();
     const password = String(req.body?.password || '');
 
-    if (!isValidRecoveryIdentifier(identifier, channel)) {
-      return res.status(400).json({ success: false, error: 'شماره موبایل یا شناسه واردشده معتبر نیست' });
+    if (!isValidRecoveryIdentifier(identifier)) {
+      return res.status(400).json({ success: false, error: 'شماره موبایل واردشده معتبر نیست' });
     }
     if (!/^\d{6}$/.test(code)) {
       return res.status(400).json({ success: false, error: 'کد تایید ۶ رقمی را وارد کنید' });
