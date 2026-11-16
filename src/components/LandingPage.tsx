@@ -118,12 +118,12 @@ const FAQS = [
 
 const NAV_LINKS = [
   { href: '/blog/', label: 'وبلاگ' },
-  { href: '#licenses', label: 'مجوزات' },
   { href: '#services', label: 'خدمات' },
   { href: '#features', label: 'مزیت‌ها' },
   { href: '#steps', label: 'مراحل سفارش' },
   { href: '#partners', label: 'همکاری' },
-  { href: '#faq', label: 'سوالات' }
+  { href: '#faq', label: 'سوالات' },
+  { href: '#licenses', label: 'مجوزات' }
 ];
 
 /**
@@ -456,6 +456,50 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 <div key={item.text} className="flex items-center justify-center gap-2 text-slate-600">
                   <Icon className="w-4 h-4 text-sky-600 flex-shrink-0" />
                   <span className="text-[11px] sm:text-xs font-bold">{item.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= FAQ ================= */}
+      <section id="faq" className="relative py-16 sm:py-24 bg-white border-t border-slate-200 scroll-mt-24">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 tab:px-8">
+          <div className="text-center">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-black text-sky-700">
+              <MessageCircle className="w-3.5 h-3.5" />
+              سوالات متداول
+            </span>
+            <h2 className="mt-3 text-2xl sm:text-3xl font-black">هر آنچه باید بدانید</h2>
+          </div>
+
+          <div className="mt-8 space-y-2.5">
+            {FAQS.map((faq, index) => {
+              const open = openFaq === index;
+              return (
+                <div
+                  key={faq.q}
+                  className={`rounded-2xl border transition-all ${
+                    open ? 'bg-sky-50/60 border-sky-300' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <button
+                    onClick={() => setOpenFaq(open ? null : index)}
+                    className="w-full flex items-center justify-between gap-3 p-4 text-right cursor-pointer"
+                  >
+                    <span className="text-xs sm:text-sm font-black text-slate-900">{faq.q}</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-500 flex-shrink-0 transition-transform ${
+                        open ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {open && (
+                    <p className="px-4 pb-4 text-[11px] sm:text-xs text-slate-600 leading-7 animate-landing-fade">
+                      {faq.a}
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -837,50 +881,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FAQ ================= */}
-      <section id="faq" className="relative py-16 sm:py-24 bg-white border-t border-slate-200 scroll-mt-24">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 tab:px-8">
-          <div className="text-center">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-black text-sky-700">
-              <MessageCircle className="w-3.5 h-3.5" />
-              سوالات متداول
-            </span>
-            <h2 className="mt-3 text-2xl sm:text-3xl font-black">هر آنچه باید بدانید</h2>
-          </div>
-
-          <div className="mt-8 space-y-2.5">
-            {FAQS.map((faq, index) => {
-              const open = openFaq === index;
-              return (
-                <div
-                  key={faq.q}
-                  className={`rounded-2xl border transition-all ${
-                    open ? 'bg-sky-50/60 border-sky-300' : 'bg-slate-50 border-slate-200'
-                  }`}
-                >
-                  <button
-                    onClick={() => setOpenFaq(open ? null : index)}
-                    className="w-full flex items-center justify-between gap-3 p-4 text-right cursor-pointer"
-                  >
-                    <span className="text-xs sm:text-sm font-black text-slate-900">{faq.q}</span>
-                    <ChevronDown
-                      className={`w-4 h-4 text-slate-500 flex-shrink-0 transition-transform ${
-                        open ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-                  {open && (
-                    <p className="px-4 pb-4 text-[11px] sm:text-xs text-slate-600 leading-7 animate-landing-fade">
-                      {faq.a}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
           </div>
         </div>
       </section>
