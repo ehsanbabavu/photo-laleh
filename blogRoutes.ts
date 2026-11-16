@@ -50,7 +50,7 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
     const content = safeContent + sourceNote;
     const wordCount = plain.split(/\s+/).filter(Boolean).length;
     if (wordCount > 2000) throw new BlogError(502, 'مطلب از سقف ۲۰۰۰ واژه بیشتر است.');
-    res.json({ title, slug, excerpt, content, seoTitle: blogText(raw.seoTitle || title, 180), seoDescription: blogText(raw.seoDescription || excerpt, 320), category, tags, imagePrompt, imageAlt: blogText(raw.imageAlt || title, 300) });
+    res.json({ title, slug, excerpt, content, imagePrompt, seoTitle: blogText(raw.seoTitle || title, 180), seoDescription: blogText(raw.seoDescription || excerpt, 320), category, tags, imagePrompt, imageAlt: blogText(raw.imageAlt || title, 300) });
   }));
   router.get('/api/admin/blog/export', handle(async (_req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="laleh-blog-${new Date().toISOString().slice(0, 10)}.json"`);
