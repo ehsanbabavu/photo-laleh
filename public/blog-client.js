@@ -13,8 +13,9 @@ if (form) form.addEventListener('submit', async event => {
   } catch (error) { status.textContent = error.message || 'اتصال برقرار نشد. دوباره تلاش کنید.'; }
   finally { button.disabled = false; }
 });
-document.querySelector('[data-copy-url]')?.addEventListener('click', async event => {
-  const status = document.getElementById('blog-copy-status');
-  try { await navigator.clipboard.writeText(event.currentTarget.dataset.copyUrl); status.textContent = 'پیوند کپی شد.'; }
-  catch { status.textContent = 'پیوند را از نوار آدرس کپی کنید.'; }
-});
+document.querySelectorAll('[data-copy-url]').forEach(button => button.addEventListener('click', async event => {
+  const target = event.currentTarget;
+  const status = target.closest('.blog-card-actions, .blog-share')?.querySelector('[data-copy-status], #blog-copy-status') || document.getElementById('blog-copy-status');
+  try { await navigator.clipboard.writeText(target.dataset.copyUrl); if (status) status.textContent = 'پیوند کپی شد.'; }
+  catch { if (status) status.textContent = 'پیوند را از نوار آدرس کپی کنید.'; }
+}));
