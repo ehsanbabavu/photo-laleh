@@ -118,9 +118,9 @@ const FAQS = [
 
 const NAV_LINKS = [
   { href: '/blog/', label: 'وبلاگ' },
-  { href: '#services', label: 'خدمات' },
   { href: '#features', label: 'مزیت‌ها' },
   { href: '#steps', label: 'مراحل سفارش' },
+  { href: '#services', label: 'خدمات' },
   { href: '#partners', label: 'همکاری' },
   { href: '#faq', label: 'سوالات' },
   { href: '#licenses', label: 'مجوزات' }
@@ -463,6 +463,185 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         </div>
       </section>
 
+      {/* ================= FEATURES ================= */}
+      <section id="features" className="relative py-16 sm:py-24 bg-white border-y border-slate-200 scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
+          <div className="text-center max-w-2xl mx-auto">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-black text-emerald-700">
+              <Sparkles className="w-3.5 h-3.5" />
+              چرا آتلیه لاله
+            </span>
+            <h2 className="mt-3 text-2xl sm:text-3xl tab:text-4xl font-black leading-snug">
+              کیفیت استودیویی، تجربه دیجیتال
+            </h2>
+            <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
+              ترکیبی از پردازش تصویر حرفه‌ای و چاپ دقیق، با فرآیندی ساده که تمام مراحلش آنلاین است.
+            </p>
+          </div>
+
+          <div className="mt-10 grid sm:grid-cols-2 tab:grid-cols-3 gap-4 sm:gap-5">
+            {FEATURES.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={feature.title}
+                  className="group p-5 rounded-3xl bg-slate-50/80 border border-slate-200 hover:bg-white hover:border-sky-200 hover:shadow-lg transition-all duration-300"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center shadow-md shadow-sky-500/20">
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <h3 className="mt-3.5 text-sm sm:text-base font-black text-slate-900">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-2 text-[11px] sm:text-xs text-slate-600 leading-7">{feature.text}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= STEPS ================= */}
+      <section id="steps" className="relative py-16 sm:py-24 scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
+          <div className="grid tab:grid-cols-12 gap-10 items-start">
+            <div className="tab:col-span-5 tab:sticky tab:top-28">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-[11px] font-black text-teal-700">
+                <Clock className="w-3.5 h-3.5" />
+                فرآیند سفارش
+              </span>
+              <h2 className="mt-3 text-2xl sm:text-3xl tab:text-4xl font-black leading-snug">
+                از عکس تا قاب، در ۵ قدم
+              </h2>
+              <p className="mt-3 text-sm sm:text-base text-slate-600 leading-8">
+                همه‌چیز آنلاین و شفاف است؛ در هر مرحله می‌دانید چه اتفاقی می‌افتد و مبلغ نهایی چقدر
+                است.
+              </p>
+
+              <div className="mt-6 p-4 rounded-2xl bg-gradient-to-l from-sky-50 to-emerald-50 border border-sky-200">
+                <p className="text-[11px] sm:text-xs text-slate-700 leading-7 font-medium">
+                  <span className="font-black text-slate-900">نکته:</span> اگر بین مراحل ثبت سفارش
+                  از صفحه خارج شوید، اطلاعات شما ذخیره می‌شود و می‌توانید از همان‌جا ادامه دهید.
+                </p>
+              </div>
+
+              <button
+                onClick={onLogin}
+                style={{ backgroundImage: 'linear-gradient(to left, #0284c7, #0d9488, #059669)' }}
+                className="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-black text-white shadow-lg shadow-sky-600/20 hover:brightness-110 transition-all cursor-pointer"
+              >
+                شروع کنید
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="tab:col-span-7">
+              <div className="space-y-3">
+                {STEPS.map((step, index) => (
+                  <div
+                    key={step.title}
+                    className="flex items-start gap-3.5 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-sky-200 hover:shadow-md transition-all"
+                  >
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center font-black text-xs sm:text-sm flex-shrink-0 shadow-sm">
+                      {formatNumber(index + 1)}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-black text-slate-900">{step.title}</h3>
+                      <p className="mt-1 text-[11px] sm:text-xs text-slate-600 leading-6">{step.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= SERVICES ================= */}
+      <section id="services" className="relative py-16 sm:py-24 scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-black text-sky-700">
+              <Palette className="w-3.5 h-3.5" />
+              خدمات آتلیه
+            </span>
+            <h2 className="mt-3 text-2xl sm:text-3xl tab:text-4xl font-black leading-snug">
+              هر عکس، یک سرویس اختصاصی
+            </h2>
+            <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
+              برای هر نیاز، یک مسیر حرفه‌ای آماده کرده‌ایم؛ از عکس پرسنلی اداری تا بازسازی
+              خاطرات قدیمی و تابلوهای هنری.
+            </p>
+          </div>
+
+          {printTypes.length === 0 ? (
+            <div className="mt-9 p-8 rounded-3xl bg-white border border-dashed border-slate-300 text-center">
+              <p className="text-sm font-bold text-slate-700">در حال آماده‌سازی سرویس‌های چاپ</p>
+              <p className="text-xs text-slate-500 mt-1">به‌زودی خدمات آتلیه در این بخش نمایش داده می‌شود.</p>
+            </div>
+          ) : (
+          <div className="mt-9 grid sm:grid-cols-2 tab:grid-cols-3 gap-4 sm:gap-5">
+            {printTypes.map((service) => (
+              <article
+                key={service.id}
+                className="group relative rounded-3xl bg-white border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+              >
+                <div className="relative h-40 sm:h-44 overflow-hidden bg-slate-100">
+                  <img
+                    src={service.cardBgImage || service.sampleImage || SERVICE_IMAGE[service.id] || '/logo.png'}
+                    alt={service.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
+                  {service.tag && (
+                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/90 backdrop-blur text-[10px] font-black text-slate-800 shadow-sm">
+                      {service.tag}
+                    </span>
+                  )}
+                  <h3 className="absolute bottom-3 right-3 left-3 text-white text-sm sm:text-base font-black">
+                    {service.title}
+                  </h3>
+                </div>
+
+                <div className="p-4 sm:p-5">
+                  <p className="text-[11px] sm:text-xs text-sky-700 font-bold">{service.subtitle}</p>
+                  <p className="mt-2 text-[11px] sm:text-xs text-slate-600 leading-7 line-clamp-3">
+                    {service.description}
+                  </p>
+
+                  <ul className="mt-3 space-y-1.5">
+                    {(service.features || []).slice(0, 3).map((feature) => (
+                      <li key={feature} className="flex items-start gap-1.5 text-[11px] text-slate-600">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                        <span className="leading-6">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-slate-500">شروع قیمت از</p>
+                      <p className="text-sm font-black text-slate-900 font-mono">
+                        {formatPrice(service.basePrice)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={onLogin}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors cursor-pointer"
+                    >
+                      ثبت سفارش
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          )}
+        </div>
+      </section>
+
       {/* ================= PARTNERS ================= */}
       <section id="partners" className="relative py-16 sm:py-24 scroll-mt-24 overflow-hidden">
         <div className="pointer-events-none absolute inset-0">
@@ -705,185 +884,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           />
         </div>
       )}
-
-      {/* ================= SERVICES ================= */}
-      <section id="services" className="relative py-16 sm:py-24 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-black text-sky-700">
-              <Palette className="w-3.5 h-3.5" />
-              خدمات آتلیه
-            </span>
-            <h2 className="mt-3 text-2xl sm:text-3xl tab:text-4xl font-black leading-snug">
-              هر عکس، یک سرویس اختصاصی
-            </h2>
-            <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
-              برای هر نیاز، یک مسیر حرفه‌ای آماده کرده‌ایم؛ از عکس پرسنلی اداری تا بازسازی
-              خاطرات قدیمی و تابلوهای هنری.
-            </p>
-          </div>
-
-          {printTypes.length === 0 ? (
-            <div className="mt-9 p-8 rounded-3xl bg-white border border-dashed border-slate-300 text-center">
-              <p className="text-sm font-bold text-slate-700">در حال آماده‌سازی سرویس‌های چاپ</p>
-              <p className="text-xs text-slate-500 mt-1">به‌زودی خدمات آتلیه در این بخش نمایش داده می‌شود.</p>
-            </div>
-          ) : (
-          <div className="mt-9 grid sm:grid-cols-2 tab:grid-cols-3 gap-4 sm:gap-5">
-            {printTypes.map((service) => (
-              <article
-                key={service.id}
-                className="group relative rounded-3xl bg-white border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-              >
-                <div className="relative h-40 sm:h-44 overflow-hidden bg-slate-100">
-                  <img
-                    src={service.cardBgImage || service.sampleImage || SERVICE_IMAGE[service.id] || '/logo.png'}
-                    alt={service.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
-                  {service.tag && (
-                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/90 backdrop-blur text-[10px] font-black text-slate-800 shadow-sm">
-                      {service.tag}
-                    </span>
-                  )}
-                  <h3 className="absolute bottom-3 right-3 left-3 text-white text-sm sm:text-base font-black">
-                    {service.title}
-                  </h3>
-                </div>
-
-                <div className="p-4 sm:p-5">
-                  <p className="text-[11px] sm:text-xs text-sky-700 font-bold">{service.subtitle}</p>
-                  <p className="mt-2 text-[11px] sm:text-xs text-slate-600 leading-7 line-clamp-3">
-                    {service.description}
-                  </p>
-
-                  <ul className="mt-3 space-y-1.5">
-                    {(service.features || []).slice(0, 3).map((feature) => (
-                      <li key={feature} className="flex items-start gap-1.5 text-[11px] text-slate-600">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                        <span className="leading-6">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] text-slate-500">شروع قیمت از</p>
-                      <p className="text-sm font-black text-slate-900 font-mono">
-                        {formatPrice(service.basePrice)}
-                      </p>
-                    </div>
-                    <button
-                      onClick={onLogin}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors cursor-pointer"
-                    >
-                      ثبت سفارش
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-          )}
-        </div>
-      </section>
-
-      {/* ================= FEATURES ================= */}
-      <section id="features" className="relative py-16 sm:py-24 bg-white border-y border-slate-200 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
-          <div className="text-center max-w-2xl mx-auto">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-black text-emerald-700">
-              <Sparkles className="w-3.5 h-3.5" />
-              چرا آتلیه لاله
-            </span>
-            <h2 className="mt-3 text-2xl sm:text-3xl tab:text-4xl font-black leading-snug">
-              کیفیت استودیویی، تجربه دیجیتال
-            </h2>
-            <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
-              ترکیبی از پردازش تصویر حرفه‌ای و چاپ دقیق، با فرآیندی ساده که تمام مراحلش آنلاین است.
-            </p>
-          </div>
-
-          <div className="mt-10 grid sm:grid-cols-2 tab:grid-cols-3 gap-4 sm:gap-5">
-            {FEATURES.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <div
-                  key={feature.title}
-                  className="group p-5 rounded-3xl bg-slate-50/80 border border-slate-200 hover:bg-white hover:border-sky-200 hover:shadow-lg transition-all duration-300"
-                >
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center shadow-md shadow-sky-500/20">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <h3 className="mt-3.5 text-sm sm:text-base font-black text-slate-900">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-2 text-[11px] sm:text-xs text-slate-600 leading-7">{feature.text}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= STEPS ================= */}
-      <section id="steps" className="relative py-16 sm:py-24 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
-          <div className="grid tab:grid-cols-12 gap-10 items-start">
-            <div className="tab:col-span-5 tab:sticky tab:top-28">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-[11px] font-black text-teal-700">
-                <Clock className="w-3.5 h-3.5" />
-                فرآیند سفارش
-              </span>
-              <h2 className="mt-3 text-2xl sm:text-3xl tab:text-4xl font-black leading-snug">
-                از عکس تا قاب، در ۵ قدم
-              </h2>
-              <p className="mt-3 text-sm sm:text-base text-slate-600 leading-8">
-                همه‌چیز آنلاین و شفاف است؛ در هر مرحله می‌دانید چه اتفاقی می‌افتد و مبلغ نهایی چقدر
-                است.
-              </p>
-
-              <div className="mt-6 p-4 rounded-2xl bg-gradient-to-l from-sky-50 to-emerald-50 border border-sky-200">
-                <p className="text-[11px] sm:text-xs text-slate-700 leading-7 font-medium">
-                  <span className="font-black text-slate-900">نکته:</span> اگر بین مراحل ثبت سفارش
-                  از صفحه خارج شوید، اطلاعات شما ذخیره می‌شود و می‌توانید از همان‌جا ادامه دهید.
-                </p>
-              </div>
-
-              <button
-                onClick={onLogin}
-                style={{ backgroundImage: 'linear-gradient(to left, #0284c7, #0d9488, #059669)' }}
-                className="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-black text-white shadow-lg shadow-sky-600/20 hover:brightness-110 transition-all cursor-pointer"
-              >
-                شروع کنید
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="tab:col-span-7">
-              <div className="space-y-3">
-                {STEPS.map((step, index) => (
-                  <div
-                    key={step.title}
-                    className="flex items-start gap-3.5 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-sky-200 hover:shadow-md transition-all"
-                  >
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-emerald-500 text-white flex items-center justify-center font-black text-xs sm:text-sm flex-shrink-0 shadow-sm">
-                      {formatNumber(index + 1)}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-xs sm:text-sm font-black text-slate-900">{step.title}</h3>
-                      <p className="mt-1 text-[11px] sm:text-xs text-slate-600 leading-6">{step.text}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ================= FOOTER ================= */}
       <footer className="bg-slate-900 text-slate-300 pt-12 pb-8">
