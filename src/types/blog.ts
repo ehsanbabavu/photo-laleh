@@ -4,7 +4,7 @@ export interface BlogMedia { id: string; url: string; title: string; alt: string
 export interface BlogRevision { id: string; savedAt: string; title: string; content: string; excerpt: string }
 export interface BlogPost {
   id: string; version: number; viewCount: number; title: string; slug: string; excerpt: string; content: string;
-  status: BlogStatus; authorName: string; coverImage: string; coverAlt: string;
+  status: BlogStatus; authorName: string; coverImage: string; coverAlt: string; imagePrompt: string;
   categoryIds: string[]; tagIds: string[]; featured: boolean; allowComments: boolean;
   seoTitle: string; seoDescription: string; noIndex: boolean;
   createdAt: string; updatedAt: string; publishedAt: string | null;
