@@ -33,7 +33,7 @@ export function AiBlogGenerator({ state, busy, onPublished, onWorkingChange }: {
       }
       const post = await blogRequest<BlogPost>('/posts', 'POST', {
         title: article.title, slug: article.slug, excerpt: article.excerpt, content: article.content,
-        coverImage: '', coverAlt: article.imageAlt, authorName: state.settings.defaultAuthor,
+        coverImage: '', coverAlt: article.imageAlt, imagePrompt: article.imagePrompt, authorName: state.settings.defaultAuthor,
         categoryIds: [category.id], tagIds: tags, status: 'draft', publishedAt: null,
         seoTitle: article.seoTitle, seoDescription: article.seoDescription, featured: false, allowComments: true, noIndex: false
       });
