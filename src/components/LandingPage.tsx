@@ -23,7 +23,9 @@ import {
   ScanFace,
   Crop
 } from 'lucide-react';
-import { formatNumber } from '../utils/formatters';
+import { PrintDimension, PrintTypeOption } from '../types';
+import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
+import { formatNumber, formatPrice } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
 import { HERO_SLIDES, SERVICE_IMAGE_BLOB, LEGAL_QR_URL, LEGAL_TRACK_URL, LICENSE_THUMB_URL, LICENSE_IMAGE_URL } from '../data/heroSlides';
 import { EitaaIcon, TelegramIcon } from './BrandIcons';
@@ -138,6 +140,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuButton = useRef<HTMLButtonElement>(null);
+  const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
+  const [dimensions, setDimensions] = useState<PrintDimension[]>([]);
   const [gallerySlides, setGallerySlides] = useState(HERO_SLIDES);
   const [activeSlide, setActiveSlide] = useState(0);
   const [licenseOpen, setLicenseOpen] = useState(false);
@@ -194,8 +198,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         if (!res.ok) throw new Error(`landing ${res.status}`);
         const data = await res.json();
         if (!active) return;
+        // Keep the landing page counters in sync with the current catalog.
+        setPrintTypes(Array.isArray(data.printTypes) ? data.printTypes : []);
+        setDimensions(Array.isArray(data.dimensions) ? data.dimensions : []);
         if (Array.isArray(data.gallery) && data.gallery.length > 0) setGallerySlides(data.gallery);
-      } catch { /* Offline / API failure: keep the built-in gallery available. */ }
+      } catch {
+        // Keep the landing page counters useful when the catalog API is unavailable.
+        if (active) {
+          setPrintTypes(PRINT_TYPES);
+          setDimensions(PRINT_DIMENSIONS);
+        }
+      }
     })();
     return () => {
       active = false;
