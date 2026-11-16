@@ -3,7 +3,7 @@ import { createBlogService, BlogError, blogText, newBlogId, validateBlogSlug, pu
 import { blogHtml, blogSitemap, blogFeed } from './blogPages';
 import { safeBlogUrl } from './src/utils/blogContent';
 import { blogPostPath, type BlogState } from './src/types/blog';
-import { resolveAvalAiBlogSettings, requestAvalAi, generateAvalAiBlogCover } from './blogAiGeneration';
+import { resolveAvalAiBlogSettings, requestAvalAi } from './blogAiGeneration';
 import { blogArticleType, blogArticleTopic } from './src/utils/blogAiOptions';
 
 export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; compareAndSet: (revision: number, next: BlogState) => Promise<boolean>;
@@ -45,13 +45,12 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
     const safeContent = html.replace(/<\/?(?!p\b|h2\b|h3\b|ul\b|ol\b|li\b|strong\b)[a-z][^>]*>/gi, '').trim();
     const plain = safeContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     if (!title || plain.split(/\s+/).length > 2000 || plain.length < 300) throw new BlogError(502, 'مقاله تولیدشده خالی، بیش از ۲۰۰۰ واژه یا نامعتبر است؛ دوباره تلاش کنید.');
-    const imagePrompt = blogText(raw.imagePrompt || `Editorial photograph for a Persian blog article: ${title}`, 1000);
-    const imageUrl = await generateAvalAiBlogCover(config, `${imagePrompt}. Realistic editorial photography, no text, no watermark.`);
+    const imagePrompt = blogText(raw.imagePrompt || `تصویر تحریریه‌ای برای مقاله: ${title}`, 1000);
     const sourceNote = kind === 'news' ? `<p>منبع: <a href="${escape(sourceUrl)}" rel="noopener noreferrer">${escape(new URL(sourceUrl).hostname)}</a></p>` : '';
     const content = safeContent + sourceNote;
     const wordCount = plain.split(/\s+/).filter(Boolean).length;
     if (wordCount > 2000) throw new BlogError(502, 'مطلب از سقف ۲۰۰۰ واژه بیشتر است.');
-    res.json({ title, slug, excerpt, content, seoTitle: blogText(raw.seoTitle || title, 180), seoDescription: blogText(raw.seoDescription || excerpt, 320), category, tags, imageUrl, imageAlt: blogText(raw.imageAlt || title, 300) });
+    res.json({ title, slug, excerpt, content, seoTitle: blogText(raw.seoTitle || title, 180), seoDescription: blogText(raw.seoDescription || excerpt, 320), category, tags, imagePrompt, imageAlt: blogText(raw.imageAlt || title, 300) });
   }));
   router.get('/api/admin/blog/export', handle(async (_req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="laleh-blog-${new Date().toISOString().slice(0, 10)}.json"`);
