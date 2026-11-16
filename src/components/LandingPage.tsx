@@ -124,8 +124,6 @@ const NAV_LINKS = [
   { href: '#partners', label: 'همکاری' },
   { href: '#faq', label: 'سوالات' },
   { href: '#licenses', label: 'مجوزات' }
-  { href: '#faq', label: 'سوالات' },
-  { href: '#licenses', label: 'مجوزات' }
 ];
 
 /**
