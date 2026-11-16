@@ -124,6 +124,8 @@ const NAV_LINKS = [
   { href: '#partners', label: 'همکاری' },
   { href: '#faq', label: 'سوالات' },
   { href: '#licenses', label: 'مجوزات' }
+  { href: '#faq', label: 'سوالات' },
+  { href: '#licenses', label: 'مجوزات' }
 ];
 
 /**
@@ -459,6 +461,80 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= PARTNERS ================= */}
+      <section id="partners" className="relative py-16 sm:py-24 scroll-mt-24 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -bottom-24 right-1/4 w-80 h-80 rounded-full bg-emerald-300/20 blur-3xl" />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
+          <div className="rounded-[2rem] bg-gradient-to-l from-sky-700 via-teal-700 to-emerald-700 text-white p-6 sm:p-10 shadow-2xl shadow-teal-900/20">
+            <div className="grid tab:grid-cols-2 gap-8 items-center">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-black text-white">
+                  <Users className="w-3.5 h-3.5" />
+                  باشگاه همکاران لاله
+                </span>
+                <h2 className="mt-3 text-2xl sm:text-3xl font-black leading-snug">
+                  همکار چاپ هستید؟ با ما همکاری کنید
+                </h2>
+                <p className="mt-3 text-xs sm:text-sm text-emerald-50/90 leading-7">
+                  همکاران ما در پنل اختصاصی خود لیست سفارش‌های ارسالی و لیست قیمت‌ها را می‌بینند،
+                  سفارش‌ها با جزئیات کامل چاپ (سایز و تعداد) در تلگرام یا ایتا دریافت می‌کنند و
+                  فاکتور همکاری به‌صورت خودکار صادر و قابل تسویه است.
+                </p>
+
+                <ul className="mt-4 grid sm:grid-cols-2 gap-2">
+                  {[
+                    'دریافت سفارش در تلگرام یا ایتا',
+                    'لیست قیمت اختصاصی',
+                    'فاکتور و تسویه شفاف',
+                    'پشتیبانی اختصاصی همکاران'
+                  ].map((item) => (
+                    <li key={item} className="flex items-center gap-1.5 text-[11px] sm:text-xs text-white/90">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 flex-shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-2.5">
+                <button
+                  onClick={onLogin}
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-white text-slate-900 text-sm font-black hover:bg-slate-50 active:scale-[0.99] transition-all cursor-pointer"
+                >
+                  ورود همکاران
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <p className="text-[10px] sm:text-[11px] text-emerald-50/80 text-center leading-6">
+                  حساب همکاری توسط مدیر آتلیه ساخته می‌شود. برای دریافت حساب با پشتیبانی در تماس
+                  باشید.
+                </p>
+
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                  {[
+                    { icon: Send, label: 'تلگرام' },
+                    { icon: MessageCircle, label: 'ایتا' },
+                    { icon: PhoneCall, label: 'تلفن' }
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/10 border border-white/20 text-[10px] font-bold"
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {item.label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -805,80 +881,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= PARTNERS ================= */}
-      <section id="partners" className="relative py-16 sm:py-24 scroll-mt-24 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -bottom-24 right-1/4 w-80 h-80 rounded-full bg-emerald-300/20 blur-3xl" />
-        </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
-          <div className="rounded-[2rem] bg-gradient-to-l from-sky-700 via-teal-700 to-emerald-700 text-white p-6 sm:p-10 shadow-2xl shadow-teal-900/20">
-            <div className="grid tab:grid-cols-2 gap-8 items-center">
-              <div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-black text-white">
-                  <Users className="w-3.5 h-3.5" />
-                  باشگاه همکاران لاله
-                </span>
-                <h2 className="mt-3 text-2xl sm:text-3xl font-black leading-snug">
-                  همکار چاپ هستید؟ با ما همکاری کنید
-                </h2>
-                <p className="mt-3 text-xs sm:text-sm text-emerald-50/90 leading-7">
-                  همکاران ما در پنل اختصاصی خود لیست سفارش‌های ارسالی و لیست قیمت‌ها را می‌بینند،
-                  سفارش‌ها با جزئیات کامل چاپ (سایز و تعداد) در تلگرام یا ایتا دریافت می‌کنند و
-                  فاکتور همکاری به‌صورت خودکار صادر و قابل تسویه است.
-                </p>
-
-                <ul className="mt-4 grid sm:grid-cols-2 gap-2">
-                  {[
-                    'دریافت سفارش در تلگرام یا ایتا',
-                    'لیست قیمت اختصاصی',
-                    'فاکتور و تسویه شفاف',
-                    'پشتیبانی اختصاصی همکاران'
-                  ].map((item) => (
-                    <li key={item} className="flex items-center gap-1.5 text-[11px] sm:text-xs text-white/90">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 flex-shrink-0" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="space-y-2.5">
-                <button
-                  onClick={onLogin}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-white text-slate-900 text-sm font-black hover:bg-slate-50 active:scale-[0.99] transition-all cursor-pointer"
-                >
-                  ورود همکاران
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <p className="text-[10px] sm:text-[11px] text-emerald-50/80 text-center leading-6">
-                  حساب همکاری توسط مدیر آتلیه ساخته می‌شود. برای دریافت حساب با پشتیبانی در تماس
-                  باشید.
-                </p>
-
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  {[
-                    { icon: Send, label: 'تلگرام' },
-                    { icon: MessageCircle, label: 'ایتا' },
-                    { icon: PhoneCall, label: 'تلفن' }
-                  ].map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <div
-                        key={item.label}
-                        className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/10 border border-white/20 text-[10px] font-bold"
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        {item.label}
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
             </div>
           </div>
