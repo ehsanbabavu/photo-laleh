@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Sparkles,
   ArrowLeft,
@@ -23,9 +23,7 @@ import {
   ScanFace,
   Crop
 } from 'lucide-react';
-import { PrintDimension, PrintTypeOption } from '../types';
-import { PRINT_TYPES, PRINT_DIMENSIONS } from '../data/mockData';
-import { formatNumber, formatPrice } from '../utils/formatters';
+import { formatNumber } from '../utils/formatters';
 import { TulipIcon } from './TulipIcon';
 import { HERO_SLIDES, SERVICE_IMAGE_BLOB, LEGAL_QR_URL, LEGAL_TRACK_URL, LICENSE_THUMB_URL, LICENSE_IMAGE_URL } from '../data/heroSlides';
 import { EitaaIcon, TelegramIcon } from './BrandIcons';
@@ -34,12 +32,6 @@ interface LandingPageProps {
   onLogin: () => void;
 }
 
-
-/** Converts ASCII digits to Persian digits and normalises «x» to «×» in size labels. */
-const toFaDigits = (value: string): string =>
-  String(value || '')
-    .replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
-    .replace(/([۰-۹])\s*[xX]\s*([۰-۹])/g, '$1 × $2');
 
 const SERVICE_IMAGE: Record<string, string> = SERVICE_IMAGE_BLOB;
 
@@ -114,7 +106,7 @@ const FAQS = [
   },
   {
     q: 'چه سایزهایی برای چاپ موجود است؟',
-    a: 'لیست کامل سایزها به‌روزرسانی می‌شود و در بخش «سایزهای چاپ» همین صفحه قابل مشاهده است. برای هر سرویس، سایزهای مناسب در مرحله انتخاب ابعاد نمایش داده می‌شود.'
+    a: 'برای هر سرویس، سایزهای مناسب در مرحله انتخاب ابعاد نمایش داده می‌شود.'
   },
   {
     q: 'من همکار چاپ هستم؛ چطور همکاری کنم؟',
@@ -128,7 +120,6 @@ const NAV_LINKS = [
   { href: '#services', label: 'خدمات' },
   { href: '#features', label: 'مزیت‌ها' },
   { href: '#steps', label: 'مراحل سفارش' },
-  { href: '#sizes', label: 'سایزها' },
   { href: '#partners', label: 'همکاری' },
   { href: '#faq', label: 'سوالات' }
 ];
@@ -147,10 +138,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuButton = useRef<HTMLButtonElement>(null);
-  const [printTypes, setPrintTypes] = useState<PrintTypeOption[]>([]);
-  const [dimensions, setDimensions] = useState<PrintDimension[]>([]);
   const [gallerySlides, setGallerySlides] = useState(HERO_SLIDES);
-  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [licenseOpen, setLicenseOpen] = useState(false);
   const [sealSrc, setSealSrc] = useState(ENAMAD_SEAL_SRC);
@@ -206,30 +194,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         if (!res.ok) throw new Error(`landing ${res.status}`);
         const data = await res.json();
         if (!active) return;
-        // The database is the single source of truth — including when it is empty
-        setPrintTypes(Array.isArray(data.printTypes) ? data.printTypes : []);
-        setDimensions(Array.isArray(data.dimensions) ? data.dimensions : []);
         if (Array.isArray(data.gallery) && data.gallery.length > 0) setGallerySlides(data.gallery);
-        setCatalogLoaded(true);
-      } catch {
-        // Offline / API failure: keep the page usable with the built-in catalog
-        if (active && !catalogLoaded) {
-          setPrintTypes(PRINT_TYPES);
-          setDimensions(PRINT_DIMENSIONS);
-        }
-      }
+      } catch { /* Offline / API failure: keep the built-in gallery available. */ }
     })();
     return () => {
       active = false;
     };
   }, []);
-
-  const minPrice = useMemo(() => {
-    const prices = printTypes
-      .map((type) => Number(type.basePrice) || 0)
-      .filter((price) => price > 0);
-    return prices.length > 0 ? Math.min(...prices) : 0;
-  }, [printTypes]);
 
   const handleNavClick = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     setMobileMenuOpen(false);
@@ -780,65 +751,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ================= SIZES ================= */}
-      <section id="sizes" className="relative py-16 sm:py-24 bg-white border-y border-slate-200 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 tab:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
-                <Ruler className="w-3.5 h-3.5" />
-                سایزهای چاپ
-              </span>
-              <h2 className="mt-3 text-2xl sm:text-3xl tab:text-4xl font-black leading-snug">
-                از کارت‌پستالی تا تابلو دیواری
-              </h2>
-              <p className="mt-2.5 text-sm sm:text-base text-slate-600 leading-8">
-                سایزهای پرکاربرد آماده چاپ هستند و هزینه نهایی بر اساس نوع چاپ، سایز و متریال
-                انتخابی در پیش‌فاکتور محاسبه می‌شود.
-              </p>
-            </div>
-            {minPrice > 0 && (
-              <div className="px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 self-start sm:self-auto">
-                <p className="text-[10px] text-slate-500">شروع قیمت خدمات</p>
-                <p className="text-sm font-black text-slate-900 font-mono">{formatPrice(minPrice)}</p>
-              </div>
-            )}
-          </div>
-
-          {dimensions.length === 0 ? (
-            <div className="mt-8 p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-center text-xs text-slate-500">
-              سایزهای چاپ به‌زودی از پنل مدیریت اضافه می‌شوند.
-            </div>
-          ) : (
-          <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 tab:grid-cols-4 gap-3">
-            {dimensions.map((dimension) => (
-              <div
-                key={dimension.id}
-                className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200 hover:bg-white hover:border-sky-200 hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between gap-1.5">
-                  <span className="text-[10px] font-mono font-bold text-sky-700 bg-white border border-sky-200 rounded-md px-1.5 py-0.5">
-                    {toFaDigits(dimension.dimensionsCm)}
-                  </span>
-                  {dimension.popular && (
-                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-0.5">
-                      محبوب
-                    </span>
-                  )}
-                </div>
-                <p className="mt-2 text-[11px] sm:text-xs font-black text-slate-900 leading-6">
-                  {dimension.title}
-                </p>
-                {dimension.aspectRatio && dimension.aspectRatio !== '—' && (
-                  <p className="mt-1 text-[10px] text-slate-500 font-mono">{toFaDigits(dimension.aspectRatio)}</p>
-                )}
-              </div>
-            ))}
-          </div>
-          )}
         </div>
       </section>
 
