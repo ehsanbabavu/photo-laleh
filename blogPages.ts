@@ -9,7 +9,7 @@ export const BLOG_ORIGIN = 'https://www.photo-laleh.ir';
 const date = (value: string | null) => value ? new Date(value).toLocaleDateString('fa-IR', { dateStyle: 'long' }) : '';
 const taxPath = (kind: string, slug: string) => `/blog/${kind}/${encodeURIComponent(slug)}/`;
 const json = (value: any) => JSON.stringify(value).replace(/</g, '\\u003c');
-export async function blogHtml(state: BlogState, options: { post?: BlogPost; posts?: BlogPost[]; title?: string; description?: string; pathname?: string; query?: string; page?: number; preview?: boolean; missing?: boolean }) {
+export async function blogHtml(state: BlogState, options: { post?: BlogPost; posts?: BlogPost[]; title?: string; description?: string; pathname?: string; query?: string; page?: number; preview?: boolean; missing?: boolean; noIndex?: boolean }) {
   const { post, preview, missing } = options;
   const title = post ? post.seoTitle || post.title : options.title || state.settings.title;
   const description = post ? post.seoDescription || post.excerpt : options.description || state.settings.description;
@@ -17,7 +17,7 @@ export async function blogHtml(state: BlogState, options: { post?: BlogPost; pos
   const canonical = `${BLOG_ORIGIN}${pathname}${!post && (options.page || 1) > 1 ? `?page=${options.page}` : ''}`;
   const image = post?.coverImage || state.settings.seoImage || `${BLOG_ORIGIN}/logo.png`;
   const imageUrl = image.startsWith('/') ? `${BLOG_ORIGIN}${image}` : image;
-  const noIndex = preview || missing || post?.noIndex || !!options.query;
+  const noIndex = preview || missing || post?.noIndex || !!options.query || options.noIndex === true;
   let styles = '';
   try { const shell = await fs.readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist/index.html'), 'utf8'); styles = (shell.match(/<link[^>]+rel="stylesheet"[^>]*>/g) || []).join(''); } catch { /* Local development can render before Vite builds. */ }
   const visible = publicBlogPosts(state);
@@ -64,7 +64,7 @@ export async function blogHtml(state: BlogState, options: { post?: BlogPost; pos
 export function blogSitemap(state: BlogState) {
   const posts = publicBlogPosts(state).filter(post => !post.noIndex);
   const urls = [{ path: '/', date: '' }, { path: '/blog/', date: posts.map(post => post.updatedAt).sort().at(-1) || '' }, ...posts.map(post => ({ path: blogPostPath(post.slug), date: post.updatedAt }))];
-  for (const [kind, list] of [['category', state.categories], ['tag', state.tags]] as const) for (const item of list) {
+  for (const [kind, list] of [['category', state.categories]] as const) for (const item of list) {
     const ids = kind === 'category' ? blogCategoryIds(state, item.id) : new Set([item.id]);
     const items = posts.filter(post => (kind === 'category' ? post.categoryIds : post.tagIds).some(id => ids.has(id)));
     if (items.length) urls.push({ path: taxPath(kind, item.slug), date: items.map(post => post.updatedAt).sort().at(-1)! });
