@@ -65,7 +65,7 @@ export function createBlogService(deps: BlogDependencies) {
     const post: BlogPost = {
       id: id || newBlogId(), version: (existing?.version || 0) + 1, viewCount: normalizeBlogViewCount(existing?.viewCount), title, slug, content,
       excerpt: blogText(raw.excerpt || plainBlogText(content), 500), authorName: blogText(raw.authorName || author || state.settings.defaultAuthor, 100),
-      status, coverImage, coverAlt: blogText(raw.coverAlt || title, 300), categoryIds: pickIds(raw.categoryIds, state.categories), tagIds: pickIds(raw.tagIds, state.tags),
+      status, coverImage, coverAlt: blogText(raw.coverAlt || title, 300), imagePrompt: blogText(raw.imagePrompt, 2000), categoryIds: pickIds(raw.categoryIds, state.categories), tagIds: pickIds(raw.tagIds, state.tags),
       featured: raw.featured === true, allowComments: raw.allowComments !== false, seoTitle: blogText(raw.seoTitle, 180), seoDescription: blogText(raw.seoDescription, 320), noIndex: raw.noIndex === true,
       createdAt: existing?.createdAt || now, updatedAt: now, publishedAt: status === 'draft' ? null : date.toISOString(),
       previousSlugs: existing ? [...new Set([...(existing.slug !== slug ? [existing.slug] : []), ...existing.previousSlugs])].filter(old => old !== slug).slice(0, 20) : [], revisions
@@ -135,7 +135,7 @@ export function normalizeBlogSnapshot(raw: any): BlogState {
     const pick = (ids: any, list: { id: string }[]) => Array.isArray(ids) ? [...new Set(ids.filter(value => list.some(item => item.id === value)))] as string[] : [];
     return { id: id(post.id), version: Math.max(1, Number(post.version) || 1), viewCount: normalizeBlogViewCount(post.viewCount), title: blogText(post.title, 180), slug, previousSlugs,
       content: sanitizeBlogContent(post.content || ''), excerpt: blogText(post.excerpt, 500), authorName: blogText(post.authorName, 100), status: post.status,
-      coverImage, coverAlt: blogText(post.coverAlt || post.title, 300), categoryIds: pick(post.categoryIds, state.categories), tagIds: pick(post.tagIds, state.tags),
+      coverImage, coverAlt: blogText(post.coverAlt || post.title, 300), imagePrompt: blogText(post.imagePrompt, 2000), categoryIds: pick(post.categoryIds, state.categories), tagIds: pick(post.tagIds, state.tags),
       featured: post.featured === true, allowComments: post.allowComments !== false, noIndex: post.noIndex === true, seoTitle: blogText(post.seoTitle, 180), seoDescription: blogText(post.seoDescription, 320),
       createdAt: validDate(post.createdAt) ? post.createdAt : now, updatedAt: validDate(post.updatedAt) ? post.updatedAt : now, publishedAt: validDate(post.publishedAt) ? post.publishedAt : null,
       revisions: (Array.isArray(post.revisions) ? post.revisions.slice(0, 10) : []).map((revision: any) => ({ id: newBlogId(), savedAt: validDate(revision.savedAt) ? revision.savedAt : now, title: blogText(revision.title, 180), content: sanitizeBlogContent(revision.content || ''), excerpt: blogText(revision.excerpt, 500) })) };
