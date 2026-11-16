@@ -21,8 +21,19 @@ export async function blogHtml(state: BlogState, options: { post?: BlogPost; pos
   let styles = '';
   try { const shell = await fs.readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist/index.html'), 'utf8'); styles = (shell.match(/<link[^>]+rel="stylesheet"[^>]*>/g) || []).join(''); } catch { /* Local development can render before Vite builds. */ }
   const visible = publicBlogPosts(state);
-  const card = (item: BlogPost) => `<article class="blog-card">${item.coverImage ? `<a href="${blogPostPath(item.slug)}" tabindex="-1"><img src="${e(item.coverImage)}" alt="${e(item.coverAlt)}" loading="lazy"></a>` : '<div class="blog-card-placeholder" aria-hidden="true">لاله</div>'}
-    <div class="blog-card-body"><div class="blog-eyebrow">${item.featured ? 'نوشته برگزیده · ' : ''}${e(date(item.publishedAt))}</div><h2><a href="${blogPostPath(item.slug)}">${e(item.title)}</a></h2><p>${e(item.excerpt)}</p><a class="blog-read" href="${blogPostPath(item.slug)}">خواندن نوشته ←</a></div></article>`;
+  const card = (item: BlogPost) => {
+    const url = blogPostPath(item.slug);
+    const categories = state.categories.filter(taxon => item.categoryIds.includes(taxon.id)).slice(0, 2);
+    return `<article class="blog-card">
+      <a class="blog-card-media" href="${url}" aria-label="خواندن ${e(item.title)}">${item.coverImage ? `<img src="${e(item.coverImage)}" alt="${e(item.coverAlt || item.title)}" loading="lazy">` : '<div class="blog-card-placeholder" aria-hidden="true">لاله</div>'}${item.featured ? '<span class="blog-card-featured">نوشتهٔ برگزیده</span>' : ''}</a>
+      <div class="blog-card-body">
+        <div class="blog-card-meta">${categories.length ? `<span class="blog-card-categories">${categories.map(taxon => `<a href="${taxPath('category', taxon.slug)}">${e(taxon.name)}</a>`).join('')}</span>` : '<span class="blog-card-category">مجله لاله</span>'}<time datetime="${e(item.publishedAt || item.updatedAt)}">${e(date(item.publishedAt || item.updatedAt))}</time></div>
+        <h2><a href="${url}">${e(item.title)}</a></h2>
+        <p>${e(item.excerpt)}</p>
+        <div class="blog-card-actions"><a class="blog-card-read" href="${url}">ادامهٔ مطلب <span aria-hidden="true">←</span></a><button class="blog-card-copy" type="button" data-copy-url="${e(BLOG_ORIGIN + url)}" aria-label="کپی پیوند ${e(item.title)}">کپی پیوند</button><span class="blog-card-copy-status" data-copy-status role="status"></span></div>
+      </div>
+    </article>`;
+  };
   const taxonomyLinks = (kind: 'category' | 'tag') => state[kind === 'category' ? 'categories' : 'tags'].map(taxon => {
     const ids = kind === 'category' ? blogCategoryIds(state, taxon.id) : new Set([taxon.id]);
     const count = visible.filter(item => (kind === 'category' ? item.categoryIds : item.tagIds).some(id => ids.has(id))).length;
