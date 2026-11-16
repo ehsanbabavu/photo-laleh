@@ -159,7 +159,7 @@ export function createBlogRouter(deps: { read: () => Promise<BlogState | null>; 
     const page = Math.max(1, Math.min(Math.ceil(posts.length / state.settings.postsPerPage) || 1, Number.parseInt(req.query.page, 10) || 1));
     const pathname = kind ? `/blog/${kind}/${encodeURIComponent(req.params.slug)}/` : '/blog/';
     if (!req.path.endsWith('/')) return res.redirect(301, `${pathname}${req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : ''}`);
-    res.type('html').send(await blogHtml(state, { posts, title: query ? `نتایج جست‌وجوی «${query}»` : title, description, pathname, query, page }));
+    res.type('html').send(await blogHtml(state, { posts, title: query ? `نتایج جست‌وجوی «${query}»` : title, description, pathname, query, page, noIndex: kind === 'tag' }));
   });
   router.get('/blog', list()); router.get('/blog/', list());
   router.get('/blog/category/:slug', list('category')); router.get('/blog/tag/:slug', list('tag'));
